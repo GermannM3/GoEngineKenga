@@ -38,8 +38,8 @@
 
 1. **Клонируйте репозиторий:**
    ```bash
-   git clone https://github.com/yourorg/goenginekenga.git
-   cd goenginekenga
+   git clone https://github.com/GermannM3/GoEngineKenga.git
+   cd GoEngineKenga
    ```
 
 2. **Установите зависимости:**
@@ -62,7 +62,7 @@
 ## 📁 Структура проекта
 
 ```
-goenginekenga/
+GoEngineKenga/
 ├── cmd/                    # Исполняемые файлы
 │   ├── kenga/             # CLI инструмент
 │   └── kenga-editor/      # Редактор
@@ -235,7 +235,4 @@ MIT License - свободное использование для любых ц
 
 ---
 
-**GoEngineKenga** - следующий шаг в эволюции игровых движков! 🚀🎮
-
-# GoEngineKenga
-# GoEngineKenga
+**GoEngineKenga** — [https://github.com/GermannM3/GoEngineKenga](https://github.com/GermannM3/GoEngineKenga) 🚀🎮

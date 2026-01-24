@@ -1,0 +1,13 @@
+{
+  "assets": [
+    {
+      "id": "9c6f2adc-55d6-48fd-8113-cce47423e305",
+      "type": "gltf",
+      "sourcePath": "assets/triangle.gltf",
+      "derived": [
+        ".kenga/derived/9c6f2adc-55d6-48fd-8113-cce47423e305_0.mesh.json"
+      ],
+      "importedAt": "2026-01-24T16:28:33.9593836+03:00"
+    }
+  ]
+}

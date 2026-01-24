@@ -1,0 +1,192 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version'
+        required: true
+        default: '1.0.0'
+
+env:
+  GO_VERSION: '1.22'
+
+jobs:
+  build:
+    name: Build Release
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+          - os: windows-latest
+            goos: windows
+            goarch: '386'
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: '386'
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+          - os: macos-14
+            goos: darwin
+            goarch: arm64
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Run tests
+      run: go test ./...
+
+    - name: Build kenga-editor
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 0
+      run: |
+        VERSION=${{ github.event.inputs.version || github.ref_name }}
+        LDFLAGS="-X main.version=${VERSION} -X main.buildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        go build -ldflags "$LDFLAGS" -o kenga-editor-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/kenga-editor
+
+    - name: Build kenga CLI
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 0
+      run: |
+        VERSION=${{ github.event.inputs.version || github.ref_name }}
+        LDFLAGS="-X main.version=${VERSION} -X main.buildTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        go build -ldflags "$LDFLAGS" -o kenga-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/kenga
+
+    - name: Create archive (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        VERSION=${{ github.event.inputs.version || github.ref_name }}
+        7z a -tzip GoEngineKenga-${VERSION}-${{ matrix.goos }}-${{ matrix.goarch }}.zip kenga-editor-${{ matrix.goos }}-${{ matrix.goarch }}.exe kenga-${{ matrix.goos }}-${{ matrix.goarch }}.exe README.md
+
+    - name: Create archive (Unix)
+      if: matrix.os != 'windows-latest'
+      run: |
+        VERSION=${{ github.event.inputs.version || github.ref_name }}
+        tar -czf GoEngineKenga-${VERSION}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz kenga-editor-${{ matrix.goos }}-${{ matrix.goarch }} kenga-${{ matrix.goos }}-${{ matrix.goarch }} README.md
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: GoEngineKenga-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: |
+          GoEngineKenga-*-${{ matrix.goos }}-${{ matrix.goarch }}.*
+
+  create-installer:
+    name: Create Installers
+    runs-on: windows-latest
+    needs: build
+
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+
+    - name: Set up WiX Toolset
+      run: |
+        choco install wixtoolset
+
+    - name: Create MSI installer
+      run: |
+        VERSION=${{ github.event.inputs.version || github.ref_name }}
+        # Copy files to installer directory
+        mkdir installer
+        copy "GoEngineKenga-windows-amd64/kenga-editor-windows-amd64.exe" installer/
+        copy "GoEngineKenga-windows-amd64/kenga-windows-amd64.exe" installer/
+
+        # Create WiX source
+        @"
+        <?xml version="1.0" encoding="UTF-8"?>
+        <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+          <Product Id="*" Name="GoEngineKenga" Language="1033" Version="${VERSION}" Manufacturer="GoEngineKenga Team" UpgradeCode="12345678-1234-1234-1234-123456789012">
+            <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
+
+            <MajorUpgrade DowngradeErrorMessage="A newer version of GoEngineKenga is already installed." />
+            <MediaTemplate />
+
+            <Feature Id="ProductFeature" Title="GoEngineKenga" Level="1">
+              <ComponentGroupRef Id="ProductComponents" />
+            </Feature>
+          </Product>
+
+          <Fragment>
+            <Directory Id="TARGETDIR" Name="SourceDir">
+              <Directory Id="ProgramFilesFolder">
+                <Directory Id="INSTALLFOLDER" Name="GoEngineKenga" />
+              </Directory>
+            </Directory>
+          </Fragment>
+
+          <Fragment>
+            <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+              <Component Id="MainExecutable" Guid="12345678-1234-1234-1234-123456789013">
+                <File Id="KengaEditorExe" Source="installer/kenga-editor-windows-amd64.exe" KeyPath="yes" />
+              </Component>
+              <Component Id="CliExecutable" Guid="12345678-1234-1234-1234-123456789014">
+                <File Id="KengaCliExe" Source="installer/kenga-windows-amd64.exe" />
+              </Component>
+            </ComponentGroup>
+          </Fragment>
+        </Wix>
+        "@ | Out-File -FilePath installer.wxs -Encoding UTF8
+
+        # Build MSI
+        & "C:\Program Files (x86)\WiX Toolset v3.11\bin\candle.exe" installer.wxs
+        & "C:\Program Files (x86)\WiX Toolset v3.11\bin\light.exe" installer.wixobj -o GoEngineKenga-${VERSION}.msi
+
+    - name: Upload MSI installer
+      uses: actions/upload-artifact@v3
+      with:
+        name: GoEngineKenga-Installer
+        path: GoEngineKenga-*.msi
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build, create-installer]
+    if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          GoEngineKenga-*/GoEngineKenga-*.zip
+          GoEngineKenga-*/GoEngineKenga-*.tar.gz
+          GoEngineKenga-Installer/GoEngineKenga-*.msi
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
