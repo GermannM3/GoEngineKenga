@@ -1,6 +1,6 @@
 # GoEngineKenga
 
-Полностью автономный игровой движок на Go. Не требует платных сервисов или внешних зависимостей (кроме стандартных Go-библиотек).
+Полнофункциональный игровой движок на Go. Полностью автономный — не требует платных сервисов или внешних зависимостей.
 
 ## Возможности
 
@@ -8,15 +8,69 @@
 - **ECS**: Entity-Component-System архитектура
 - **Компоненты**: Transform, Camera, MeshRenderer, Rigidbody, Collider, Light, AudioSource, UICanvas
 - **Сцены и префабы**: JSON формат
-- **Физика**: гравитация, столкновения объект-объект (AABB, Sphere), импульсы
-- **Ввод**: клавиатура, мышь (IsKeyPressed, IsMouseButtonPressed, etc.)
-- **Аудио**: WAV/MP3/OGG, 3D spatial audio
+- **Физика**: гравитация, столкновения объект-объект (AABB, Sphere, Box-Sphere), импульсы
+- **Ввод**: клавиатура, мышь (IsKeyPressed, IsMouseButtonPressed, delta, scroll)
+- **Аудио**: WAV/MP3/OGG, 3D spatial audio, FFT анализ
 - **UI**: Button, Label, Panel с автоматическим hover/click
 
-### Графика
-- **Ebiten**: 2D рендер, wireframe glTF, splash screen с логотипом
-- **glTF 2.0**: импорт моделей → меши и материалы
-- **WebGPU**: заглушка для будущего 3D
+### 3D Графика
+- **Software 3D рендер**: растеризация с Z-буфером
+- **Текстуры**: поддержка текстурированных моделей
+- **Освещение**: Ambient, Directional, Point lights
+- **Камера**: перспектива, LookAt, FOV
+- **Меши**: куб, сфера, плоскость, цилиндр + импорт glTF
+
+### Система частиц
+- **Эмиттеры**: rate, burst, направление, разброс
+- **Физика частиц**: гравитация, drag, скорость
+- **Lifetime**: размер/цвет по времени жизни
+- **Пресеты**: огонь, дым, взрыв, брызги воды, искры
+
+### Анимация
+- **Скелетная**: кости, IK, skinning
+- **Keyframe**: позиция, поворот, масштаб
+- **Клипы**: loop, speed, crossfade
+- **Sprite**: покадровая анимация для 2D
+
+### Процедурная генерация
+- **Noise**: Perlin 2D, FBM, Turbulence
+- **Heightmap**: генерация ландшафта
+- **Dungeon**: BSP-алгоритм, комнаты, коридоры
+- **World Map**: острова, архипелаги, биомы
+
+### AI для NPC
+- **Pathfinding**: A* на NavGrid
+- **Behavior Trees**: Sequence, Selector, Action, Condition
+- **State Machine**: состояния, переходы
+- **Пресеты**: патруль, преследование
+
+### Физика воды
+- **Wave simulation**: динамическая поверхность воды
+- **Gerstner waves**: реалистичные океанские волны
+- **Buoyancy**: плавучесть объектов
+- **Ship physics**: физика корабля с парусом и рулём
+
+### Шейдеры и эффекты
+- **Software shaders**: vertex + fragment
+- **Toon**: cel-shading с настройкой уровней
+- **Psychedelic**: спиральные RGB-эффекты
+- **Glitch**: цифровые артефакты
+- **Fog**: distance fog
+- **Post-process**: vignette, chromatic aberration, outline
+
+### Аудио-реактивность
+- **FFT анализ**: spectrum, bands (bass/mid/high)
+- **Beat detection**: автоматическое определение ритма
+- **Visualizers**: waveform, spectrum bars, circular
+
+### Деформация пространства
+- **Wave**: волновая деформация
+- **Twist**: скручивание вокруг оси
+- **Bend**: изгиб
+- **Pulse**: пульсация
+- **Noise**: шумовая деформация
+- **Sphere attract**: притяжение к сфере
+- **Melt**: эффект плавления
 
 ### Разработка
 - **CLI**: `kenga new`, `kenga run`, `kenga import`, `kenga script build`
@@ -70,6 +124,103 @@ mygame/
 └── scripts/
     └── game/
         └── main.go         # WASM скрипты
+```
+
+## Примеры использования
+
+### Частицы (огонь)
+
+```go
+import "goenginekenga/engine/particles"
+
+// Создать систему частиц
+ps := particles.NewSystem(1000)
+
+// Добавить эмиттер огня
+fire := particles.NewFireEmitter(position)
+ps.AddEmitter(fire)
+
+// Обновлять каждый кадр
+ps.Update(deltaTime)
+```
+
+### AI патруль
+
+```go
+import "goenginekenga/engine/ai"
+
+// Создать агента
+agent := ai.NewAgent(startPos, speed)
+agent.NavGrid = navGrid
+
+// Создать поведение патруля
+patrol := ai.CreatePatrolBehavior(waypoints)
+
+// Обновлять
+patrol.Execute(agent)
+agent.Update(dt)
+```
+
+### Процедурный dungeon
+
+```go
+import "goenginekenga/engine/procgen"
+
+dungeon := procgen.NewDungeon(100, 100)
+dungeon.GenerateBSP(seed, minRoomSize, maxRoomSize)
+
+// Получить тайлы
+for y := 0; y < dungeon.Height; y++ {
+    for x := 0; x < dungeon.Width; x++ {
+        tile := dungeon.Get(x, y)
+        // TileWall, TileFloor, TileDoor, etc.
+    }
+}
+```
+
+### Океанские волны
+
+```go
+import "goenginekenga/engine/physics"
+
+ocean := physics.NewOceanWaves()
+ocean.AddWave(direction, wavelength, amplitude, steepness, speed)
+
+// Получить высоту волны
+height := ocean.GetHeightAt(x, z)
+normal := ocean.GetNormalAt(x, z)
+
+// Обновлять
+ocean.Update(dt)
+```
+
+### Аудио-реактивность
+
+```go
+import "goenginekenga/engine/audio"
+
+analyzer := audio.NewAudioAnalyzer(44100, 2048)
+analyzer.PushSamples(audioSamples)
+analyzer.Analyze()
+
+// Получить данные
+bass := analyzer.Bass
+isBeat := analyzer.BeatDetected
+spectrum := analyzer.GetSpectrumNormalized()
+```
+
+### Деформация меша
+
+```go
+import "goenginekenga/engine/render"
+
+deformer := render.NewSpaceDeformer()
+deformer.AddDeformation(render.WaveDeform(0.5, 2, 1))
+deformer.AddDeformation(render.TwistDeform(0.3))
+
+// Применить к мешу
+deformer.DeformMesh(sourceMesh, deformedMesh)
+deformer.Update(dt)
 ```
 
 ## Пример сцены (JSON)
@@ -158,9 +309,14 @@ go run ./cmd/kenga script build --project .
 ```
 engine/
 ├── ecs/        # Entity-Component-System
-├── render/     # Графика (Ebiten, WebGPU)
-├── physics/    # Физика и коллизии
-├── audio/      # Аудиосистема
+├── render/     # Графика (3D рендер, камера, меши)
+├── physics/    # Физика, коллизии, вода
+├── audio/      # Аудио, FFT анализ
+├── particles/  # Система частиц
+├── animation/  # Анимация (skeletal, sprite)
+├── procgen/    # Процедурная генерация
+├── ai/         # AI, pathfinding, behavior trees
+├── shader/     # Программируемые шейдеры
 ├── ui/         # UI элементы
 ├── input/      # Ввод (клавиатура, мышь)
 ├── scene/      # Загрузка сцен
@@ -169,12 +325,28 @@ engine/
 └── cli/        # CLI инструменты
 ```
 
+## Готовность к созданию игр
+
+| Функция | Статус |
+|---------|--------|
+| 3D рендер с текстурами | ✅ |
+| Освещение | ✅ |
+| Физика воды | ✅ |
+| Система частиц | ✅ |
+| Анимация моделей | ✅ |
+| Динамическая карта | ✅ |
+| AI для NPC | ✅ |
+| Пользовательские шейдеры | ✅ |
+| Деформация пространства | ✅ |
+| Процедурная генерация | ✅ |
+| Аудио-реактивные эффекты | ✅ |
+
 ## Без платных зависимостей
 
 Движок полностью автономный:
 - **Ebiten** — бесплатный, MIT лицензия
 - **glTF** — открытый формат моделей
-- **Все остальное** — написано с нуля
+- **Всё остальное** — написано с нуля
 
 Никаких облачных сервисов, подписок или скрытых платежей.
 
