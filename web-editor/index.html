@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GoEngineKenga Editor - Surpassing Unity & Unreal</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #1a1a1a;
+      color: #ffffff;
+      overflow: hidden;
+    }
+
+    .editor-layout {
+      display: flex;
+      height: 100vh;
+    }
+
+    .sidebar {
+      width: 300px;
+      background: #2a2a2a;
+      border-right: 1px solid #444;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .toolbar {
+      height: 40px;
+      background: #333;
+      border-bottom: 1px solid #444;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 16px;
+    }
+
+    .viewport-container {
+      flex: 1;
+      position: relative;
+    }
+
+    .viewport {
+      width: 100%;
+      height: 100%;
+      background: #000;
+    }
+
+    .status-bar {
+      height: 24px;
+      background: #333;
+      border-top: 1px solid #444;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      font-size: 12px;
+      color: #aaa;
+    }
+
+    .panel-tabs {
+      display: flex;
+      background: #222;
+      border-bottom: 1px solid #444;
+    }
+
+    .panel-tab {
+      padding: 8px 16px;
+      background: transparent;
+      border: none;
+      color: #aaa;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+    }
+
+    .panel-tab.active {
+      color: #fff;
+      border-bottom-color: #007acc;
+    }
+
+    .panel-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    .hierarchy-item {
+      padding: 4px 8px;
+      margin: 1px 0;
+      border-radius: 3px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .hierarchy-item:hover {
+      background: #3a3a3a;
+    }
+
+    .hierarchy-item.selected {
+      background: #007acc;
+    }
+
+    .inspector-property {
+      margin-bottom: 12px;
+    }
+
+    .property-label {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 12px;
+      color: #ccc;
+      text-transform: uppercase;
+    }
+
+    .property-input {
+      width: 100%;
+      padding: 6px 8px;
+      background: #444;
+      border: 1px solid #555;
+      border-radius: 3px;
+      color: #fff;
+      font-size: 13px;
+    }
+
+    .property-input:focus {
+      outline: none;
+      border-color: #007acc;
+    }
+
+    .vec3-input {
+      display: flex;
+      gap: 4px;
+    }
+
+    .vec3-input input {
+      flex: 1;
+    }
+
+    .btn {
+      padding: 6px 12px;
+      background: #007acc;
+      border: none;
+      border-radius: 3px;
+      color: white;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .btn:hover {
+      background: #0056b3;
+    }
+
+    .btn.secondary {
+      background: #555;
+    }
+
+    .btn.secondary:hover {
+      background: #666;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

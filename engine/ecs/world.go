@@ -22,12 +22,12 @@ type Camera struct {
 }
 
 type MeshRenderer struct {
-	MeshAssetID     string     `json:"meshAssetId"`     // UUID as string
-	MaterialAssetID string     `json:"materialAssetId"` // UUID as string
-	ColorR          uint8      `json:"colorR"`
-	ColorG          uint8      `json:"colorG"`
-	ColorB          uint8      `json:"colorB"`
-	ColorA          uint8      `json:"colorA"`
+	MeshAssetID     string `json:"meshAssetId"`     // UUID as string
+	MaterialAssetID string `json:"materialAssetId"` // UUID as string
+	ColorR          uint8  `json:"colorR"`
+	ColorG          uint8  `json:"colorG"`
+	ColorB          uint8  `json:"colorB"`
+	ColorA          uint8  `json:"colorA"`
 }
 
 type Light struct {

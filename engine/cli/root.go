@@ -13,6 +13,7 @@ func NewRootCommand() *cobra.Command {
 		newImportCommand(),
 		newScriptCommand(),
 		newNewCommand(),
+		newEditorCommand(),
 	)
 
 	return cmd
