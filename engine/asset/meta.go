@@ -17,6 +17,7 @@ const (
 	TypeMaterial Type = "material"
 	TypeTexture  Type = "texture"
 	TypeWASM     Type = "wasm"
+	TypeAudio    Type = "audio"
 )
 
 type Meta struct {
@@ -69,4 +70,3 @@ func SaveMeta(sourcePath string, m *Meta) error {
 	}
 	return os.WriteFile(metaPathForSource(sourcePath), b, 0o644)
 }
-

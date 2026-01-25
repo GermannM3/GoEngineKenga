@@ -21,4 +21,3 @@ func (b *Backend) RunLoop(initial *render.Frame) error {
 	_ = initial
 	return fmt.Errorf("webgpu backend disabled (build with -tags webgpu)")
 }
-

@@ -76,12 +76,12 @@ func ImportFile(path string) (*ImportResult, error) {
 		}
 
 		material := render.Material{
-			Name:        mat.Name,
-			Metallic:    0.0,
-			Roughness:   0.5,
-			AlphaMode:   "OPAQUE",
-			AlphaCutoff: 0.5,
-			NormalScale: 1.0,
+			Name:             mat.Name,
+			Metallic:         0.0,
+			Roughness:        0.5,
+			AlphaMode:        "OPAQUE",
+			AlphaCutoff:      0.5,
+			NormalScale:      1.0,
 			EmissiveStrength: 1.0,
 		}
 
@@ -448,4 +448,3 @@ func loadTextureFromFile(path string) (*Texture, error) {
 		Format: "RGBA8",
 	}, nil
 }
-

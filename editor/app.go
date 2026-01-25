@@ -249,8 +249,8 @@ type editorState struct {
 	sc *sceneContainer
 	rt *runtime.Runtime
 
-	assets            []asset.Record
-	selectedAssetIndex int
+	assets              []asset.Record
+	selectedAssetIndex  int
 	selectedEntityIndex int
 
 	log func(string, ...any)
@@ -273,12 +273,12 @@ func newEditor() *editorState {
 	}
 
 	ed := &editorState{
-		projectDir: pdir,
-		project:    p,
-		scenePathAbs: sceneAbs,
-		sc:         &sceneContainer{Scene: s},
-		rt:         runtime.NewFromScene(s),
-		selectedAssetIndex: -1,
+		projectDir:          pdir,
+		project:             p,
+		scenePathAbs:        sceneAbs,
+		sc:                  &sceneContainer{Scene: s},
+		rt:                  runtime.NewFromScene(s),
+		selectedAssetIndex:  -1,
 		selectedEntityIndex: -1,
 	}
 	_ = ed.importAssets() // best-effort
@@ -388,4 +388,3 @@ func parseFloat32(s string) float32 {
 	}
 	return float32(f)
 }
-

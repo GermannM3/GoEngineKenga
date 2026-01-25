@@ -9,4 +9,3 @@ type Mesh struct {
 	UV0       []float32 `json:"uv0,omitempty"` // uv uv ...
 	Indices   []uint32  `json:"indices"`       // triangle list
 }
-

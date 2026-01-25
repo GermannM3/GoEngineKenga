@@ -12,7 +12,7 @@ import (
 )
 
 type camera struct {
-	pos emath.Vec3
+	pos  emath.Vec3
 	fovY float64
 	near float64
 	far  float64
@@ -83,8 +83,8 @@ func drawWireframe(screen *ebiten.Image, w *ecs.World, resolver *asset.Resolver,
 			if base+1 >= len(mesh.Positions) {
 				return 0, 0, false
 			}
-			x := float64(mesh.Positions[base] * tr.Scale.X + tr.Position.X)
-			y := float64(mesh.Positions[base+1] * tr.Scale.Y + tr.Position.Y)
+			x := float64(mesh.Positions[base]*tr.Scale.X + tr.Position.X)
+			y := float64(mesh.Positions[base+1]*tr.Scale.Y + tr.Position.Y)
 
 			// Преобразуем в экранные координаты (центр экрана = 0,0)
 			sx := (x * 50) + float64(sw)/2  // Масштаб 50 пикселей на единицу
@@ -112,4 +112,3 @@ func drawWireframe(screen *ebiten.Image, w *ecs.World, resolver *asset.Resolver,
 		}
 	}
 }
-

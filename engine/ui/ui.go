@@ -42,10 +42,10 @@ type Button struct {
 
 	OnClick func()
 
-	color       color.RGBA
-	hoverColor  color.RGBA
-	isHovered   bool
-	isPressed   bool
+	color      color.RGBA
+	hoverColor color.RGBA
+	isHovered  bool
+	isPressed  bool
 }
 
 func NewButton(text string, position, size emath.Vec2) *Button {
@@ -80,10 +80,10 @@ func (b *Button) Render(canvas *Canvas) {
 }
 
 func (b *Button) SetPosition(pos emath.Vec2) { b.Position = pos }
-func (b *Button) GetPosition() emath.Vec2     { return b.Position }
+func (b *Button) GetPosition() emath.Vec2    { return b.Position }
 func (b *Button) SetSize(size emath.Vec2)    { b.Size = size }
 func (b *Button) GetSize() emath.Vec2        { return b.Size }
-func (b *Button) SetVisible(visible bool)   { b.Visible = visible }
+func (b *Button) SetVisible(visible bool)    { b.Visible = visible }
 func (b *Button) IsVisible() bool            { return b.Visible }
 
 // Label представляет текстовую метку
@@ -122,10 +122,10 @@ func (l *Label) Render(canvas *Canvas) {
 }
 
 func (l *Label) SetPosition(pos emath.Vec2) { l.Position = pos }
-func (l *Label) GetPosition() emath.Vec2     { return l.Position }
+func (l *Label) GetPosition() emath.Vec2    { return l.Position }
 func (l *Label) SetSize(size emath.Vec2)    { l.Size = size }
 func (l *Label) GetSize() emath.Vec2        { return l.Size }
-func (l *Label) SetVisible(visible bool)   { l.Visible = visible }
+func (l *Label) SetVisible(visible bool)    { l.Visible = visible }
 func (l *Label) IsVisible() bool            { return l.Visible }
 
 // Panel представляет контейнер для других элементов
@@ -177,10 +177,10 @@ func (p *Panel) Render(canvas *Canvas) {
 }
 
 func (p *Panel) SetPosition(pos emath.Vec2) { p.Position = pos }
-func (p *Panel) GetPosition() emath.Vec2     { return p.Position }
+func (p *Panel) GetPosition() emath.Vec2    { return p.Position }
 func (p *Panel) SetSize(size emath.Vec2)    { p.Size = size }
 func (p *Panel) GetSize() emath.Vec2        { return p.Size }
-func (p *Panel) SetVisible(visible bool)   { p.Visible = visible }
+func (p *Panel) SetVisible(visible bool)    { p.Visible = visible }
 func (p *Panel) IsVisible() bool            { return p.Visible }
 
 // UIManager управляет UI системой
@@ -231,7 +231,7 @@ func (ui *UIManager) HandleInput(mouseX, mouseY float32, mousePressed bool) {
 		if button, ok := element.(*Button); ok {
 			// Проверка попадания курсора в кнопку
 			if mouseX >= button.Position.X && mouseX <= button.Position.X+button.Size.X &&
-			   mouseY >= button.Position.Y && mouseY <= button.Position.Y+button.Size.Y {
+				mouseY >= button.Position.Y && mouseY <= button.Position.Y+button.Size.Y {
 				button.isHovered = true
 
 				if mousePressed && button.OnClick != nil {

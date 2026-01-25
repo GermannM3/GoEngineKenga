@@ -46,4 +46,3 @@ func newScriptBuildCommand() *cobra.Command {
 	cmd.Flags().StringVar(&outFile, "out", "", "Output WASM file (relative to project)")
 	return cmd
 }
-

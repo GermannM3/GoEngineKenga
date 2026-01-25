@@ -180,4 +180,3 @@ func (s *state) Destroy() {
 		s.instance = nil
 	}
 }
-

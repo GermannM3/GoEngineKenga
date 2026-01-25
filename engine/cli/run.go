@@ -95,4 +95,3 @@ func newRunCommand() *cobra.Command {
 
 	return cmd
 }
-

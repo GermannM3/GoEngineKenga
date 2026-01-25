@@ -12,8 +12,8 @@ import (
 
 // Prefab представляет переиспользуемый шаблон объекта
 type Prefab struct {
-	ID       string        `json:"id"`
-	Name     string        `json:"name"`
+	ID       string         `json:"id"`
+	Name     string         `json:"name"`
 	Entities []PrefabEntity `json:"entities"`
 }
 

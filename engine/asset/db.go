@@ -191,4 +191,3 @@ func writeJSONFile(path string, v any) error {
 	}
 	return os.WriteFile(path, b, 0o644)
 }
-

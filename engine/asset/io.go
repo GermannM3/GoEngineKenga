@@ -45,3 +45,35 @@ func LoadMaterial(path string) (*render.Material, error) {
 	return &m, nil
 }
 
+// AudioClipAsset represents an audio clip with metadata
+type AudioClipAsset struct {
+	Name   string `json:"name"`
+	Format string `json:"format"` // wav, mp3, ogg
+	Data   []byte `json:"data"`
+}
+
+// LoadAudioClip loads an audio file from path
+func LoadAudioClip(path string) (*AudioClipAsset, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// Determine format from extension
+	ext := filepath.Ext(path)
+	format := "wav"
+	switch ext {
+	case ".mp3":
+		format = "mp3"
+	case ".ogg":
+		format = "ogg"
+	case ".wav":
+		format = "wav"
+	}
+
+	return &AudioClipAsset{
+		Name:   filepath.Base(path),
+		Format: format,
+		Data:   data,
+	}, nil
+}

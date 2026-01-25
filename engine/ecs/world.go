@@ -27,9 +27,9 @@ type MeshRenderer struct {
 }
 
 type Light struct {
-	Kind      string      `json:"kind"` // directional/point (v0)
-	ColorRGB  emath.Vec3  `json:"colorRGB"`
-	Intensity float32     `json:"intensity"`
+	Kind      string     `json:"kind"` // directional/point (v0)
+	ColorRGB  emath.Vec3 `json:"colorRGB"`
+	Intensity float32    `json:"intensity"`
 }
 
 // Rigidbody и Collider определены в пакете physics
@@ -37,14 +37,14 @@ type Rigidbody = physics.Rigidbody
 type Collider = physics.Collider
 
 type AudioSource struct {
-	Clip        string      `json:"clip"`        // asset ID аудиоклипа
-	Volume      float32     `json:"volume"`      // 0.0 - 1.0
-	Pitch       float32     `json:"pitch"`       // 1.0 = normal speed
-	Loop        bool        `json:"loop"`
-	PlayOnStart bool        `json:"playOnStart"`
-	Spatial     bool        `json:"spatial"`     // 3D sound
-	MinDistance float32     `json:"minDistance"` // для 3D звука
-	MaxDistance float32     `json:"maxDistance"` // для 3D звука
+	Clip        string  `json:"clip"`   // asset ID аудиоклипа
+	Volume      float32 `json:"volume"` // 0.0 - 1.0
+	Pitch       float32 `json:"pitch"`  // 1.0 = normal speed
+	Loop        bool    `json:"loop"`
+	PlayOnStart bool    `json:"playOnStart"`
+	Spatial     bool    `json:"spatial"`     // 3D sound
+	MinDistance float32 `json:"minDistance"` // для 3D звука
+	MaxDistance float32 `json:"maxDistance"` // для 3D звука
 }
 
 type UICanvas struct {
@@ -262,4 +262,3 @@ func (w *World) Clone() *World {
 	}
 	return nw
 }
-

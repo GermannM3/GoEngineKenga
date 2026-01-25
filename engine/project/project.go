@@ -30,4 +30,3 @@ func Load(dir string) (*Project, error) {
 	}
 	return &p, nil
 }
-

@@ -1,52 +1,42 @@
 # Как создать игру на GoEngineKenga
 
-Как по ссылке на репо начать, что уже работает, чего нет, что можно автоматизировать.
+## 1. Создание проекта
 
-## 1. Как по ссылке создать игру
+### Способ 1: Команда `kenga new`
 
-Ссылка: https://github.com/GermannM3/GoEngineKenga
+```bash
+git clone https://github.com/GermannM3/GoEngineKenga.git
+cd GoEngineKenga
+go mod tidy
 
-### Шаги
+# Создать проект с шаблоном
+go run ./cmd/kenga new mygame --template platformer
+cd mygame
 
-1. Клонировать и подготовить окружение
-   ```bash
-   git clone https://github.com/GermannM3/GoEngineKenga.git
-   cd GoEngineKenga
-   go mod tidy
-   ```
+# Запустить
+go run ../cmd/kenga run --project . --scene scenes/main.scene.json --backend ebiten
+```
 
-2. Использовать `samples/hello` или скопировать его структуру в свою папку (`mygame/` и т.п.).
+Доступные шаблоны:
+- `default` — пустой проект с кубом
+- `platformer` — игрок с гравитацией и платформой
+- `topdown` — игрок без гравитации (вид сверху)
 
-3. Импортировать ассеты (glTF, текстуры из `assets/`)
-   ```bash
-   go run ./cmd/kenga import --project samples/hello
-   ```
-   Свой проект: заменить `samples/hello` на путь к папке с `project.kenga.json`.
+### Способ 2: Вручную
 
-4. Запустить сцену
-   ```bash
-   go run ./cmd/kenga run --project samples/hello --scene scenes/main.scene.json --backend ebiten
-   ```
-
-5. Редактор (по желанию): `go run ./cmd/kenga-editor`. По умолчанию открывает `samples/hello`. Hierarchy, Inspector, Content, Play/Stop, Save, импорт.
-
-6. WASM (по желанию): [TinyGo](https://tinygo.org/), логика в `scripts/game/main.go`. Сборка: `go run ./cmd/kenga script build --project samples/hello`. При `kenga run` подхватывается `game.wasm` из `.kenga/scripts/`.
-
-### Минимальная структура своего проекта
-
+Структура проекта:
 ```
 mygame/
-├── project.kenga.json     # имя, сцены, assetsDir, derivedDir
-├── assets/                # glTF, текстуры и т.д.
+├── project.kenga.json
 ├── scenes/
-│   └── main.scene.json    # первая сцена
+│   └── main.scene.json
+├── assets/
 └── scripts/
     └── game/
-        └── main.go        # опционально, для WASM
+        └── main.go
 ```
 
-Пример `project.kenga.json`:
-
+`project.kenga.json`:
 ```json
 {
   "name": "mygame",
@@ -56,40 +46,147 @@ mygame/
 }
 ```
 
-Сцены — JSON с сущностями (Transform, Camera, MeshRenderer, Rigidbody, Collider и т.д.). Примеры в `samples/hello/scenes/`.
+## 2. Что работает
 
-## 2. Полноценная игра сейчас?
+| Функция | Статус | Описание |
+|---------|--------|----------|
+| ECS | ✅ | Сущности и компоненты |
+| Сцены JSON | ✅ | Загрузка и сохранение |
+| Transform | ✅ | Позиция, поворот, масштаб |
+| Camera | ✅ | Камера с FOV |
+| MeshRenderer | ✅ | Wireframe glTF |
+| Rigidbody | ✅ | Масса, гравитация, скорость |
+| Collider | ✅ | Box, Sphere — коллизии объект-объект |
+| Физика | ✅ | Гравитация, импульсы, отскок |
+| Ввод | ✅ | Клавиатура, мышь, скролл |
+| Аудио | ✅ | WAV/MP3/OGG, 3D spatial |
+| UI | ✅ | Button, Label, Panel |
+| WASM | ✅ | TinyGo скрипты |
+| Asset Import | ✅ | glTF → меши |
+| Редактор | ⚠️ | Требует CGO/Fyne |
+| 3D рендер | ❌ | Только wireframe |
+| WebGPU | ❌ | Заглушка |
 
-Нет. Движок в стадии раннего прототипа. Работает:
+## 3. Пример сцены с физикой
 
-- ECS, сцены (JSON), рендер Ebiten (wireframe glTF или тестовый треугольник)
-- Физика: гравитация, отскок от пола (y=0). Коллизии только с полом.
-- Импорт glTF, редактор (Hierarchy, Inspector, Content, Play/Stop, Save), WASM (TinyGo → `game.wasm`)
+```json
+{
+  "name": "Physics Demo",
+  "entities": [
+    {
+      "name": "Camera",
+      "components": {
+        "transform": {
+          "position": {"x": 0, "y": 5, "z": 10}
+        },
+        "camera": {
+          "fovYDegrees": 60,
+          "near": 0.1,
+          "far": 1000
+        }
+      }
+    },
+    {
+      "name": "Ball",
+      "components": {
+        "transform": {
+          "position": {"x": 0, "y": 5, "z": 0},
+          "scale": {"x": 1, "y": 1, "z": 1}
+        },
+        "rigidbody": {
+          "mass": 1.0,
+          "useGravity": true
+        },
+        "collider": {
+          "type": "sphere",
+          "radius": 0.5
+        }
+      }
+    },
+    {
+      "name": "Ground",
+      "components": {
+        "transform": {
+          "position": {"x": 0, "y": 0, "z": 0},
+          "scale": {"x": 10, "y": 0.5, "z": 10}
+        },
+        "collider": {
+          "type": "box",
+          "size": {"x": 10, "y": 0.5, "z": 10}
+        }
+      }
+    }
+  ]
+}
+```
 
-Нет: нормального 3D, коллизий объект–объект, ввода, аудио, UI, префабов в игре. WebGPU — заглушка.
+## 4. Скрипты (WASM)
 
-Итого: можно собрать демо (сцена, меши, падающий объект, WASM), но не игру с геймплеем и меню.
+`scripts/game/main.go`:
+```go
+//go:build wasm
 
-## 3. Что понадобится
+package main
 
-Сейчас: Go 1.22+, при WASM — TinyGo в PATH. Шаги из раздела 1.
+import "unsafe"
 
-Чтобы приблизиться к играбельной игрушке: 3D-рендер (камера, меши не только wireframe), ввод (клава/мышь), коллизии объект–объект, геймплей (счёт, победа/поражение, рестарт).
+//go:wasmimport env debugLog
+func debugLog(ptr uint32, l uint32)
 
-Для «нормальной» игры: плюс материалы, освещение, аудио, UI, префабы, WebGPU.
+//go:wasmimport env getInputKey
+func getInputKey(key int32) int32
 
-## 4. Что могу сделать я (AI)
+func log(msg string) {
+    if len(msg) == 0 { return }
+    b := []byte(msg)
+    debugLog(uint32(uintptr(unsafe.Pointer(&b[0]))), uint32(len(b)))
+}
 
-Могу: чинить баги, менять сцены/конфиги/примеры, писать документацию, реализовывать системы и компоненты ECS, CLI, форматы. Предложить архитектуру (ввод, коллизии).
+// Клавиши
+const (
+    KeyW = 22
+    KeyA = 0
+    KeyS = 18
+    KeyD = 3
+    KeySpace = 36
+)
 
-Нужна твоя проверка: запуск `go build` / `go run`, тестов, выбор приоритетов, как выглядит сцена в редакторе.
+//export Update
+func Update(dtMillis int32) {
+    if getInputKey(KeyW) != 0 {
+        log("W pressed\n")
+    }
+    if getInputKey(KeySpace) != 0 {
+        log("Jump!\n")
+    }
+}
 
-Не могу: ставить Go/TinyGo, настраивать ОС, гарантировать сборку у тебя без проверки.
+func main() {}
+```
 
-## Памятка «дали ссылку на репо»
+Сборка:
+```bash
+go run ./cmd/kenga script build --project .
+```
 
-1. `git clone https://github.com/GermannM3/GoEngineKenga.git`, `cd GoEngineKenga`, `go mod tidy`
-2. `go run ./cmd/kenga import --project samples/hello`
-3. `go run ./cmd/kenga run --project samples/hello --scene scenes/main.scene.json --backend ebiten`
-4. Редактор: `go run ./cmd/kenga-editor`
-5. Подробнее: `CREATING_A_GAME.md`, `README.md`.
+## 5. Команды CLI
+
+```bash
+# Создать проект
+go run ./cmd/kenga new mygame
+
+# Импортировать ассеты
+go run ./cmd/kenga import --project mygame
+
+# Запустить игру
+go run ./cmd/kenga run --project mygame --scene scenes/main.scene.json --backend ebiten
+
+# Собрать WASM скрипты
+go run ./cmd/kenga script build --project mygame
+```
+
+## 6. Системные требования
+
+- Go 1.22+
+- TinyGo (опционально, для WASM)
+- Никаких платных зависимостей

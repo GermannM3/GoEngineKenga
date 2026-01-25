@@ -17,10 +17,11 @@ const (
 )
 
 type Runtime struct {
-	EditWorld   *ecs.World
-	PlayWorld   *ecs.World
-	PhysicsWorld *physics.PhysicsWorld
-	Mode        Mode
+	EditWorld        *ecs.World
+	PlayWorld        *ecs.World
+	PhysicsWorld     *physics.PhysicsWorld
+	CollisionManager *physics.CollisionManager
+	Mode             Mode
 
 	lastTick time.Time
 }
@@ -28,10 +29,11 @@ type Runtime struct {
 func NewFromScene(s *scene.Scene) *Runtime {
 	w := s.ToWorld()
 	return &Runtime{
-		EditWorld:   w,
-		PhysicsWorld: physics.DefaultPhysicsWorld(),
-		Mode:        ModeEdit,
-		lastTick:    time.Now(),
+		EditWorld:        w,
+		PhysicsWorld:     physics.DefaultPhysicsWorld(),
+		CollisionManager: physics.NewCollisionManager(2.0), // 2 unit cell size
+		Mode:             ModeEdit,
+		lastTick:         time.Now(),
 	}
 }
 
@@ -64,4 +66,3 @@ func (rt *Runtime) ActiveWorld() (*ecs.World, error) {
 		return nil, errors.New("unknown mode")
 	}
 }
-

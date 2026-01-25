@@ -104,4 +104,3 @@ func autoAssignImportedMeshes(projectDir, scenePath string, idx *asset.Index) er
 	}
 	return nil
 }
-

@@ -18,8 +18,8 @@ import (
 // Backend (webgpu) — минимальная реализация на базе cogentcore/webgpu.
 // v0: рисуем треугольник, чтобы подтвердить «цепочку» окно→surface→pipeline→present.
 type Backend struct {
-	title string
-	width int
+	title  string
+	width  int
 	height int
 }
 
@@ -83,4 +83,3 @@ func (b *Backend) RunLoop(initial *render.Frame) error {
 	}
 	return nil
 }
-

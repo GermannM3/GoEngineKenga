@@ -12,7 +12,9 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 
 	"goenginekenga/engine/asset"
+	"goenginekenga/engine/input"
 	"goenginekenga/engine/render"
+	"goenginekenga/engine/ui"
 )
 
 //go:embed logo.jpg
@@ -36,13 +38,21 @@ type Backend struct {
 	splashImage   *ebiten.Image
 	splashSeconds float64
 	splashBgColor color.RGBA
+
+	// Input
+	InputState *input.State
+
+	// UI
+	UIContext *ui.UIRenderContext
 }
 
 func New(title string, width, height int) *Backend {
 	return &Backend{
-		title:  title,
-		width:  width,
-		height: height,
+		title:      title,
+		width:      width,
+		height:     height,
+		InputState: input.NewState(),
+		UIContext:  ui.NewUIRenderContext(),
 	}
 }
 
@@ -58,7 +68,7 @@ func (b *Backend) RunLoop(initial *render.Frame) error {
 	}
 
 	// Инициализация splash screen
-	b.splashSeconds = 2.5 // показываем лого 2.5 секунды
+	b.splashSeconds = 2.5                                        // показываем лого 2.5 секунды
 	b.splashBgColor = color.RGBA{R: 245, G: 240, B: 230, A: 255} // кремовый фон под лого
 
 	// Декодируем логотип из embedded bytes
@@ -82,11 +92,45 @@ func (b *Backend) Update() error {
 		return nil
 	}
 
+	// Poll input
+	b.pollInput()
+
 	if b.OnUpdate != nil {
 		b.OnUpdate(dt)
 	}
 	b.angle += dt
+
+	// End frame for input (store previous state)
+	b.InputState.EndFrame()
+
 	return nil
+}
+
+// pollInput reads current input state from Ebiten
+func (b *Backend) pollInput() {
+	// Update mouse position
+	mx, my := ebiten.CursorPosition()
+	b.InputState.SetMousePosition(mx, my)
+
+	// Update mouse buttons
+	b.InputState.SetMouseButton(input.MouseButtonLeft, ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft))
+	b.InputState.SetMouseButton(input.MouseButtonMiddle, ebiten.IsMouseButtonPressed(ebiten.MouseButtonMiddle))
+	b.InputState.SetMouseButton(input.MouseButtonRight, ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight))
+
+	// Update mouse scroll
+	scrollX, scrollY := ebiten.Wheel()
+	b.InputState.SetMouseScroll(scrollX, scrollY)
+
+	// Update keyboard
+	for _, ek := range input.AllEbitenKeys {
+		k := input.EbitenKeyToKey(ek)
+		if k >= 0 {
+			b.InputState.SetKeyPressed(k, ebiten.IsKeyPressed(ek))
+		}
+	}
+
+	// Calculate deltas
+	b.InputState.Update()
 }
 
 func (b *Backend) Draw(screen *ebiten.Image) {
@@ -124,6 +168,14 @@ func (b *Backend) Draw(screen *ebiten.Image) {
 	// Debug overlay
 	if b.frame != nil && b.frame.World != nil {
 		ebitenutil.DebugPrint(screen, "GoEngineKenga v0\nEntities: "+itoa(len(b.frame.World.Entities())))
+	}
+
+	// Render UI on top
+	if b.UIContext != nil {
+		// Update UI with input state
+		mousePressed := b.InputState.IsMouseButtonPressed(input.MouseButtonLeft)
+		b.UIContext.Update(b.InputState.MouseX, b.InputState.MouseY, mousePressed)
+		b.UIContext.Render(screen)
 	}
 }
 
@@ -206,3 +258,9 @@ func (b *Backend) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHe
 	return outsideWidth, outsideHeight
 }
 
+// SetUIManager sets the UI manager for this backend
+func (b *Backend) SetUIManager(uiManager *ui.UIManager) {
+	if b.UIContext != nil {
+		b.UIContext.SetUIManager(uiManager)
+	}
+}

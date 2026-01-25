@@ -5,6 +5,7 @@ import (
 
 	"goenginekenga/engine/ecs"
 	emath "goenginekenga/engine/math"
+	"goenginekenga/engine/physics"
 )
 
 // Step продвигает время и возвращает dt.
@@ -31,33 +32,87 @@ func (rt *Runtime) stepPhysics(deltaTime float32) {
 	}
 
 	// Собираем все rigidbody и их позиции
-	var bodies []*ecs.Rigidbody
-	var positions []emath.Vec3
+	entityIDs := []ecs.EntityID{}
+	rigidbodies := make(map[ecs.EntityID]*physics.Rigidbody)
+	positions := make(map[ecs.EntityID]*emath.Vec3)
 
 	for _, id := range rt.PlayWorld.Entities() {
 		if rb, ok := rt.PlayWorld.GetRigidbody(id); ok {
-			bodies = append(bodies, &rb)
+			entityIDs = append(entityIDs, id)
+			rbCopy := rb // Make a copy to get pointer
+			rigidbodies[id] = &rbCopy
+
 			if tr, ok := rt.PlayWorld.GetTransform(id); ok {
-				positions = append(positions, tr.Position)
+				pos := tr.Position
+				positions[id] = &pos
 			} else {
-				positions = append(positions, emath.V3(0, 0, 0))
+				pos := emath.V3(0, 0, 0)
+				positions[id] = &pos
 			}
 		}
 	}
 
-	if len(bodies) > 0 {
-		rt.PhysicsWorld.Update(deltaTime, bodies, nil, positions)
+	// Apply physics (gravity, velocity integration)
+	if len(entityIDs) > 0 {
+		// Build slices for PhysicsWorld.Update
+		var bodies []*physics.Rigidbody
+		var posSlice []emath.Vec3
+		for _, id := range entityIDs {
+			bodies = append(bodies, rigidbodies[id])
+			posSlice = append(posSlice, *positions[id])
+		}
 
-		// Обновляем позиции в мире
-		bodyIndex := 0
+		rt.PhysicsWorld.Update(deltaTime, bodies, nil, posSlice)
+
+		// Copy positions back
+		for i, id := range entityIDs {
+			*positions[id] = posSlice[i]
+		}
+	}
+
+	// Detect and resolve collisions
+	if rt.CollisionManager != nil {
+		// Build collider data
+		var colliders []physics.ColliderData
 		for _, id := range rt.PlayWorld.Entities() {
-			if _, ok := rt.PlayWorld.GetRigidbody(id); ok {
-				if tr, ok := rt.PlayWorld.GetTransform(id); ok {
-					tr.Position = positions[bodyIndex]
-					rt.PlayWorld.SetTransform(id, tr)
+			if col, ok := rt.PlayWorld.GetCollider(id); ok {
+				pos := emath.Vec3{}
+				if p, ok := positions[id]; ok && p != nil {
+					pos = *p
+				} else if tr, ok := rt.PlayWorld.GetTransform(id); ok {
+					pos = tr.Position
 				}
-				bodyIndex++
+				colCopy := col
+				colliders = append(colliders, physics.ColliderData{
+					ID:       uint64(id),
+					Collider: &colCopy,
+					Position: pos,
+				})
 			}
+		}
+
+		// Convert maps to use physics.EntityID (uint64)
+		physPositions := make(map[physics.EntityID]*emath.Vec3)
+		physRigidbodies := make(map[physics.EntityID]*physics.Rigidbody)
+		for id, pos := range positions {
+			physPositions[uint64(id)] = pos
+		}
+		for id, rb := range rigidbodies {
+			physRigidbodies[uint64(id)] = rb
+		}
+
+		rt.CollisionManager.DetectAndResolve(colliders, physPositions, physRigidbodies)
+	}
+
+	// Write positions back to world
+	for id, pos := range positions {
+		if tr, ok := rt.PlayWorld.GetTransform(id); ok {
+			tr.Position = *pos
+			rt.PlayWorld.SetTransform(id, tr)
+		}
+		// Also update rigidbody velocity
+		if rb, ok := rigidbodies[id]; ok {
+			rt.PlayWorld.SetRigidbody(id, *rb)
 		}
 	}
 }
@@ -75,4 +130,3 @@ func SpinSystem(w *ecs.World, dt time.Duration) {
 		w.SetTransform(id, t)
 	}
 }
-

@@ -6,36 +6,36 @@ import (
 
 // Rigidbody представляет физическое тело с массой и скоростью
 type Rigidbody struct {
-	Mass           float32     `json:"mass"`
-	Velocity       emath.Vec3  `json:"velocity"`
+	Mass            float32    `json:"mass"`
+	Velocity        emath.Vec3 `json:"velocity"`
 	AngularVelocity emath.Vec3 `json:"angularVelocity"`
-	Drag           float32     `json:"drag"`
-	AngularDrag    float32     `json:"angularDrag"`
-	UseGravity     bool        `json:"useGravity"`
-	IsKinematic    bool        `json:"isKinematic"`
+	Drag            float32    `json:"drag"`
+	AngularDrag     float32    `json:"angularDrag"`
+	UseGravity      bool       `json:"useGravity"`
+	IsKinematic     bool       `json:"isKinematic"`
 }
 
 // DefaultRigidbody возвращает стандартный rigidbody
 func DefaultRigidbody() *Rigidbody {
 	return &Rigidbody{
-		Mass:        1.0,
-		Velocity:    emath.V3(0, 0, 0),
+		Mass:            1.0,
+		Velocity:        emath.V3(0, 0, 0),
 		AngularVelocity: emath.V3(0, 0, 0),
-		Drag:        0.0,
-		AngularDrag: 0.05,
-		UseGravity:  true,
-		IsKinematic: false,
+		Drag:            0.0,
+		AngularDrag:     0.05,
+		UseGravity:      true,
+		IsKinematic:     false,
 	}
 }
 
 // Collider представляет форму коллизии
 type Collider struct {
-	Type       string      `json:"type"`       // box, sphere, capsule, mesh
-	Center     emath.Vec3  `json:"center"`
-	Size       emath.Vec3  `json:"size"`       // для box
-	Radius     float32     `json:"radius"`     // для sphere/capsule
-	Height     float32     `json:"height"`     // для capsule
-	IsTrigger  bool        `json:"isTrigger"`
+	Type      string     `json:"type"` // box, sphere, capsule, mesh
+	Center    emath.Vec3 `json:"center"`
+	Size      emath.Vec3 `json:"size"`   // для box
+	Radius    float32    `json:"radius"` // для sphere/capsule
+	Height    float32    `json:"height"` // для capsule
+	IsTrigger bool       `json:"isTrigger"`
 }
 
 // DefaultBoxCollider возвращает стандартный box collider
@@ -60,9 +60,9 @@ func DefaultSphereCollider() *Collider {
 
 // PhysicsWorld управляет физической симуляцией
 type PhysicsWorld struct {
-	Gravity    emath.Vec3 `json:"gravity"`
-	TimeStep   float32    `json:"timeStep"`
-	Substeps   int        `json:"substeps"`
+	Gravity  emath.Vec3 `json:"gravity"`
+	TimeStep float32    `json:"timeStep"`
+	Substeps int        `json:"substeps"`
 }
 
 // DefaultPhysicsWorld возвращает стандартный физический мир

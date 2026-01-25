@@ -57,4 +57,3 @@ func (r *Resolver) ResolveMaterialByAssetID(assetID string) (*render.Material, e
 	}
 	return nil, fmt.Errorf("no derived material for asset id: %s", assetID)
 }
-

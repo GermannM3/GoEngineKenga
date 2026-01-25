@@ -44,4 +44,3 @@ func BuildTinyGoWASM(opts BuildOptions) error {
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
-

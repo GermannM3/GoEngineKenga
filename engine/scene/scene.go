@@ -26,8 +26,8 @@ type SceneEntity struct {
 	UICanvas     *ecs.UICanvas     `json:"uiCanvas,omitempty"`
 
 	// Для префабов
-	PrefabID     string `json:"prefabId,omitempty"`    // ID префаба, если это инстанс
-	Overrides    map[string]interface{} `json:"overrides,omitempty"` // Переопределения полей
+	PrefabID  string                 `json:"prefabId,omitempty"`  // ID префаба, если это инстанс
+	Overrides map[string]interface{} `json:"overrides,omitempty"` // Переопределения полей
 }
 
 func DefaultScene() *Scene {
@@ -104,4 +104,3 @@ func (s *Scene) ToWorld() *ecs.World {
 	}
 	return w
 }
-

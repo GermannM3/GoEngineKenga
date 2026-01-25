@@ -17,4 +17,3 @@ type Frame struct {
 type Backend interface {
 	RunLoop(initial *Frame) error
 }
-

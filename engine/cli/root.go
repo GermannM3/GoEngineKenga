@@ -12,8 +12,8 @@ func NewRootCommand() *cobra.Command {
 		newRunCommand(),
 		newImportCommand(),
 		newScriptCommand(),
+		newNewCommand(),
 	)
 
 	return cmd
 }
-

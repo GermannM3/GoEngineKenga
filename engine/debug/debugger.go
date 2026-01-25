@@ -84,11 +84,11 @@ func (l *DefaultLogger) Fatal(format string, args ...interface{}) {
 
 // Debugger предоставляет инструменты отладки
 type Debugger struct {
-	logger    Logger
+	logger      Logger
 	breakpoints map[string]bool
 	watchVars   map[string]interface{}
 	enabled     bool
-	mu         sync.RWMutex
+	mu          sync.RWMutex
 }
 
 // NewDebugger создает новый отладчик
@@ -198,11 +198,11 @@ func (d *Debugger) inspectEntity(world *ecs.World, entityID ecs.EntityID) {
 
 // PerformanceMonitor мониторит производительность
 type PerformanceMonitor struct {
-	sampleRate  time.Duration
-	lastSample  time.Time
-	samples     []PerformanceSample
-	maxSamples  int
-	mu          sync.Mutex
+	sampleRate time.Duration
+	lastSample time.Time
+	samples    []PerformanceSample
+	maxSamples int
+	mu         sync.Mutex
 }
 
 type PerformanceSample struct {

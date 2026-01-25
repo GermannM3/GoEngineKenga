@@ -12,25 +12,25 @@ type Profiler struct {
 	mu sync.RWMutex
 
 	// Метрики производительности
-	frameTime     time.Duration
-	updateTime    time.Duration
-	renderTime    time.Duration
-	physicsTime   time.Duration
-	audioTime     time.Duration
-	scriptTime    time.Duration
+	frameTime   time.Duration
+	updateTime  time.Duration
+	renderTime  time.Duration
+	physicsTime time.Duration
+	audioTime   time.Duration
+	scriptTime  time.Duration
 
 	// Счетчики
-	entityCount     int
-	drawCalls       int
-	trianglesDrawn  int
-	memoryUsage     uint64
+	entityCount    int
+	drawCalls      int
+	trianglesDrawn int
+	memoryUsage    uint64
 
 	// История для графиков
 	frameTimes []time.Duration
 
 	// Флаги включения профилирования
-	enabled        bool
-	detailedMode   bool
+	enabled      bool
+	detailedMode bool
 
 	// Callback для вывода результатов
 	outputCallback func(string)
@@ -78,9 +78,9 @@ func (p *Profiler) StartSection(section string) *SectionTimer {
 		return &SectionTimer{}
 	}
 	return &SectionTimer{
-		name:       section,
-		startTime:  time.Now(),
-		profiler:   p,
+		name:      section,
+		startTime: time.Now(),
+		profiler:  p,
 	}
 }
 

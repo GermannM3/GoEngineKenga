@@ -15,15 +15,15 @@ type AudioClip struct {
 
 // AudioSource представляет источник звука в 3D пространстве
 type AudioSource struct {
-	Clip        string      `json:"clip"`        // asset ID аудиоклипа
-	Volume      float32     `json:"volume"`      // 0.0 - 1.0
-	Pitch       float32     `json:"pitch"`       // 1.0 = normal speed
-	Loop        bool        `json:"loop"`
-	PlayOnStart bool        `json:"playOnStart"`
-	Spatial     bool        `json:"spatial"`     // 3D sound
-	MinDistance float32     `json:"minDistance"` // для 3D звука
-	MaxDistance float32     `json:"maxDistance"` // для 3D звука
-	Position    emath.Vec3  `json:"position"`    // позиция источника
+	Clip        string     `json:"clip"`   // asset ID аудиоклипа
+	Volume      float32    `json:"volume"` // 0.0 - 1.0
+	Pitch       float32    `json:"pitch"`  // 1.0 = normal speed
+	Loop        bool       `json:"loop"`
+	PlayOnStart bool       `json:"playOnStart"`
+	Spatial     bool       `json:"spatial"`     // 3D sound
+	MinDistance float32    `json:"minDistance"` // для 3D звука
+	MaxDistance float32    `json:"maxDistance"` // для 3D звука
+	Position    emath.Vec3 `json:"position"`    // позиция источника
 
 	// Runtime fields
 	isPlaying bool
@@ -52,18 +52,29 @@ type AudioListener struct {
 
 // AudioEngine управляет аудиосистемой
 type AudioEngine struct {
-	sources   map[string]*AudioSource // key: entity ID
-	listener  *AudioListener
+	sources      map[string]*AudioSource // key: entity ID
+	clips        map[string]*AudioClip   // key: clip asset ID
+	playerIDs    map[string]string       // entity ID -> player ID
+	listener     *AudioListener
 	masterVolume float32
+	backend      *EbitenAudioBackend
 }
 
 // NewAudioEngine создает новый audio engine
 func NewAudioEngine() *AudioEngine {
 	return &AudioEngine{
 		sources:      make(map[string]*AudioSource),
+		clips:        make(map[string]*AudioClip),
+		playerIDs:    make(map[string]string),
 		listener:     &AudioListener{Position: emath.V3(0, 0, 0)},
 		masterVolume: 1.0,
+		backend:      NewEbitenAudioBackend(),
 	}
+}
+
+// RegisterClip registers an audio clip for later playback
+func (ae *AudioEngine) RegisterClip(assetID string, clip *AudioClip) {
+	ae.clips[assetID] = clip
 }
 
 // SetListener устанавливает позицию слушателя
@@ -83,9 +94,35 @@ func (ae *AudioEngine) RemoveSource(entityID string) {
 
 // Play начинает воспроизведение
 func (ae *AudioEngine) Play(entityID string) {
-	if source, ok := ae.sources[entityID]; ok {
+	source, ok := ae.sources[entityID]
+	if !ok {
+		return
+	}
+
+	// Get the clip
+	clip, ok := ae.clips[source.Clip]
+	if !ok || clip == nil {
+		return
+	}
+
+	// Stop existing playback if any
+	if existingPlayerID, ok := ae.playerIDs[entityID]; ok {
+		ae.backend.Stop(existingPlayerID)
+	}
+
+	// Calculate volume with spatial attenuation
+	volume := float64(source.Volume * ae.masterVolume)
+	if source.Spatial {
+		distance := ae.calculateDistance(source.Position, ae.listener.Position)
+		spatialVol := ae.calculateSpatialVolume(distance, source.MinDistance, source.MaxDistance)
+		volume *= float64(spatialVol)
+	}
+
+	// Play through backend
+	playerID, err := ae.backend.PlayFromClip(clip, volume, source.Loop)
+	if err == nil {
+		ae.playerIDs[entityID] = playerID
 		source.isPlaying = true
-		// TODO: Реализовать фактическое воспроизведение через audio backend
 	}
 }
 
@@ -93,18 +130,30 @@ func (ae *AudioEngine) Play(entityID string) {
 func (ae *AudioEngine) Stop(entityID string) {
 	if source, ok := ae.sources[entityID]; ok {
 		source.isPlaying = false
-		// TODO: Реализовать фактическое останов воспроизведения
+	}
+
+	if playerID, ok := ae.playerIDs[entityID]; ok {
+		ae.backend.Stop(playerID)
+		delete(ae.playerIDs, entityID)
 	}
 }
 
 // Update обновляет состояние аудио (вызывается каждый кадр)
 func (ae *AudioEngine) Update(deltaTime time.Duration) {
+	// Update backend (handles looping)
+	ae.backend.Update()
+
 	// Обновляем 3D позиционирование
-	for _, source := range ae.sources {
-		if source.Spatial {
+	for entityID, source := range ae.sources {
+		if source.Spatial && source.isPlaying {
 			distance := ae.calculateDistance(source.Position, ae.listener.Position)
-			volume := ae.calculateSpatialVolume(distance, source.MinDistance, source.MaxDistance)
-			source.Volume = volume * ae.masterVolume
+			spatialVol := ae.calculateSpatialVolume(distance, source.MinDistance, source.MaxDistance)
+			volume := float64(source.Volume * ae.masterVolume * spatialVol)
+
+			// Update volume in backend
+			if playerID, ok := ae.playerIDs[entityID]; ok {
+				ae.backend.SetVolume(playerID, volume)
+			}
 		}
 	}
 }
