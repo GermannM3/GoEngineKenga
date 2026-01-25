@@ -22,14 +22,22 @@ type Camera struct {
 }
 
 type MeshRenderer struct {
-	MeshAssetID     string `json:"meshAssetId"`     // UUID as string
-	MaterialAssetID string `json:"materialAssetId"` // UUID as string
+	MeshAssetID     string     `json:"meshAssetId"`     // UUID as string
+	MaterialAssetID string     `json:"materialAssetId"` // UUID as string
+	ColorR          uint8      `json:"colorR"`
+	ColorG          uint8      `json:"colorG"`
+	ColorB          uint8      `json:"colorB"`
+	ColorA          uint8      `json:"colorA"`
 }
 
 type Light struct {
-	Kind      string     `json:"kind"` // directional/point (v0)
+	Kind      string     `json:"kind"` // directional/point/ambient
 	ColorRGB  emath.Vec3 `json:"colorRGB"`
+	ColorR    uint8      `json:"colorR"`
+	ColorG    uint8      `json:"colorG"`
+	ColorB    uint8      `json:"colorB"`
 	Intensity float32    `json:"intensity"`
+	Range     float32    `json:"range"` // for point lights
 }
 
 // Rigidbody и Collider определены в пакете physics

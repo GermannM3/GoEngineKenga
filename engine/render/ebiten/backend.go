@@ -12,6 +12,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 
 	"goenginekenga/engine/asset"
+	"goenginekenga/engine/ecs"
 	"goenginekenga/engine/input"
 	"goenginekenga/engine/render"
 	"goenginekenga/engine/ui"
@@ -44,16 +45,32 @@ type Backend struct {
 
 	// UI
 	UIContext *ui.UIRenderContext
+
+	// 3D Renderer
+	renderer3D  *Renderer3D
+	use3DRender bool
 }
 
 func New(title string, width, height int) *Backend {
 	return &Backend{
-		title:      title,
-		width:      width,
-		height:     height,
-		InputState: input.NewState(),
-		UIContext:  ui.NewUIRenderContext(),
+		title:       title,
+		width:       width,
+		height:      height,
+		InputState:  input.NewState(),
+		UIContext:   ui.NewUIRenderContext(),
+		renderer3D:  NewRenderer3D(width, height),
+		use3DRender: true, // Enable 3D rendering by default
 	}
+}
+
+// Enable3D enables or disables 3D rendering
+func (b *Backend) Enable3D(enabled bool) {
+	b.use3DRender = enabled
+}
+
+// GetRenderer3D returns the 3D renderer
+func (b *Backend) GetRenderer3D() *Renderer3D {
+	return b.renderer3D
 }
 
 func (b *Backend) RunLoop(initial *render.Frame) error {
@@ -144,35 +161,44 @@ func (b *Backend) Draw(screen *ebiten.Image) {
 	if b.frame != nil {
 		cc = b.frame.ClearColor
 	}
-	screen.Fill(cc)
 
-	// v0: если есть импортированные меши — рисуем wireframe; иначе — тестовый треугольник.
-	b.logf("ebiten: drawing frame. World is nil? %v, Resolver is nil? %v\n", b.frame == nil || b.frame.World == nil, b.resolver == nil)
-	drawnMesh := false
-	if b.frame != nil && b.frame.World != nil && b.resolver != nil {
-		b.logf("backend: calling drawWireframe\n")
-		drawWireframe(screen, b.frame.World, b.resolver, b.logf)
-		// эвристика: если в мире есть MeshRenderer с MeshAssetID — считаем, что пробовали рисовать меш
-		for _, id := range b.frame.World.Entities() {
-			if mr, ok := b.frame.World.GetMeshRenderer(id); ok && mr.MeshAssetID != "" {
-				drawnMesh = true
-				break
+	// Use 3D renderer if enabled
+	if b.use3DRender && b.renderer3D != nil {
+		var world *ecs.World
+		if b.frame != nil {
+			world = b.frame.World
+		}
+		b.renderer3D.DrawToScreen(screen, world, b.resolver, cc)
+	} else {
+		// Fallback to 2D wireframe rendering
+		screen.Fill(cc)
+
+		drawnMesh := false
+		if b.frame != nil && b.frame.World != nil && b.resolver != nil {
+			drawWireframe(screen, b.frame.World, b.resolver, b.logf)
+			for _, id := range b.frame.World.Entities() {
+				if mr, ok := b.frame.World.GetMeshRenderer(id); ok && mr.MeshAssetID != "" {
+					drawnMesh = true
+					break
+				}
 			}
 		}
-	}
-	if !drawnMesh {
-		b.logf("backend: drawing test triangle\n")
-		drawTestTriangle(screen, b.angle)
+		if !drawnMesh {
+			drawTestTriangle(screen, b.angle)
+		}
 	}
 
 	// Debug overlay
 	if b.frame != nil && b.frame.World != nil {
-		ebitenutil.DebugPrint(screen, "GoEngineKenga v0\nEntities: "+itoa(len(b.frame.World.Entities())))
+		mode := "3D"
+		if !b.use3DRender {
+			mode = "2D"
+		}
+		ebitenutil.DebugPrint(screen, "GoEngineKenga v0 ["+mode+"]\nEntities: "+itoa(len(b.frame.World.Entities())))
 	}
 
 	// Render UI on top
 	if b.UIContext != nil {
-		// Update UI with input state
 		mousePressed := b.InputState.IsMouseButtonPressed(input.MouseButtonLeft)
 		b.UIContext.Update(b.InputState.MouseX, b.InputState.MouseY, mousePressed)
 		b.UIContext.Render(screen)
