@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	emath "goenginekenga/engine/math"
+	"goenginekenga/engine/physics"
 )
 
 type EntityID uint64
@@ -31,24 +32,9 @@ type Light struct {
 	Intensity float32     `json:"intensity"`
 }
 
-type Rigidbody struct {
-	Mass           float32     `json:"mass"`
-	Velocity       emath.Vec3  `json:"velocity"`
-	AngularVelocity emath.Vec3 `json:"angularVelocity"`
-	Drag           float32     `json:"drag"`
-	AngularDrag    float32     `json:"angularDrag"`
-	UseGravity     bool        `json:"useGravity"`
-	IsKinematic    bool        `json:"isKinematic"`
-}
-
-type Collider struct {
-	Type       string      `json:"type"`       // box, sphere, capsule, mesh
-	Center     emath.Vec3  `json:"center"`
-	Size       emath.Vec3  `json:"size"`       // для box
-	Radius     float32     `json:"radius"`     // для sphere/capsule
-	Height     float32     `json:"height"`     // для capsule
-	IsTrigger  bool        `json:"isTrigger"`
-}
+// Rigidbody и Collider определены в пакете physics
+type Rigidbody = physics.Rigidbody
+type Collider = physics.Collider
 
 type AudioSource struct {
 	Clip        string      `json:"clip"`        // asset ID аудиоклипа

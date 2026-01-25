@@ -13,6 +13,7 @@ type Vec3 struct {
 	Z float32 `json:"z"`
 }
 
+func V2(x, y float32) Vec2    { return Vec2{X: x, Y: y} }
 func V3(x, y, z float32) Vec3 { return Vec3{X: x, Y: y, Z: z} }
 
 func (v Vec3) Add(o Vec3) Vec3 { return Vec3{X: v.X + o.X, Y: v.Y + o.Y, Z: v.Z + o.Z} }

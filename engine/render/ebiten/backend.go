@@ -1,7 +1,11 @@
 package ebiten
 
 import (
+	"bytes"
+	_ "embed"
+	"image"
 	"image/color"
+	_ "image/jpeg"
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -10,6 +14,9 @@ import (
 	"goenginekenga/engine/asset"
 	"goenginekenga/engine/render"
 )
+
+//go:embed logo.jpg
+var logoBytes []byte
 
 type Backend struct {
 	title  string
@@ -24,6 +31,11 @@ type Backend struct {
 
 	resolver *asset.Resolver
 	logf     func(format string, args ...any)
+
+	// Splash screen
+	splashImage   *ebiten.Image
+	splashSeconds float64
+	splashBgColor color.RGBA
 }
 
 func New(title string, width, height int) *Backend {
@@ -41,6 +53,20 @@ func (b *Backend) RunLoop(initial *render.Frame) error {
 			b.resolver = r
 		}
 	}
+	if b.logf == nil {
+		b.logf = func(string, ...any) {}
+	}
+
+	// Инициализация splash screen
+	b.splashSeconds = 2.5 // показываем лого 2.5 секунды
+	b.splashBgColor = color.RGBA{R: 245, G: 240, B: 230, A: 255} // кремовый фон под лого
+
+	// Декодируем логотип из embedded bytes
+	if len(logoBytes) > 0 {
+		if img, _, err := image.Decode(bytes.NewReader(logoBytes)); err == nil {
+			b.splashImage = ebiten.NewImageFromImage(img)
+		}
+	}
 
 	ebiten.SetWindowTitle(b.title)
 	ebiten.SetWindowSize(b.width, b.height)
@@ -48,14 +74,28 @@ func (b *Backend) RunLoop(initial *render.Frame) error {
 }
 
 func (b *Backend) Update() error {
-	if b.OnUpdate != nil {
-		b.OnUpdate(1.0 / 60.0)
+	dt := 1.0 / 60.0
+
+	// Во время сплэша не обновляем игру
+	if b.splashSeconds > 0 {
+		b.splashSeconds -= dt
+		return nil
 	}
-	b.angle += 1.0 / 60.0
+
+	if b.OnUpdate != nil {
+		b.OnUpdate(dt)
+	}
+	b.angle += dt
 	return nil
 }
 
 func (b *Backend) Draw(screen *ebiten.Image) {
+	// Сплэш-экран с логотипом движка
+	if b.splashSeconds > 0 && b.splashImage != nil {
+		b.drawSplash(screen)
+		return
+	}
+
 	cc := color.RGBA{R: 15, G: 18, B: 24, A: 255}
 	if b.frame != nil {
 		cc = b.frame.ClearColor
@@ -85,6 +125,43 @@ func (b *Backend) Draw(screen *ebiten.Image) {
 	if b.frame != nil && b.frame.World != nil {
 		ebitenutil.DebugPrint(screen, "GoEngineKenga v0\nEntities: "+itoa(len(b.frame.World.Entities())))
 	}
+}
+
+// drawSplash рисует экран-заставку с логотипом движка
+func (b *Backend) drawSplash(screen *ebiten.Image) {
+	// Кремовый фон
+	screen.Fill(b.splashBgColor)
+
+	if b.splashImage == nil {
+		return
+	}
+
+	sw, sh := screen.Bounds().Dx(), screen.Bounds().Dy()
+	iw, ih := b.splashImage.Bounds().Dx(), b.splashImage.Bounds().Dy()
+
+	// Масштабируем логотип: максимум 60% от меньшей стороны экрана
+	maxSize := float64(min(sw, sh)) * 0.6
+	scale := maxSize / float64(max(iw, ih))
+	if scale > 1 {
+		scale = 1 // не увеличиваем, если лого меньше
+	}
+
+	scaledW := float64(iw) * scale
+	scaledH := float64(ih) * scale
+
+	// Центрируем
+	x := (float64(sw) - scaledW) / 2
+	y := (float64(sh) - scaledH) / 2
+
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Scale(scale, scale)
+	op.GeoM.Translate(x, y)
+
+	screen.DrawImage(b.splashImage, op)
+
+	// Текст "Powered by GoEngineKenga" внизу
+	msg := "Powered by GoEngineKenga"
+	ebitenutil.DebugPrintAt(screen, msg, sw/2-len(msg)*3, sh-30)
 }
 
 func drawTestTriangle(screen *ebiten.Image, angle float64) {

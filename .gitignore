@@ -1,0 +1,23 @@
+# Cursor rules (локальные подсказки для AI, не коммитим)
+.cursor/
+
+# Сборка
+dist/
+*.exe
+*.so
+*.dll
+
+# Кэш и артефакты
+.kenga/
+*.test
+coverage.out
+
+# ОС и IDE
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Go
+vendor/

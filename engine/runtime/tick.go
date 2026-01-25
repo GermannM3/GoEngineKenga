@@ -5,7 +5,6 @@ import (
 
 	"goenginekenga/engine/ecs"
 	emath "goenginekenga/engine/math"
-	"goenginekenga/engine/physics"
 )
 
 // Step продвигает время и возвращает dt.
@@ -33,7 +32,7 @@ func (rt *Runtime) stepPhysics(deltaTime float32) {
 
 	// Собираем все rigidbody и их позиции
 	var bodies []*ecs.Rigidbody
-	var positions []math.Vec3
+	var positions []emath.Vec3
 
 	for _, id := range rt.PlayWorld.Entities() {
 		if rb, ok := rt.PlayWorld.GetRigidbody(id); ok {

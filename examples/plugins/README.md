@@ -1,13 +1,12 @@
-# GoEngineKenga Plugin System
+# Плагины GoEngineKenga
 
-Система плагинов позволяет расширять функциональность движка без изменения основного кода.
+Расширение движка без правок в ядре. Интерфейс `Plugin`: Init, Update, Shutdown, Name, Version, Description, CreateSystem.
 
 ## Создание плагина
 
-1. Создайте новый пакет Go с плагином
-2. Реализуйте интерфейс `Plugin`
-3. Экспортируйте переменную `Plugin` с экземпляром вашего плагина
-4. Соберите плагин как shared library: `go build -buildmode=plugin -o plugin.so`
+1. Новый пакет Go, реализовать `Plugin`
+2. Экспортировать переменную `Plugin`
+3. Сборка: `go build -buildmode=plugin -o plugin.so`
 
 ## Пример плагина
 
@@ -42,7 +41,7 @@ func (p MyPlugin) Shutdown() error {
 
 func (p MyPlugin) Name() string { return p.name }
 func (p MyPlugin) Version() string { return "1.0.0" }
-func (p MyPlugin) Description() string { return "My awesome plugin" }
+func (p MyPlugin) Description() string { return "Example plugin" }
 
 // Если плагин добавляет систему ECS:
 func (p MyPlugin) CreateSystem(world *ecs.World) plugin.System {
@@ -62,39 +61,12 @@ func (s *MySystem) Shutdown() error { return nil }
 go build -buildmode=plugin -o myplugin.so myplugin.go
 ```
 
-## Использование в игре
+## Использование
 
 ```go
 manager := plugin.NewManager(runtime)
-err := manager.LoadPlugin("./plugins/myplugin.so")
-if err != nil {
-    log.Fatal(err)
-}
-
-// В игровом цикле:
-manager.Update(deltaTime)
-manager.Render(world)
+_ = manager.LoadPlugin("./plugins/myplugin.so")
+// В цикле: manager.Update(deltaTime); manager.Render(world)
 ```
 
-## Типы плагинов
-
-- **Plugin**: Базовый плагин
-- **SystemPlugin**: Плагин, добавляющий ECS систему
-- **RenderPlugin**: Плагин с дополнительным рендерингом
-
-## API плагинов
-
-- `Init(manager *Manager) error` - инициализация
-- `Update(deltaTime float32) error` - обновление каждый кадр
-- `Shutdown() error` - завершение работы
-- `Name() string` - имя плагина
-- `Version() string` - версия
-- `Description() string` - описание
-
-## Менеджер плагинов
-
-- `LoadPlugin(path string) error` - загрузить плагин
-- `UnloadPlugin(name string) error` - выгрузить плагин
-- `Update(deltaTime float32)` - обновить все плагины
-- `Render(world *ecs.World)` - рендеринг плагинов
-- `ListPlugins() []string` - список плагинов
+API: Init, Update, Shutdown, Name, Version, Description. Менеджер: LoadPlugin, UnloadPlugin, Update, Render, ListPlugins. Подробнее — `engine/plugin/plugin.go`, пример — `example_plugin.go`.

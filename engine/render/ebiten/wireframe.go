@@ -2,7 +2,6 @@ package ebiten
 
 import (
 	"image/color"
-	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -51,7 +50,7 @@ func findCamera(w *ecs.World) camera {
 }
 
 func drawWireframe(screen *ebiten.Image, w *ecs.World, resolver *asset.Resolver, logf func(format string, args ...any)) {
-	lineColor := color.RGBA{R: 255, 0, 0, A: 255} // Красный для отладки
+	lineColor := color.RGBA{R: 255, G: 0, B: 0, A: 255} // Красный для отладки
 
 	sw, sh := screen.Size()
 

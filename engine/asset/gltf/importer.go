@@ -4,6 +4,9 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"math"
 	"os"
 	"path/filepath"
@@ -11,13 +14,13 @@ import (
 
 	"github.com/qmuntal/gltf"
 
-	"goenginekenga/engine/asset"
+	emath "goenginekenga/engine/math"
 	"goenginekenga/engine/render"
 )
 
 type ImportResult struct {
 	Meshes    []Mesh
-	Materials []Material
+	Materials []render.Material
 	Textures  []Texture
 }
 
@@ -27,6 +30,15 @@ type Mesh struct {
 	Name      string
 	Positions []float32 // xyz xyz ...
 	Indices   []uint32  // triangle list
+}
+
+// Texture — результат импорта текстуры из glTF.
+type Texture struct {
+	Name   string
+	Width  int
+	Height int
+	Data   []byte // RGBA bytes
+	Format string // RGBA8, etc.
 }
 
 // ImportFile импортирует glTF 2.0 и извлекает минимум (позиции + индексы).
@@ -44,13 +56,9 @@ func ImportFile(path string) (*ImportResult, error) {
 	}
 
 	// Загружаем текстуры
-	var textures []asset.Texture
-	for i, img := range doc.Images {
-		if img == nil {
-			continue
-		}
-
-		tex, err := asset.LoadTextureFromGLTF(doc, i, filepath.Dir(path))
+	var textures []Texture
+	for i := range doc.Textures {
+		tex, err := loadTextureFromDoc(doc, i, filepath.Dir(path))
 		if err != nil {
 			// Продолжаем с другими текстурами
 			continue
@@ -61,7 +69,7 @@ func ImportFile(path string) (*ImportResult, error) {
 	}
 
 	// Загружаем материалы
-	var materials []render.Material
+	var materials []render.Material // nolint
 	for i, mat := range doc.Materials {
 		if mat == nil {
 			continue
@@ -87,26 +95,38 @@ func ImportFile(path string) (*ImportResult, error) {
 
 			// Base color
 			if pbr.BaseColorFactor != nil {
-				material.BaseColor = [3]float32{pbr.BaseColorFactor[0], pbr.BaseColorFactor[1], pbr.BaseColorFactor[2]}
+				material.BaseColor = emath.Vec3{
+					X: float32(pbr.BaseColorFactor[0]),
+					Y: float32(pbr.BaseColorFactor[1]),
+					Z: float32(pbr.BaseColorFactor[2]),
+				}
 			} else {
-				material.BaseColor = [3]float32{1.0, 1.0, 1.0}
+				material.BaseColor = emath.Vec3{X: 1.0, Y: 1.0, Z: 1.0}
 			}
 
-			material.Metallic = float32(pbr.MetallicFactor)
-			material.Roughness = float32(pbr.RoughnessFactor)
+			if pbr.MetallicFactor != nil {
+				material.Metallic = float32(*pbr.MetallicFactor)
+			}
+			if pbr.RoughnessFactor != nil {
+				material.Roughness = float32(*pbr.RoughnessFactor)
+			}
 
 			// Textures (пока пропустим, добавим позже)
 		}
 
 		// Emissive
-		if mat.EmissiveFactor != nil {
-			material.EmissiveColor = [3]float32{mat.EmissiveFactor[0], mat.EmissiveFactor[1], mat.EmissiveFactor[2]}
+		material.EmissiveColor = emath.Vec3{
+			X: float32(mat.EmissiveFactor[0]),
+			Y: float32(mat.EmissiveFactor[1]),
+			Z: float32(mat.EmissiveFactor[2]),
 		}
 
 		// Alpha mode
 		if mat.AlphaMode != gltf.AlphaOpaque {
 			material.AlphaMode = string(mat.AlphaMode)
-			material.AlphaCutoff = float32(mat.AlphaCutoff)
+			if mat.AlphaCutoff != nil {
+				material.AlphaCutoff = float32(*mat.AlphaCutoff)
+			}
 		}
 
 		material.DoubleSided = mat.DoubleSided
@@ -354,5 +374,78 @@ func decodeDataURI(uri string) ([]byte, error) {
 	}
 	// v0: без percent-decoding (редко в glTF). Если понадобится — добавим.
 	return []byte(dataPart), nil
+}
+
+// loadTextureFromDoc загружает текстуру из glTF документа
+func loadTextureFromDoc(doc *gltf.Document, textureIndex int, baseDir string) (*Texture, error) {
+	if textureIndex < 0 || textureIndex >= len(doc.Textures) {
+		return nil, nil
+	}
+
+	tex := doc.Textures[textureIndex]
+	if tex == nil || tex.Source == nil {
+		return nil, nil
+	}
+
+	sourceIndex := int(*tex.Source)
+	if sourceIndex < 0 || sourceIndex >= len(doc.Images) {
+		return nil, nil
+	}
+
+	img := doc.Images[sourceIndex]
+	if img == nil {
+		return nil, nil
+	}
+
+	var imagePath string
+	if img.URI != "" {
+		if strings.HasPrefix(img.URI, "data:") {
+			return nil, nil // data URI пока не поддерживаем
+		}
+		imagePath = filepath.Join(baseDir, filepath.FromSlash(img.URI))
+	} else if img.BufferView != nil {
+		return nil, nil // GLB buffer пока не поддерживаем
+	} else {
+		return nil, nil
+	}
+
+	if imagePath == "" {
+		return nil, nil
+	}
+
+	return loadTextureFromFile(imagePath)
+}
+
+// loadTextureFromFile загружает текстуру из файла
+func loadTextureFromFile(path string) (*Texture, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	img, _, err := image.Decode(file)
+	if err != nil {
+		return nil, err
+	}
+
+	bounds := img.Bounds()
+	width := bounds.Dx()
+	height := bounds.Dy()
+
+	rgba := image.NewRGBA(bounds)
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			rgba.Set(x, y, img.At(x, y))
+		}
+	}
+
+	return &Texture{
+		Name:   filepath.Base(path),
+		Width:  width,
+		Height: height,
+		Data:   rgba.Pix,
+		Format: "RGBA8",
+	}, nil
 }
 

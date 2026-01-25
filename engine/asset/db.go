@@ -144,13 +144,21 @@ func (db *Database) importGLTF(sourceAbs string) (*Record, error) {
 		derived = append(derived, filepath.ToSlash(filepath.Join(db.Project.DerivedDir, name)))
 	}
 
-	// Сохраняем текстуры (пока пропускаем реализацию)
+	// Сохраняем текстуры
 	for i, tex := range res.Textures {
-		name := fmt.Sprintf("%s_%d.png", meta.ID, i)
+		name := fmt.Sprintf("%s_%d.texture.json", meta.ID, i)
 		outAbs := filepath.Join(db.derivedDirAbs(), name)
-		// TODO: Реализовать сохранение текстур
-		_ = tex
-		_ = outAbs
+		// Конвертируем gltf.Texture в asset.Texture
+		assetTex := Texture{
+			Name:   tex.Name,
+			Width:  tex.Width,
+			Height: tex.Height,
+			Data:   tex.Data,
+			Format: tex.Format,
+		}
+		if err := writeJSONFile(outAbs, assetTex); err != nil {
+			return nil, err
+		}
 		derived = append(derived, filepath.ToSlash(filepath.Join(db.Project.DerivedDir, name)))
 	}
 

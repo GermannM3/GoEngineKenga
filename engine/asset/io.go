@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+
+	"goenginekenga/engine/render"
 )
 
 func LoadIndex(projectDir string) (*Index, error) {

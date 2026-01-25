@@ -1,7 +1,6 @@
 package audio
 
 import (
-	"io"
 	"time"
 
 	emath "goenginekenga/engine/math"

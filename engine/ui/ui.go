@@ -2,7 +2,6 @@ package ui
 
 import (
 	"image/color"
-	"strings"
 
 	emath "goenginekenga/engine/math"
 )
