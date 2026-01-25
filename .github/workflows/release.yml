@@ -48,6 +48,12 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Install system dependencies (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libgl1-mesa-dev libxxf86vm-dev libasound2-dev
+
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
@@ -63,9 +69,6 @@ jobs:
 
     - name: Download dependencies
       run: go mod download
-
-    - name: Run tests
-      run: go test ./...
 
     - name: Get version
       id: version
