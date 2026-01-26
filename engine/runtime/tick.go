@@ -17,9 +17,15 @@ func (rt *Runtime) Step() time.Duration {
 	}
 	rt.lastTick = now
 
-	// Выполняем физическую симуляцию
 	if rt.Mode == ModePlay && rt.PlayWorld != nil {
-		rt.stepPhysics(float32(dt.Seconds()))
+		if rt.Profiler != nil {
+			timer := rt.Profiler.StartSection("physics")
+			rt.stepPhysics(float32(dt.Seconds()))
+			timer.End()
+			rt.Profiler.SetEntityCount(len(rt.PlayWorld.Entities()))
+		} else {
+			rt.stepPhysics(float32(dt.Seconds()))
+		}
 	}
 
 	return dt

@@ -68,7 +68,12 @@ func newRunCommand() *cobra.Command {
 				be := ebiten.New("GoEngineKenga Runtime", 1280, 720)
 				be.OnUpdate = func(dt float64) {
 					dtDur := time.Duration(dt * float64(time.Second))
-					// v0: дергаем простую систему для демонстрации PlayWorld.
+					p := rt.GetProfiler()
+					if p != nil {
+						start := p.StartFrame()
+						defer p.EndFrame(start)
+						p.UpdateMemoryUsage()
+					}
 					delta := rt.Step()
 					if aw, err := rt.ActiveWorld(); err == nil {
 						runtime.SpinSystem(aw, delta)

@@ -6,6 +6,7 @@ import (
 
 	"goenginekenga/engine/ecs"
 	"goenginekenga/engine/physics"
+	"goenginekenga/engine/profiler"
 	"goenginekenga/engine/scene"
 )
 
@@ -21,6 +22,8 @@ type Runtime struct {
 	PlayWorld        *ecs.World
 	PhysicsWorld     *physics.PhysicsWorld
 	CollisionManager *physics.CollisionManager
+	Profiler         *profiler.Profiler
+	Quality          *QualitySystem
 	Mode             Mode
 
 	lastTick time.Time
@@ -31,10 +34,17 @@ func NewFromScene(s *scene.Scene) *Runtime {
 	return &Runtime{
 		EditWorld:        w,
 		PhysicsWorld:     physics.DefaultPhysicsWorld(),
-		CollisionManager: physics.NewCollisionManager(2.0), // 2 unit cell size
+		CollisionManager: physics.NewCollisionManager(2.0),
+		Profiler:         profiler.NewProfiler(),
+		Quality:          NewQualitySystem(),
 		Mode:             ModeEdit,
 		lastTick:         time.Now(),
 	}
+}
+
+// GetProfiler возвращает профилировщик (для overlay FPS, отчётов).
+func (rt *Runtime) GetProfiler() *profiler.Profiler {
+	return rt.Profiler
 }
 
 func (rt *Runtime) StartPlay() {

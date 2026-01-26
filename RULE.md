@@ -20,6 +20,8 @@
 - Native performance with zero abstraction layers
 - Perfect balance: indie-friendly like Unity, powerful like Unreal
 
+**Честная оценка (без маркетинга):** см. [docs/ОЦЕНКА_ДВИЖКОВ.md](docs/ОЦЕНКА_ДВИЖКОВ.md) — что реально есть, где ограничения, когда что выбирать.
+
 ### Target Metrics (10/10 in all categories)
 
 | Category | Current | Target | Unity | Unreal | Plan |

@@ -29,7 +29,7 @@ Examples:
 		},
 	}
 
-	cmd.Flags().StringVarP(&template, "template", "t", "default", "Project template (default, platformer, topdown)")
+	cmd.Flags().StringVarP(&template, "template", "t", "default", "Project template (default, platformer, topdown, shooter, puzzle, rpg)")
 
 	return cmd
 }
@@ -205,6 +205,87 @@ func createScene(template string) *SceneFile {
 		}
 		scene.Entities = append(scene.Entities, ground)
 
+	case "shooter":
+		player := SceneEntity{
+			Name: "Player",
+			Components: map[string]interface{}{
+				"transform": map[string]interface{}{
+					"position": map[string]float32{"x": 0, "y": 1, "z": 0},
+					"rotation": map[string]float32{"x": 0, "y": 0, "z": 0},
+					"scale":    map[string]float32{"x": 1, "y": 1, "z": 1},
+				},
+				"rigidbody": map[string]interface{}{"mass": 1.0, "useGravity": false, "drag": 2.0},
+				"collider":  map[string]interface{}{"type": "sphere", "radius": 0.5, "center": map[string]float32{"x": 0, "y": 0.5, "z": 0}},
+			},
+		}
+		scene.Entities = append(scene.Entities, player)
+		ground := SceneEntity{
+			Name: "Ground",
+			Components: map[string]interface{}{
+				"transform": map[string]interface{}{
+					"position": map[string]float32{"x": 0, "y": -0.5, "z": 0},
+					"rotation": map[string]float32{"x": 0, "y": 0, "z": 0},
+					"scale":    map[string]float32{"x": 50, "y": 1, "z": 50},
+				},
+				"collider": map[string]interface{}{"type": "box", "size": map[string]float32{"x": 50, "y": 1, "z": 50}, "center": map[string]float32{"x": 0, "y": 0, "z": 0}},
+			},
+		}
+		scene.Entities = append(scene.Entities, ground)
+
+	case "puzzle":
+		player := SceneEntity{
+			Name: "Player",
+			Components: map[string]interface{}{
+				"transform": map[string]interface{}{
+					"position": map[string]float32{"x": 0, "y": 0, "z": 0},
+					"rotation": map[string]float32{"x": 0, "y": 0, "z": 0},
+					"scale":    map[string]float32{"x": 1, "y": 1, "z": 1},
+				},
+				"rigidbody": map[string]interface{}{"mass": 1.0, "useGravity": false},
+				"collider":  map[string]interface{}{"type": "box", "size": map[string]float32{"x": 1, "y": 1, "z": 1}, "center": map[string]float32{"x": 0, "y": 0, "z": 0}},
+			},
+		}
+		scene.Entities = append(scene.Entities, player)
+		ground := SceneEntity{
+			Name: "Ground",
+			Components: map[string]interface{}{
+				"transform": map[string]interface{}{
+					"position": map[string]float32{"x": 0, "y": -0.5, "z": 0},
+					"rotation": map[string]float32{"x": 0, "y": 0, "z": 0},
+					"scale":    map[string]float32{"x": 20, "y": 1, "z": 20},
+				},
+				"collider": map[string]interface{}{"type": "box", "size": map[string]float32{"x": 20, "y": 1, "z": 20}, "center": map[string]float32{"x": 0, "y": 0, "z": 0}},
+			},
+		}
+		scene.Entities = append(scene.Entities, ground)
+
+	case "rpg":
+		player := SceneEntity{
+			Name: "Player",
+			Components: map[string]interface{}{
+				"transform": map[string]interface{}{
+					"position": map[string]float32{"x": 0, "y": 0, "z": 0},
+					"rotation": map[string]float32{"x": 0, "y": 0, "z": 0},
+					"scale":    map[string]float32{"x": 1, "y": 1, "z": 1},
+				},
+				"rigidbody": map[string]interface{}{"mass": 1.0, "useGravity": false, "drag": 3.0},
+				"collider":  map[string]interface{}{"type": "sphere", "radius": 0.5, "center": map[string]float32{"x": 0, "y": 0, "z": 0}},
+			},
+		}
+		scene.Entities = append(scene.Entities, player)
+		ground := SceneEntity{
+			Name: "Ground",
+			Components: map[string]interface{}{
+				"transform": map[string]interface{}{
+					"position": map[string]float32{"x": 0, "y": -0.5, "z": 0},
+					"rotation": map[string]float32{"x": 0, "y": 0, "z": 0},
+					"scale":    map[string]float32{"x": 100, "y": 1, "z": 100},
+				},
+				"collider": map[string]interface{}{"type": "box", "size": map[string]float32{"x": 100, "y": 1, "z": 100}, "center": map[string]float32{"x": 0, "y": 0, "z": 0}},
+			},
+		}
+		scene.Entities = append(scene.Entities, ground)
+
 	case "topdown":
 		// Player without gravity
 		player := SceneEntity{
@@ -326,6 +407,57 @@ func Update(dtMillis int32) {
 	if getInputKey(KeyD) != 0 {
 		log("Moving right\n")
 	}
+}
+
+func main() {}
+`
+
+	case "shooter":
+		return base + `//export Update
+func Update(dtMillis int32) {
+	dt := float32(dtMillis) / 1000.0
+	_ = dt
+
+	// WASD move, mouse look, click fire
+	if getInputKey(KeyW) != 0 { log("Forward\n") }
+	if getInputKey(KeyS) != 0 { log("Back\n") }
+	if getInputKey(KeyA) != 0 { log("Strafe left\n") }
+	if getInputKey(KeyD) != 0 { log("Strafe right\n") }
+	// Use getMouseX/getMouseY for look
+}
+
+func main() {}
+`
+
+	case "puzzle":
+		return base + `//export Update
+func Update(dtMillis int32) {
+	dt := float32(dtMillis) / 1000.0
+	_ = dt
+
+	// Grid move or click-to-select puzzle logic
+	if getInputKey(KeyW) != 0 { log("Up\n") }
+	if getInputKey(KeyS) != 0 { log("Down\n") }
+	if getInputKey(KeyA) != 0 { log("Left\n") }
+	if getInputKey(KeyD) != 0 { log("Right\n") }
+	if getInputKey(KeySpace) != 0 { log("Interact\n") }
+}
+
+func main() {}
+`
+
+	case "rpg":
+		return base + `//export Update
+func Update(dtMillis int32) {
+	dt := float32(dtMillis) / 1000.0
+	_ = dt
+
+	// Overworld move, dialogue, inventory
+	if getInputKey(KeyW) != 0 { log("North\n") }
+	if getInputKey(KeyS) != 0 { log("South\n") }
+	if getInputKey(KeyA) != 0 { log("West\n") }
+	if getInputKey(KeyD) != 0 { log("East\n") }
+	if getInputKey(KeySpace) != 0 { log("Interact / Confirm\n") }
 }
 
 func main() {}
