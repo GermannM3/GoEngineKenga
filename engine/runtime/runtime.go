@@ -31,7 +31,7 @@ type Runtime struct {
 
 func NewFromScene(s *scene.Scene) *Runtime {
 	w := s.ToWorld()
-	return &Runtime{
+	rt := &Runtime{
 		EditWorld:        w,
 		PhysicsWorld:     physics.DefaultPhysicsWorld(),
 		CollisionManager: physics.NewCollisionManager(2.0),
@@ -40,6 +40,18 @@ func NewFromScene(s *scene.Scene) *Runtime {
 		Mode:             ModeEdit,
 		lastTick:         time.Now(),
 	}
+
+	// Настраиваем базовые коллбеки коллизий; конкретная интеграция
+	// с удалённым API будет навешана поверх Runtime.
+	rt.CollisionManager.OnCollisionEnter = func(a, b physics.EntityID, info *physics.CollisionInfo) {
+		_ = a
+		_ = b
+		_ = info
+		// v0: заглушка; события будут проброшены во внешний мир
+		// через систему уведомлений WebSocket (см. collision-events).
+	}
+
+	return rt
 }
 
 // GetProfiler возвращает профилировщик (для overlay FPS, отчётов).

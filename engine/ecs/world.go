@@ -1,6 +1,7 @@
 package ecs
 
 import (
+	"image/color"
 	"sync"
 
 	emath "goenginekenga/engine/math"
@@ -60,6 +61,35 @@ type UICanvas struct {
 	Height int `json:"height"`
 }
 
+// Trajectory описывает набор 3D-точек для визуализации траектории движения.
+type Trajectory struct {
+	Points []emath.Vec3 `json:"points"`
+
+	// Параметры отрисовки (v0: используются только цвет и толщина).
+	Color color.RGBA `json:"color"`
+	Width float32    `json:"width"`
+}
+
+// Joint описывает простой сустав робота, привязанный к сущности.
+// В v0 это лишь вспомогательные данные поверх Transform.
+type Joint struct {
+	Name  string      `json:"name"`
+	Axis  emath.Vec3 `json:"axis"`
+	Angle float32    `json:"angle"`
+}
+
+// Dispenser описывает простой «наносчик» мастики, привязанный к сущности.
+// В v0 он порождает точки траектории вдоль движения объекта.
+type Dispenser struct {
+	Active   bool       `json:"active"`
+	FlowRate float32    `json:"flowRate"`
+	Radius   float32    `json:"radius"`
+	Color    color.RGBA `json:"color"`
+
+	LastPosition emath.Vec3 `json:"-"`
+	HasLast      bool       `json:"-"`
+}
+
 type World struct {
 	mu     sync.RWMutex
 	nextID EntityID
@@ -74,6 +104,11 @@ type World struct {
 	colliders     map[EntityID]Collider
 	audioSources  map[EntityID]AudioSource
 	uiCanvases    map[EntityID]UICanvas
+
+	dispensers map[EntityID]Dispenser
+	joints map[EntityID]Joint
+
+	trajectories map[EntityID]Trajectory
 
 	names map[EntityID]string
 }
@@ -90,6 +125,9 @@ func NewWorld() *World {
 		colliders:     map[EntityID]Collider{},
 		audioSources:  map[EntityID]AudioSource{},
 		uiCanvases:    map[EntityID]UICanvas{},
+		dispensers:    map[EntityID]Dispenser{},
+		joints:        map[EntityID]Joint{},
+		trajectories:  map[EntityID]Trajectory{},
 		names:         map[EntityID]string{},
 	}
 }
@@ -234,6 +272,51 @@ func (w *World) GetUICanvas(id EntityID) (UICanvas, bool) {
 	return canvas, ok
 }
 
+// SetTrajectory задаёт или обновляет траекторию для сущности.
+func (w *World) SetTrajectory(id EntityID, t Trajectory) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.trajectories[id] = t
+}
+
+// GetTrajectory возвращает траекторию сущности, если она есть.
+func (w *World) GetTrajectory(id EntityID) (Trajectory, bool) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	t, ok := w.trajectories[id]
+	return t, ok
+}
+
+// SetJoint задаёт параметры сустава для сущности.
+func (w *World) SetJoint(id EntityID, j Joint) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.joints[id] = j
+}
+
+// GetJoint возвращает сустав сущности, если он задан.
+func (w *World) GetJoint(id EntityID) (Joint, bool) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	j, ok := w.joints[id]
+	return j, ok
+}
+
+// SetDispenser задаёт или обновляет параметры нанесения мастики.
+func (w *World) SetDispenser(id EntityID, d Dispenser) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.dispensers[id] = d
+}
+
+// GetDispenser возвращает Dispenser сущности, если он есть.
+func (w *World) GetDispenser(id EntityID) (Dispenser, bool) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	d, ok := w.dispensers[id]
+	return d, ok
+}
+
 // Clone делает глубокую копию мира для PlayMode.
 func (w *World) Clone() *World {
 	w.mu.RLock()
@@ -264,6 +347,15 @@ func (w *World) Clone() *World {
 	}
 	for k, v := range w.uiCanvases {
 		nw.uiCanvases[k] = v
+	}
+	for k, v := range w.dispensers {
+		nw.dispensers[k] = v
+	}
+	for k, v := range w.joints {
+		nw.joints[k] = v
+	}
+	for k, v := range w.trajectories {
+		nw.trajectories[k] = v
 	}
 	for k, v := range w.names {
 		nw.names[k] = v

@@ -10,6 +10,7 @@ require (
 	github.com/go-gl/glfw/v3.3/glfw v0.0.0-20250301202403-da16c1255728
 	github.com/google/uuid v1.6.0
 	github.com/hajimehoshi/ebiten/v2 v2.9.7
+	github.com/gorilla/websocket v1.5.3
 	github.com/qmuntal/gltf v0.28.0
 	github.com/spf13/cobra v1.10.2
 	github.com/tetratelabs/wazero v1.11.0

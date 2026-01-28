@@ -53,6 +53,15 @@ func NewRenderer3D(width, height int) *Renderer3D {
 	return r
 }
 
+// RenderToImage реализует интерфейс render.FrameRenderer и
+// предоставляет доступ к последнему буферу кадра.
+func (r *Renderer3D) RenderToImage() *image.RGBA {
+	if r == nil || r.rasterizer == nil {
+		return nil
+	}
+	return r.rasterizer.RenderToImage()
+}
+
 // Resize resizes the renderer
 func (r *Renderer3D) Resize(width, height int) {
 	if r.width == width && r.height == height {
@@ -100,11 +109,12 @@ func (r *Renderer3D) RenderWorld(world *ecs.World, resolver *asset.Resolver, cle
 	}
 
 	// Update camera from world if there's a camera entity
-	if world != nil {
-		r.updateCameraFromWorld(world)
-		r.updateLightsFromWorld(world)
-		r.renderEntities(world, resolver)
-	}
+		if world != nil {
+			r.updateCameraFromWorld(world)
+			r.updateLightsFromWorld(world)
+			r.renderEntities(world, resolver)
+			r.renderTrajectories(world)
+		}
 
 	// Render particles
 	r.renderParticles()
@@ -340,6 +350,127 @@ func (r *Renderer3D) renderParticles() {
 			}
 		}
 	}
+}
+
+// renderTrajectories рисует Trajectory-компоненты как 2D-линии поверх 3D-сцены.
+func (r *Renderer3D) renderTrajectories(world *ecs.World) {
+	if world == nil || r.camera == nil || r.rasterizer == nil || r.rasterizer.ColorBuffer == nil {
+		return
+	}
+	viewProj := r.camera.GetViewProjectionMatrix()
+
+	for _, id := range world.Entities() {
+		traj, ok := world.GetTrajectory(id)
+		if !ok || len(traj.Points) < 2 {
+			continue
+		}
+
+		col := traj.Color
+		if col.A == 0 {
+			col = color.RGBA{R: 255, G: 200, B: 80, A: 255}
+		}
+		thickness := int(traj.Width)
+		if thickness <= 0 {
+			thickness = 2
+		}
+
+		var lastScreenX, lastScreenY int
+		var hasLast bool
+
+		for _, p := range traj.Points {
+			clip := viewProj.TransformPoint(p)
+			w := viewProj[3]*p.X + viewProj[7]*p.Y + viewProj[11]*p.Z + viewProj[15]
+			if w <= 0.1 {
+				hasLast = false
+				continue
+			}
+
+			sx := int((clip.X + 1) * 0.5 * float32(r.width))
+			sy := int((1 - clip.Y) * 0.5 * float32(r.height))
+
+			if hasLast {
+				r.drawLine2D(lastScreenX, lastScreenY, sx, sy, col, thickness)
+			}
+			lastScreenX, lastScreenY = sx, sy
+			hasLast = true
+		}
+	}
+}
+
+func (r *Renderer3D) drawLine2D(x0, y0, x1, y1 int, col color.RGBA, thickness int) {
+	if r.rasterizer == nil || r.rasterizer.ColorBuffer == nil {
+		return
+	}
+
+	dx := absInt(x1 - x0)
+	dy := -absInt(y1 - y0)
+
+	sx := -1
+	if x0 < x1 {
+		sx = 1
+	}
+	sy := -1
+	if y0 < y1 {
+		sy = 1
+	}
+
+	err := dx + dy
+
+	for {
+		r.plotThickPixel(x0, y0, col, thickness)
+		if x0 == x1 && y0 == y1 {
+			break
+		}
+		e2 := 2 * err
+		if e2 >= dy {
+			err += dy
+			x0 += sx
+		}
+		if e2 <= dx {
+			err += dx
+			y0 += sy
+		}
+	}
+}
+
+func (r *Renderer3D) plotThickPixel(x, y int, col color.RGBA, thickness int) {
+	if thickness < 1 {
+		thickness = 1
+	}
+	radius := thickness / 2
+	for dy := -radius; dy <= radius; dy++ {
+		for dx := -radius; dx <= radius; dx++ {
+			if dx*dx+dy*dy > radius*radius {
+				continue
+			}
+			px := x + dx
+			py := y + dy
+			if px < 0 || py < 0 || px >= r.width || py >= r.height {
+				continue
+			}
+			idx := (py*r.width + px) * 4
+			buf := r.rasterizer.ColorBuffer.Pix
+			if idx+3 >= len(buf) {
+				continue
+			}
+			alpha := float32(col.A) / 255.0
+			if alpha <= 0 {
+				continue
+			}
+			inv := 1 - alpha
+			buf[idx] = uint8(float32(buf[idx])*inv + float32(col.R)*alpha)
+			buf[idx+1] = uint8(float32(buf[idx+1])*inv + float32(col.G)*alpha)
+			buf[idx+2] = uint8(float32(buf[idx+2])*inv + float32(col.B)*alpha)
+			buf[idx+3] = 255
+		}
+	}
+}
+
+func absInt(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 func (r *Renderer3D) createOutputImage() *ebiten.Image {

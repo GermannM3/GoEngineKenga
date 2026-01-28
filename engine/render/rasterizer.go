@@ -57,6 +57,12 @@ func NewRasterizer(width, height int) *Rasterizer {
 	}
 }
 
+// RenderToImage возвращает текущий цветовой буфер как *image.RGBA.
+// Буфер принадлежит растеризатору, его нельзя изменять параллельно с рендерингом.
+func (r *Rasterizer) RenderToImage() *image.RGBA {
+	return r.ColorBuffer
+}
+
 // Resize resizes the buffers
 func (r *Rasterizer) Resize(width, height int) {
 	if r.Width == width && r.Height == height {

@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"image/color"
 	"time"
 
 	"goenginekenga/engine/ecs"
@@ -121,6 +122,9 @@ func (rt *Runtime) stepPhysics(deltaTime float32) {
 			rt.PlayWorld.SetRigidbody(id, *rb)
 		}
 	}
+
+	// Дополнительный шаг: обновляем системы нанесения мастики (dispensers).
+	rt.stepDispensers(deltaTime)
 }
 
 // v0: простая «система», чтобы видеть, что PlayWorld реально живёт отдельно.
@@ -134,5 +138,69 @@ func SpinSystem(w *ecs.World, dt time.Duration) {
 		// вращаем вокруг Y
 		t.Rotation = t.Rotation.Add(emath.V3(0, float32(dt.Seconds()*30.0), 0))
 		w.SetTransform(id, t)
+	}
+}
+
+// stepDispensers добавляет точки траектории для активных Dispenser-компонентов.
+func (rt *Runtime) stepDispensers(deltaTime float32) {
+	if rt.PlayWorld == nil {
+		return
+	}
+
+	w := rt.PlayWorld
+	for _, id := range w.Entities() {
+		disp, ok := w.GetDispenser(id)
+		if !ok || !disp.Active {
+			continue
+		}
+
+		tr, ok := w.GetTransform(id)
+		if !ok {
+			continue
+		}
+
+		pos := tr.Position
+		if !disp.HasLast {
+			disp.LastPosition = pos
+			disp.HasLast = true
+			w.SetDispenser(id, disp)
+		}
+
+		// Минимальное расстояние между точками зависит от FlowRate:
+		// чем выше расход, тем чаще точки.
+		minStep := float32(0.01)
+		if disp.FlowRate > 0 {
+			minStep = 0.05 / disp.FlowRate
+		}
+		if minStep < 0.005 {
+			minStep = 0.005
+		}
+
+		if pos.Sub(disp.LastPosition).Len() < minStep {
+			continue
+		}
+
+		traj, _ := w.GetTrajectory(id)
+		traj.Points = append(traj.Points, pos)
+
+		if traj.Color.A == 0 {
+			if disp.Color.A != 0 {
+				traj.Color = disp.Color
+			} else {
+				traj.Color = color.RGBA{R: 200, G: 220, B: 255, A: 255}
+			}
+		}
+		if traj.Width <= 0 {
+			if disp.Radius > 0 {
+				traj.Width = disp.Radius * 2
+			} else {
+				traj.Width = 3
+			}
+		}
+
+		w.SetTrajectory(id, traj)
+
+		disp.LastPosition = pos
+		w.SetDispenser(id, disp)
 	}
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"goenginekenga/engine/api"
 	"goenginekenga/engine/render"
 	"goenginekenga/engine/render/ebiten"
 	"goenginekenga/engine/render/webgpu"
@@ -21,6 +22,8 @@ func newRunCommand() *cobra.Command {
 	var projectDir string
 	var scenePath string
 	var backend string
+	var wsPort string
+	var wsDisabled bool
 
 	cmd := &cobra.Command{
 		Use:   "run",
@@ -61,12 +64,31 @@ func newRunCommand() *cobra.Command {
 				sh.AttachWorld(w)
 			}
 
+			// WebSocket API сервер для внешнего управления (Python/PyQt).
+			var apiManager *api.Manager
+			if !wsDisabled {
+				apiManager = api.NewManager(rt, projectDir)
+
+				addr := wsPort
+				if addr == "" {
+					addr = "127.0.0.1:7777"
+				}
+				if err := api.NewServer(addr, apiManager).Start(ctx); err != nil {
+					return err
+				}
+			}
+
 			// v0: дефолтный бэкенд — простой desktop-рендер.
 			var b render.Backend
 			switch backend {
 			case "", "ebiten":
 				be := ebiten.New("GoEngineKenga Runtime", 1280, 720)
 				be.OnUpdate = func(dt float64) {
+					// Обрабатываем накопившиеся WebSocket-команды в игровом треде.
+					if apiManager != nil {
+						apiManager.ProcessPending(ctx)
+					}
+
 					dtDur := time.Duration(dt * float64(time.Second))
 					p := rt.GetProfiler()
 					if p != nil {
@@ -97,6 +119,8 @@ func newRunCommand() *cobra.Command {
 	cmd.Flags().StringVar(&projectDir, "project", ".", "Project directory")
 	cmd.Flags().StringVar(&scenePath, "scene", "", "Scene path (relative to project)")
 	cmd.Flags().StringVar(&backend, "backend", "ebiten", "Render backend: ebiten|webgpu")
+	cmd.Flags().StringVar(&wsPort, "ws-port", "127.0.0.1:7777", "WebSocket control listen address (empty to disable)")
+	cmd.Flags().BoolVar(&wsDisabled, "no-ws", false, "Disable WebSocket control server")
 
 	return cmd
 }

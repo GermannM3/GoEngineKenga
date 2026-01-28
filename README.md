@@ -223,6 +223,217 @@ deformer.DeformMesh(sourceMesh, deformedMesh)
 deformer.Update(dt)
 ```
 
+## Использование как 3D‑движок в CAD/CAM/робототехнике
+
+GoEngineKenga можно использовать не только как игровой движок, но и как **встраиваемый 3D‑визуализатор** для десктоп‑приложений (Python/PyQt, Qt/QML, .NET и т.п.).
+
+### Режим «отдельное окно + WebSocket управление»
+
+Базовый и самый простой способ интеграции — запускать `kenga` как отдельный процесс с собственным окном, а управлять сценой из внешней программы через WebSocket‑API.
+
+#### Запуск рантайма с WebSocket‑сервером
+
+```bash
+go run ./cmd/kenga run \
+  --project samples/hello \
+  --scene scenes/main.scene.json \
+  --backend ebiten \
+  --ws-port 127.0.0.1:7777
+```
+
+- WebSocket‑сервер поднимается по адресу `ws://127.0.0.1:7777/ws`.
+- Порт и адрес можно менять флагом `--ws-port`.
+- Можно отключить сервер полностью: `--no-ws`.
+
+#### Формат сообщений по WebSocket
+
+Все команды и ответы — JSON‑объекты вида:
+
+```json
+{
+  "cmd": "set_camera",
+  "request_id": "optional-string",
+  "data": { ... }
+}
+```
+
+После приёма команды движок отправляет обратно простой ACK:
+
+```json
+{
+  "ok": true,
+  "cmd": "set_camera",
+  "request_id": "optional-string"
+}
+```
+
+#### Ключевые команды для CAD/робототехники
+
+- **Загрузка модели робота / изделия**:
+
+  ```json
+  {
+    "cmd": "load_model",
+    "data": {
+      "asset_id": "ASSET_UUID",
+      "path": "assets/robot.gltf",
+      "entity_id": "robot1",
+      "name": "RobotArm"
+    }
+  }
+  ```
+
+- **Очистка сцены**:
+
+  ```json
+  { "cmd": "clear_scene", "data": { "mode": "play" } }
+  ```
+
+- **Камера (вид, как в CAD)**:
+
+  ```json
+  {
+    "cmd": "set_camera",
+    "data": {
+      "pos": [2.0, 2.0, 5.0],
+      "target": [0.0, 0.0, 0.0],
+      "fov_deg": 60.0,
+      "near": 0.1,
+      "far": 1000.0
+    }
+  }
+  ```
+
+- **Положение объектов**:
+
+  ```json
+  {
+    "cmd": "set_transform",
+    "data": {
+      "entity_id": "robot1",
+      "pos": [x, y, z],
+      "rot_deg": [rx, ry, rz],
+      "scale": [sx, sy, sz],
+      "use_pos": true,
+      "use_rot": true,
+      "use_scale": true
+    }
+  }
+  ```
+
+- **Траектории движения**:
+
+  - Полная траектория:
+
+    ```json
+    {
+      "cmd": "set_trajectory",
+      "data": {
+        "entity_id": "traj1",
+        "points": [[x1, y1, z1], [x2, y2, z2]],
+        "color_rgba": [255, 200, 80, 255],
+        "width": 2.0
+      }
+    }
+    ```
+
+  - Добавить точку:
+
+    ```json
+    {
+      "cmd": "add_trajectory_point",
+      "data": {
+        "entity_id": "traj1",
+        "point": [x, y, z]
+      }
+    }
+    ```
+
+  - Очистить:
+
+    ```json
+    {
+      "cmd": "clear_trajectory",
+      "data": { "entity_id": "traj1" }
+    }
+    ```
+
+- **Суставы робота (joint control)**:
+
+  ```json
+  {
+    "cmd": "set_joint",
+    "data": {
+      "joint_name": "joint3",
+      "angle_deg": 45.0,
+      "axis": [0, 1, 0]
+    }
+  }
+  ```
+
+- **Нанесение мастики / клея (dispensing)**:
+
+  - Запуск:
+
+    ```json
+    {
+      "cmd": "start_dispensing",
+      "data": {
+        "entity_id": "robot1",
+        "flow_rate": 1.5,
+        "radius": 0.02,
+        "color_rgba": [255, 220, 120, 255]
+      }
+    }
+    ```
+
+  - Остановка:
+
+    ```json
+    {
+      "cmd": "stop_dispensing",
+      "data": { "entity_id": "robot1" }
+    }
+    ```
+
+### Рекомендуемый паттерн для Python/PyQt
+
+1. Запускать `kenga` как отдельный процесс из Python (через `subprocess.Popen`) с флагами `--project`, `--scene`, `--ws-port`.
+2. В PyQt‑приложении держать один постоянный WebSocket‑клиент (например, через `websockets` или `QtWebSockets`), который:
+   - после подключения инициализирует камеру, загружает модели робота и стенда;
+   - отправляет `set_transform`, `set_joint`, `set_trajectory`, `start_dispensing` при изменении данных в UI;
+   - по необходимости запрашивает состояние (будущий метод `get_state`).
+3. Вся «умная» логика (кинематика, планирование траекторий, проверка коллизий на уровне сцены) живёт в вашем приложении; движок отвечает за:
+   - быструю 3D‑визуализацию,
+   - низкоуровневые коллизии,
+   - отрисовку траекторий и мастики.
+
+### Встраивание рендера через RenderToImage
+
+Софтварный рендер предоставляет доступ к буферу изображения:
+
+- В `engine/render/rasterizer.go`:
+
+  ```go
+  func (r *Rasterizer) RenderToImage() *image.RGBA
+  ```
+
+- В `engine/render/embed.go`:
+
+  ```go
+  type FrameRenderer interface {
+      RenderToImage() *image.RGBA
+  }
+  ```
+
+- В `engine/render/ebiten/renderer3d.go`:
+
+  ```go
+  func (r *Renderer3D) RenderToImage() *image.RGBA
+  ```
+
+Это можно обернуть через Cgo в DLL/so/dylib и интегрировать с родным UI‑фреймворком (Qt, wxWidgets и др.), если отдельное окно движка неприменимо. Для начала разработки CAD‑подобного приложения на Python удобно использовать именно WebSocket‑режим, а embed через Cgo оставить как следующий шаг.
+
 ## Пример сцены (JSON)
 
 ```json
