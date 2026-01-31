@@ -2,6 +2,13 @@
 
 Установщики: один exe (без NSIS) или NSIS-мастер. Ярлыки, удаление через «Установка и удаление программ».
 
+## Где лежат установщики
+
+После сборки:
+- **Windows (один exe):** `dist\GoEngineKenga-Setup.exe` — в корне репозитория: `D:\GoEngineKenga\dist\`
+- **Linux .deb:** `goenginekenga_1.0.0_amd64.deb` — в корне репозитория
+- **NSIS (если собран):** `dist\GoEngineKenga-1.0.0-setup.exe`
+
 ## Windows: один exe без NSIS (рекомендуется)
 
 Сборка одного установочного exe без PowerShell и NSIS:
@@ -10,7 +17,9 @@
 scripts\make-setup.bat
 ```
 
-Результат: `dist\GoEngineKenga-Setup.exe`. Пользователь запускает его один раз; все файлы встроены в exe.
+Результат: **`dist\GoEngineKenga-Setup.exe`** (папка `dist` в корне проекта). Пользователь запускает его один раз; все файлы встроены в exe.
+
+**Запуск:** двойной клик или `GoEngineKenga-Setup.exe` из командной строки. При вопросе «Install to [...]» нажмите Enter или введите `y`/`yes` — будет использован путь по умолчанию (`C:\Program Files\GoEngineKenga`). Для тихой установки: `GoEngineKenga-Setup.exe /S`.
 
 - **CLI** (kenga) — всегда включается, собирается без CGO.
 - **Редактор** (kenga-editor) — включается, если при сборке доступны CGO и MinGW. Иначе — только CLI. Для полного пакета: установите MinGW (`choco install mingw`), затем запустите `make-setup.bat`.

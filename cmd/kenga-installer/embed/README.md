@@ -84,13 +84,23 @@
 - Go 1.22+
 - TinyGo (опционально, для WASM скриптов)
 
-### Установка
+### Установка и подключение движка
+
+**Вариант 1 — клонировать и собирать локально (для игр и для встраивания в свои проекты):**
 
 ```bash
 git clone https://github.com/GermannM3/GoEngineKenga.git
 cd GoEngineKenga
 go mod tidy
+go build -o kenga ./cmd/kenga
 ```
+
+Движок можно вызывать из своих скриптов или приложений (например, CAD-программа на Python запускает `kenga run --project ... --ws-port ...` и управляет сценой по WebSocket). Подробнее: [docs/CAD.md](docs/CAD.md).
+
+**Вариант 2 — установить готовый бинарник:**
+
+- Windows: запустите установщик из [релизов](https://github.com/GermannM3/GoEngineKenga/releases) или соберите один exe: `scripts\make-setup.bat`.
+- Linux: `./scripts/install-linux.sh` или пакет .deb: [docs/INSTALLER.md](docs/INSTALLER.md).
 
 ### Создание нового проекта
 
@@ -433,7 +443,7 @@ export KENGA_CLI=/opt/goenginekenga/kenga       # Linux/macOS (bash/zsh)
   func (r *Rasterizer) RenderToImage() *image.RGBA
   ```
 
-- В `engine/render/embed.go`:
+- В `engine/render/buffer.go`:
 
   ```go
   type FrameRenderer interface {

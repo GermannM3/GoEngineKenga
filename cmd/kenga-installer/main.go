@@ -38,7 +38,16 @@ func main() {
 
 func isUninstall() bool {
 	for _, a := range os.Args[1:] {
-		if a == "/uninstall" || a == "-uninstall" || a == "/S" || a == "-S" {
+		if a == "/uninstall" || a == "-uninstall" {
+			return true
+		}
+	}
+	return false
+}
+
+func isSilentInstall() bool {
+	for _, a := range os.Args[1:] {
+		if a == "/S" || a == "-S" {
 			return true
 		}
 	}
@@ -96,12 +105,24 @@ func doInstall() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Install to [%s]: ", destDir)
-	var input string
-	fmt.Scanln(&input)
-	input = strings.TrimSpace(input)
-	if input != "" {
-		destDir = input
+	if !isSilentInstall() {
+		fmt.Printf("Install to [%s] (Enter = use default): ", destDir)
+		var input string
+		fmt.Scanln(&input)
+		input = strings.TrimSpace(input)
+		// "yes", "y", "д", "да" = принять путь по умолчанию
+		acceptDefault := input == "" || strings.EqualFold(input, "y") || strings.EqualFold(input, "yes") ||
+			strings.EqualFold(input, "д") || strings.EqualFold(input, "да")
+		if !acceptDefault {
+			destDir = input
+		}
+	}
+	// Всегда абсолютный путь
+	if !filepath.IsAbs(destDir) {
+		abs, err := filepath.Abs(destDir)
+		if err == nil {
+			destDir = abs
+		}
 	}
 
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
@@ -110,6 +131,10 @@ func doInstall() {
 	}
 
 	copyFile(cliExe, filepath.Join(destDir, "kenga-windows-amd64.exe"))
+	if !fileExists(filepath.Join(destDir, "kenga-windows-amd64.exe")) {
+		fmt.Println("Error: failed to copy kenga. Check that the installer was built correctly (run scripts\\make-setup.bat).")
+		os.Exit(1)
+	}
 	if ed := filepath.Join(srcDir, "kenga-editor-windows-amd64.exe"); fileExists(ed) {
 		copyFile(ed, filepath.Join(destDir, "kenga-editor-windows-amd64.exe"))
 	}
@@ -180,14 +205,16 @@ func doUninstall() {
 	os.Remove(filepath.Join(dir, "kenga-editor-windows-amd64.exe"))
 	os.Remove(filepath.Join(dir, "README.md"))
 	os.Remove(filepath.Join(dir, "LICENSE"))
-	os.Remove(filepath.Join(dir, "uninstall.exe"))
 	os.RemoveAll(filepath.Join(dir, "examples"))
 	registry.DeleteKey(registry.LOCAL_MACHINE, `SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\`+appName)
 	startMenu := filepath.Join(os.Getenv("PROGRAMDATA"), "Microsoft", "Windows", "Start Menu", "Programs", appName)
 	os.RemoveAll(startMenu)
 	os.Remove(os.Getenv("USERPROFILE") + "\\Desktop\\GoEngineKenga.lnk")
 	os.Remove(os.Getenv("USERPROFILE") + "\\Desktop\\GoEngineKenga CLI.lnk")
-	os.RemoveAll(dir)
+	// Удаляем uninstall.exe последним (мы из него запущены — на Windows не удалится до выхода)
+	os.Remove(filepath.Join(dir, "uninstall.exe"))
+	// Папка может остаться, т.к. exe ещё занят; запускаем отложенное удаление
+	exec.Command("cmd", "/c", "ping -n 2 127.0.0.1 >nul && rmdir /s /q \""+dir+"\"").Start()
 	fmt.Println("GoEngineKenga uninstalled.")
 }
 
@@ -195,11 +222,23 @@ func fileExists(p string) bool { _, err := os.Stat(p); return err == nil }
 func dirExists(p string) bool  { fi, err := os.Stat(p); return err == nil && fi.IsDir() }
 
 func copyFile(src, dst string) {
-	r, _ := os.Open(src)
+	r, err := os.Open(src)
+	if err != nil {
+		fmt.Printf("Warning: cannot open %s: %v\n", src, err)
+		return
+	}
 	defer r.Close()
-	w, _ := os.Create(dst)
-	io.Copy(w, r)
+	w, err := os.Create(dst)
+	if err != nil {
+		fmt.Printf("Warning: cannot create %s: %v\n", dst, err)
+		return
+	}
+	_, err = io.Copy(w, r)
 	w.Close()
+	if err != nil {
+		fmt.Printf("Warning: copy failed %s -> %s: %v\n", src, dst, err)
+		return
+	}
 	os.Chmod(dst, 0755)
 }
 
