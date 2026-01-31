@@ -67,6 +67,7 @@ Section: games
 Priority: optional
 Architecture: $ARCH
 Depends: libc6 (>= 2.17)
+Installed-Size: 0
 Maintainer: GoEngineKenga Team <team@goenginekenga.org>
 Description: Modern game engine written in Go
  A powerful, lightweight game engine built with Go programming language.
@@ -122,9 +123,9 @@ chmod 755 "$DEB_DIR/usr/bin/goenginekenga-editor"
 chmod 755 "$DEB_DIR/usr/bin/goenginekenga-cli"
 chmod 644 "$DEB_DIR/usr/share/doc/$PACKAGE_NAME/"*
 
-# Calculate installed size
-INSTALLED_SIZE=$(du -s "$DEB_DIR" | cut -f1)
-sed -i "s/Installed-Size:.*/Installed-Size: $INSTALLED_SIZE/" "$DEB_DIR/DEBIAN/control"
+# Calculate installed size (in KB)
+INSTALLED_SIZE=$(du -sk "$DEB_DIR" | cut -f1)
+sed -i "s/^Installed-Size:.*/Installed-Size: $INSTALLED_SIZE/" "$DEB_DIR/DEBIAN/control"
 
 # Build package
 dpkg-deb --build "$DEB_DIR" "$DEB_NAME"

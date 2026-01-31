@@ -2,14 +2,18 @@ package editor
 
 import (
 	"fmt"
+	"image/color"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -19,27 +23,59 @@ import (
 	"goenginekenga/engine/scene"
 )
 
-// Run запускает редактор v0.1 (Hierarchy/Inspector/Content/Console/Viewport + Play/Stop).
+// Цвета панелей в стиле Unity/Unreal — читаемые, без чисто чёрного экрана.
+var (
+	viewportBgColor   = color.NRGBA{R: 0x2d, G: 0x2d, B: 0x30, A: 255} // тёмно-серый
+	panelHeaderColor  = color.NRGBA{R: 0x3c, G: 0x3c, B: 0x3c, A: 255}
+	sceneTitleColor   = color.NRGBA{R: 0xbb, G: 0xbb, B: 0xbb, A: 255}
+)
+
+// Run запускает редактор (Hierarchy / Inspector / Content / Console / Viewport + Play/Stop).
 func Run() {
 	a := app.New()
+	// Светлая тема по умолчанию — избегаем чисто чёрного экрана.
+	a.Settings().SetTheme(theme.LightTheme())
 	w := a.NewWindow("GoEngineKenga Editor")
-	w.Resize(fyne.NewSize(1200, 800))
+	w.Resize(fyne.NewSize(1280, 820))
 
 	ed := newEditor()
 
-	status := widget.NewLabel("Project: " + ed.projectDir)
-	viewport := widget.NewMultiLineEntry()
-	viewport.SetText("SceneViewport (v0): 3D preview позже.\nСейчас тут показываем информацию о выбранном объекте/ассете.")
-	viewport.Disable()
+	// ---------- Строка статуса ----------
+	status := widget.NewLabel("Project: " + filepath.Base(ed.projectDir))
+	status.TextStyle = fyne.TextStyle{Bold: true}
+
+	// ---------- Viewport: не чёрный экран, а панель с фоном и подписью ----------
+	viewportBg := canvas.NewRectangle(viewportBgColor)
+	viewportBg.SetMinSize(fyne.NewSize(400, 300))
+	sceneTitle := canvas.NewText("Scene", sceneTitleColor)
+	sceneTitle.TextSize = 18
+	sceneTitle.TextStyle = fyne.TextStyle{Bold: true}
+	sceneSubtitle := canvas.NewText("3D view — embed coming soon", color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 255})
+	sceneSubtitle.TextSize = 12
+	viewportPlaceholder := container.NewStack(
+		viewportBg,
+		container.NewCenter(container.NewVBox(sceneTitle, sceneSubtitle)),
+	)
+	// Информация о выбранном объекте/режиме — в отдельном читаемом поле под viewport.
+	viewportInfo := widget.NewMultiLineEntry()
+	viewportInfo.SetPlaceHolder("Select an object in Hierarchy or an asset in Content…")
+	viewportInfo.Disable()
+	viewportInfo.Wrapping = fyne.TextWrapWord
+	ed.updateViewport = func() {
+		viewportInfo.SetText(ed.viewportInfoText())
+	}
+	ed.updateViewport()
+	viewportStack := container.NewBorder(nil, container.NewVBox(widget.NewSeparator(), viewportInfo), nil, nil, viewportPlaceholder)
+
 	gizmoBar := widget.NewToolbar(
-		widget.NewToolbarAction(theme.ContentAddIcon(), func() { ed.nudgeSelected(0, 0.1, 0, viewport) }),
-		widget.NewToolbarAction(theme.ContentRemoveIcon(), func() { ed.nudgeSelected(0, -0.1, 0, viewport) }),
+		widget.NewToolbarAction(theme.ContentAddIcon(), func() { ed.nudgeSelected(0, 0.1, 0) }),
+		widget.NewToolbarAction(theme.ContentRemoveIcon(), func() { ed.nudgeSelected(0, -0.1, 0) }),
 		widget.NewToolbarSeparator(),
-		widget.NewToolbarAction(theme.NavigateNextIcon(), func() { ed.nudgeSelected(0.1, 0, 0, viewport) }),
-		widget.NewToolbarAction(theme.NavigateBackIcon(), func() { ed.nudgeSelected(-0.1, 0, 0, viewport) }),
+		widget.NewToolbarAction(theme.NavigateNextIcon(), func() { ed.nudgeSelected(0.1, 0, 0) }),
+		widget.NewToolbarAction(theme.NavigateBackIcon(), func() { ed.nudgeSelected(-0.1, 0, 0) }),
 		widget.NewToolbarSeparator(),
-		widget.NewToolbarAction(theme.MoveUpIcon(), func() { ed.nudgeSelected(0, 0, 0.1, viewport) }),
-		widget.NewToolbarAction(theme.MoveDownIcon(), func() { ed.nudgeSelected(0, 0, -0.1, viewport) }),
+		widget.NewToolbarAction(theme.MoveUpIcon(), func() { ed.nudgeSelected(0, 0, 0.1) }),
+		widget.NewToolbarAction(theme.MoveDownIcon(), func() { ed.nudgeSelected(0, 0, -0.1) }),
 	)
 
 	console := widget.NewMultiLineEntry()
@@ -119,15 +155,16 @@ func Run() {
 		e.Transform.Scale.Z = parseFloat32(sclZ.Text)
 
 		ed.rebuildRuntimeFromScene()
-		ed.updateViewport(viewport)
+		ed.updateViewport()
 	}
 
 	for _, entry := range []*widget.Entry{posX, posY, posZ, rotX, rotY, rotZ, sclX, sclY, sclZ} {
 		entry.OnSubmitted = func(string) { applyTransform() }
 	}
 
+	inspectorTitle.TextStyle = fyne.TextStyle{Bold: true}
 	inspector := container.NewVBox(
-		inspectorTitle,
+		container.NewPadded(inspectorTitle),
 		widget.NewForm(
 			widget.NewFormItem("Pos X", posX),
 			widget.NewFormItem("Pos Y", posY),
@@ -143,7 +180,6 @@ func Run() {
 	)
 
 	// ---------- Content Browser ----------
-	assetsTitle := widget.NewLabel("Content")
 	assetsList := widget.NewList(
 		func() int { return len(ed.assets) },
 		func() fyne.CanvasObject { return widget.NewLabel("") },
@@ -159,25 +195,77 @@ func Run() {
 			return
 		}
 		ed.selectedAssetIndex = id
-		ed.updateViewport(viewport)
+		ed.updateViewport()
 	}
 
+	// Заголовки панелей в стиле Unity (жирный текст).
+	hierarchyTitle := widget.NewLabel("Hierarchy")
+	hierarchyTitle.TextStyle = fyne.TextStyle{Bold: true}
+	contentTitle := widget.NewLabel("Content")
+	contentTitle.TextStyle = fyne.TextStyle{Bold: true}
 	leftPanel := container.NewVSplit(
-		container.NewBorder(nil, nil, nil, nil, hierarchy),
-		container.NewBorder(assetsTitle, nil, nil, nil, assetsList),
+		container.NewBorder(container.NewPadded(hierarchyTitle), nil, nil, nil, hierarchy),
+		container.NewBorder(container.NewPadded(contentTitle), nil, nil, nil, assetsList),
 	)
 	leftPanel.Offset = 0.6
 
 	// ---------- Toolbar ----------
 	play := func() {
 		ed.rt.StartPlay()
-		ed.updateViewport(viewport)
+		ed.updateViewport()
 		ed.log("runtime: Play\n")
 	}
 	stop := func() {
 		ed.rt.StopPlay()
-		ed.updateViewport(viewport)
+		ed.updateViewport()
 		ed.log("runtime: Stop\n")
+	}
+	runExternal := func() {
+		if ed.runtimeProc != nil {
+			ed.log("external runtime: already running (pid=%d)\n", ed.runtimeProc.Process.Pid)
+			return
+		}
+		sceneRel, err := filepath.Rel(ed.projectDir, ed.scenePathAbs)
+		if err != nil {
+			sceneRel = ed.scenePathAbs
+		}
+		// Запускаем установленный CLI-рантайм.
+		// Путь к бинарнику можно задать через переменную окружения KENGA_CLI,
+		// иначе используется просто "kenga" (из PATH).
+		kengaBin := os.Getenv("KENGA_CLI")
+		if kengaBin == "" {
+			kengaBin = "kenga"
+		}
+		cmd := exec.Command(kengaBin,
+			"run",
+			"--project", ed.projectDir,
+			"--scene", filepath.ToSlash(sceneRel),
+		)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Start(); err != nil {
+			ed.log("external runtime error: %v\n", err)
+			return
+		}
+		ed.runtimeProc = cmd
+		ed.log("external runtime: started (pid=%d)\n", cmd.Process.Pid)
+		go func() {
+			_ = cmd.Wait()
+			ed.log("external runtime: exited\n")
+			ed.runtimeProc = nil
+		}()
+	}
+	stopExternal := func() {
+		if ed.runtimeProc == nil || ed.runtimeProc.Process == nil {
+			ed.log("external runtime: not running\n")
+			return
+		}
+		if err := ed.runtimeProc.Process.Kill(); err != nil {
+			ed.log("external runtime kill error: %v\n", err)
+			return
+		}
+		ed.log("external runtime: killed\n")
+		ed.runtimeProc = nil
 	}
 	doImport := func() {
 		if err := ed.importAssets(); err != nil {
@@ -186,7 +274,7 @@ func Run() {
 			assetsList.Refresh()
 			ed.log("import: ok (%d assets)\n", len(ed.assets))
 		}
-		ed.updateViewport(viewport)
+		ed.updateViewport()
 	}
 	saveScene := func() {
 		if err := scene.Save(ed.scenePathAbs, ed.sc.Scene); err != nil {
@@ -196,11 +284,41 @@ func Run() {
 		}
 	}
 
+	// ---------- Меню (как в Unity/Unreal) ----------
+	fileMenu := fyne.NewMenu("File",
+		fyne.NewMenuItem("Open Project…", func() { ed.log("File > Open Project\n") }),
+		fyne.NewMenuItem("Save Scene", saveScene),
+		fyne.NewMenuItemSeparator(),
+		fyne.NewMenuItem("Exit", func() { w.Close() }),
+	)
+	editMenu := fyne.NewMenu("Edit",
+		fyne.NewMenuItem("Import Assets", doImport),
+		fyne.NewMenuItem("Preferences…", func() { ed.log("Edit > Preferences\n") }),
+	)
+	windowMenu := fyne.NewMenu("Window",
+		fyne.NewMenuItem("Hierarchy", func() {}),
+		fyne.NewMenuItem("Inspector", func() {}),
+		fyne.NewMenuItem("Console", func() {}),
+		fyne.NewMenuItem("Scene", func() {}),
+	)
+	helpMenu := fyne.NewMenu("Help",
+		fyne.NewMenuItem("Documentation", func() { ed.log("Help > Documentation\n") }),
+		fyne.NewMenuItem("About GoEngineKenga", func() { ed.log("GoEngineKenga Editor\n") }),
+	)
+	mainMenu := fyne.NewMainMenu(fileMenu, editMenu, windowMenu, helpMenu)
+	w.SetMainMenu(mainMenu)
+	if desk, ok := a.(desktop.App); ok {
+		desk.SetSystemTrayMenu(fyne.NewMenu("Editor", fyne.NewMenuItem("Quit", func() { w.Close() })))
+	}
+
 	toolbar := widget.NewToolbar(
 		widget.NewToolbarAction(theme.DownloadIcon(), doImport),
 		widget.NewToolbarSeparator(),
 		widget.NewToolbarAction(theme.MediaPlayIcon(), play),
 		widget.NewToolbarAction(theme.MediaStopIcon(), stop),
+		widget.NewToolbarSeparator(),
+		widget.NewToolbarAction(theme.MediaFastForwardIcon(), runExternal),
+		widget.NewToolbarAction(theme.CancelIcon(), stopExternal),
 		widget.NewToolbarSeparator(),
 		widget.NewToolbarAction(theme.DocumentSaveIcon(), saveScene),
 	)
@@ -226,18 +344,20 @@ func Run() {
 					sclZ.SetText(fmt.Sprintf("%g", e.Transform.Scale.Z))
 				}
 			}
-			ed.updateViewport(viewport)
+			ed.updateViewport()
 		}
 	}
 
-	center := container.NewBorder(status, gizmoBar, nil, nil, viewport)
+	center := container.NewBorder(status, gizmoBar, nil, nil, viewportStack)
 
 	hs := container.NewHSplit(leftPanel, center)
 	hs.Offset = 0.25
 	main := container.NewHSplit(hs, inspector)
 	main.Offset = 0.8
 
-	w.SetContent(container.NewBorder(toolbar, container.NewVSplit(widget.NewLabel("Console"), console), nil, nil, main))
+	consoleTitle := widget.NewLabel("Console")
+	consoleTitle.TextStyle = fyne.TextStyle{Bold: true}
+	w.SetContent(container.NewBorder(toolbar, container.NewVSplit(container.NewPadded(consoleTitle), console), nil, nil, main))
 	w.ShowAndRun()
 }
 
@@ -253,7 +373,9 @@ type editorState struct {
 	selectedAssetIndex  int
 	selectedEntityIndex int
 
-	log func(string, ...any)
+	log          func(string, ...any)
+	updateViewport func() // обновляет текст в панели под viewport
+	runtimeProc  *exec.Cmd
 }
 
 type sceneContainer struct {
@@ -303,49 +425,35 @@ func (ed *editorState) importAssets() error {
 	return nil
 }
 
-func (ed *editorState) updateViewport(viewport *widget.Entry) {
+// viewportInfoText возвращает текст для панели под viewport (выбранный объект/ассет, режим).
+func (ed *editorState) viewportInfoText() string {
 	var b strings.Builder
-	b.WriteString("SceneViewport (v0)\n")
 	b.WriteString("Mode: ")
 	if ed.rt.Mode == runtime.ModePlay {
-		b.WriteString("Play\n\n")
+		b.WriteString("Play")
 	} else {
-		b.WriteString("Edit\n\n")
+		b.WriteString("Edit")
 	}
+	b.WriteString("  |  ")
 
 	if ed.selectedEntityIndex >= 0 && ed.selectedEntityIndex < len(ed.sc.Scene.Entities) {
 		e := ed.sc.Scene.Entities[ed.selectedEntityIndex]
-		b.WriteString("Selected Entity:\n")
-		b.WriteString("  Name: " + e.Name + "\n")
+		b.WriteString("Entity: " + e.Name)
 		if e.MeshRenderer != nil && e.MeshRenderer.MeshAssetID != "" {
-			b.WriteString("  MeshAssetID: " + e.MeshRenderer.MeshAssetID + "\n")
+			b.WriteString("  [Mesh: " + e.MeshRenderer.MeshAssetID + "]")
 		}
-	}
-
-	if ed.selectedAssetIndex >= 0 && ed.selectedAssetIndex < len(ed.assets) {
+		b.WriteString("\n")
+	} else if ed.selectedAssetIndex >= 0 && ed.selectedAssetIndex < len(ed.assets) {
 		a := ed.assets[ed.selectedAssetIndex]
-		b.WriteString("\nSelected Asset:\n")
-		b.WriteString("  Source: " + a.SourcePath + "\n")
-		b.WriteString("  ID: " + a.ID + "\n")
-		b.WriteString("  Type: " + string(a.Type) + "\n")
-		for i, d := range a.Derived {
-			b.WriteString(fmt.Sprintf("  Derived[%d]: %s\n", i, d))
-			if strings.HasSuffix(d, ".mesh.json") {
-				m, err := asset.LoadMesh(filepath.Join(ed.projectDir, filepath.FromSlash(d)))
-				if err == nil {
-					b.WriteString(fmt.Sprintf("    Mesh: %s\n", m.Name))
-					b.WriteString(fmt.Sprintf("    Vertices: %d\n", len(m.Positions)/3))
-					b.WriteString(fmt.Sprintf("    Indices: %d\n", len(m.Indices)))
-				}
-			}
-		}
+		b.WriteString("Asset: " + a.SourcePath + "  (" + string(a.Type) + ")\n")
+	} else {
+		b.WriteString("No selection\n")
 	}
-
-	viewport.SetText(b.String())
+	return b.String()
 }
 
-// nudgeSelected — простой «gizmo» v0: подвинуть Transform на шаг.
-func (ed *editorState) nudgeSelected(dx, dy, dz float32, viewport *widget.Entry) {
+// nudgeSelected — простой «gizmo»: подвинуть Transform выбранной сущности.
+func (ed *editorState) nudgeSelected(dx, dy, dz float32) {
 	if ed.selectedEntityIndex < 0 || ed.selectedEntityIndex >= len(ed.sc.Scene.Entities) {
 		return
 	}
@@ -357,7 +465,7 @@ func (ed *editorState) nudgeSelected(dx, dy, dz float32, viewport *widget.Entry)
 	e.Transform.Position.Y += dy
 	e.Transform.Position.Z += dz
 	ed.rebuildRuntimeFromScene()
-	ed.updateViewport(viewport)
+	ed.updateViewport()
 	if ed.log != nil {
 		ed.log("gizmo: nudge (%.2f, %.2f, %.2f)\n", dx, dy, dz)
 	}

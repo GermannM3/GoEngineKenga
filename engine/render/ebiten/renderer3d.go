@@ -62,6 +62,15 @@ func (r *Renderer3D) RenderToImage() *image.RGBA {
 	return r.rasterizer.RenderToImage()
 }
 
+// RenderToBuffer реализует интерфейс render.FrameRenderer и
+// предоставляет доступ к последнему буферу кадра в формате RGBA байтов.
+func (r *Renderer3D) RenderToBuffer() ([]byte, int, int, error) {
+	if r == nil || r.rasterizer == nil {
+		return nil, 0, 0, nil
+	}
+	return r.rasterizer.RenderToBuffer()
+}
+
 // Resize resizes the renderer
 func (r *Renderer3D) Resize(width, height int) {
 	if r.width == width && r.height == height {
@@ -109,12 +118,15 @@ func (r *Renderer3D) RenderWorld(world *ecs.World, resolver *asset.Resolver, cle
 	}
 
 	// Update camera from world if there's a camera entity
-		if world != nil {
-			r.updateCameraFromWorld(world)
-			r.updateLightsFromWorld(world)
-			r.renderEntities(world, resolver)
-			r.renderTrajectories(world)
-		}
+	if world != nil {
+		r.updateCameraFromWorld(world)
+		r.updateLightsFromWorld(world)
+		r.renderEntities(world, resolver)
+		r.renderTrajectories(world)
+	}
+
+	// Draw world-space helpers (grid + axes), чтобы окно никогда не было пустым.
+	r.renderGridAndAxes()
 
 	// Render particles
 	r.renderParticles()
@@ -393,6 +405,71 @@ func (r *Renderer3D) renderTrajectories(world *ecs.World) {
 			}
 			lastScreenX, lastScreenY = sx, sy
 			hasLast = true
+		}
+	}
+}
+
+// renderGridAndAxes рисует простую сетку по XZ-плоскости (y=0) и оси XYZ,
+// чтобы даже при пустой сцене окно не выглядело полностью чёрным.
+func (r *Renderer3D) renderGridAndAxes() {
+	if r.camera == nil || r.rasterizer == nil || r.rasterizer.ColorBuffer == nil {
+		return
+	}
+
+	viewProj := r.camera.GetViewProjectionMatrix()
+
+	project := func(p emath.Vec3) (int, int, bool) {
+		clip := viewProj.TransformPoint(p)
+		w := viewProj[3]*p.X + viewProj[7]*p.Y + viewProj[11]*p.Z + viewProj[15]
+		if w <= 0.1 {
+			return 0, 0, false
+		}
+		sx := int((clip.X + 1) * 0.5 * float32(r.width))
+		sy := int((1 - clip.Y) * 0.5 * float32(r.height))
+		return sx, sy, true
+	}
+
+	// Сетка на плоскости XZ
+	gridColor := color.RGBA{R: 60, G: 70, B: 90, A: 255}
+	origin := emath.V3(0, 0, 0)
+	extent := float32(10)
+	step := float32(1)
+
+	for x := -extent; x <= extent; x += step {
+		p0 := emath.V3(x, 0, -extent)
+		p1 := emath.V3(x, 0, extent)
+		x0, y0, ok0 := project(p0)
+		x1, y1, ok1 := project(p1)
+		if ok0 && ok1 {
+			r.drawLine2D(x0, y0, x1, y1, gridColor, 1)
+		}
+	}
+	for z := -extent; z <= extent; z += step {
+		p0 := emath.V3(-extent, 0, z)
+		p1 := emath.V3(extent, 0, z)
+		x0, y0, ok0 := project(p0)
+		x1, y1, ok1 := project(p1)
+		if ok0 && ok1 {
+			r.drawLine2D(x0, y0, x1, y1, gridColor, 1)
+		}
+	}
+
+	// Оси координат
+	axisLen := float32(2.5)
+	axes := []struct {
+		from, to emath.Vec3
+		col      color.RGBA
+	}{
+		{origin, emath.V3(axisLen, 0, 0), color.RGBA{R: 220, G: 80, B: 80, A: 255}},   // X — красный
+		{origin, emath.V3(0, axisLen, 0), color.RGBA{R: 80, G: 220, B: 80, A: 255}},   // Y — зелёный
+		{origin, emath.V3(0, 0, axisLen), color.RGBA{R: 80, G: 160, B: 240, A: 255}}, // Z — синий
+	}
+
+	for _, a := range axes {
+		x0, y0, ok0 := project(a.from)
+		x1, y1, ok1 := project(a.to)
+		if ok0 && ok1 {
+			r.drawLine2D(x0, y0, x1, y1, a.col, 3)
 		}
 	}
 }

@@ -29,7 +29,7 @@
 | **3D Graphics** | 6/10 | 10/10 | 10/10 | 10/10 | Hardware-accelerated renderer, PBR, raytracing |
 | **Physics** | 7/10 | 10/10 | 9/10 | 9/10 | Advanced simulation, soft bodies, destruction |
 | **Audio** | 6/10 | 10/10 | 8/10 | 8/10 | Wwise/FMOD integration, spatial audio |
-| **AI** | 7/10 | 10/10 | 7/10 | 7/10 | NavMesh, behavior trees, ML integration |
+| **AI (NPC)** | 7/10 | 10/10 | 7/10 | 7/10 | NavMesh, behavior trees |
 | **UI** | 4/10 | 10/10 | 9/10 | 8/10 | Visual editor, advanced layouts, animations |
 | **Visual Editor** | 1/10 | 10/10 | 10/10 | 10/10 | Scene editor, material editor, animation editor |
 | **Asset Pipeline** | 5/10 | 10/10 | 10/10 | 10/10 | Asset store, automatic import, versioning |
@@ -66,7 +66,6 @@
 
 #### Phase 3: AAA Features (6-12 months)
 - [ ] Ray tracing renderer
-- [ ] Machine Learning integration
 - [ ] Console platform support
 - [ ] VR/AR support
 - [ ] Cloud services (build, deploy)

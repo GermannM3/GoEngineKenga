@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"sync"
@@ -9,6 +10,12 @@ import (
 
 	"github.com/gorilla/websocket"
 )
+
+// ConnectionInfo хранит информацию о соединении
+type ConnectionInfo struct {
+	conn *websocket.Conn
+	id   string
+}
 
 // Server поднимает WebSocket-эндпойнт и прокидывает входящие команды
 // в Manager. На этом этапе поддерживаем один простой эндпойнт /ws
@@ -21,6 +28,10 @@ type Server struct {
 
 	httpSrv *http.Server
 	once    sync.Once
+
+	// connections хранит активные соединения
+	connections   map[string]*ConnectionInfo
+	connectionsMu sync.RWMutex
 }
 
 // NewServer создаёт WebSocket-сервер, но не запускает его.
@@ -39,6 +50,7 @@ func NewServer(addr string, manager *Manager) *Server {
 				return true
 			},
 		},
+		connections: make(map[string]*ConnectionInfo),
 	}
 }
 
@@ -78,6 +90,32 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.Close()
+
+	// Генерируем ID для соединения (можно использовать более сложную логику)
+	connID := fmt.Sprintf("%p", conn)
+
+	// Регистрируем соединение
+	s.connectionsMu.Lock()
+	s.connections[connID] = &ConnectionInfo{
+		conn: conn,
+		id:   connID,
+	}
+	s.connectionsMu.Unlock()
+
+	// Сообщаем менеджеру о новом соединении
+	if s.manager != nil {
+		s.manager.RegisterConnection(connID, conn)
+	}
+
+	defer func() {
+		// Удаляем соединение при выходе
+		s.connectionsMu.Lock()
+		delete(s.connections, connID)
+		if s.manager != nil {
+			s.manager.UnregisterConnection(connID)
+		}
+		s.connectionsMu.Unlock()
+	}()
 
 	for {
 		var envelope CommandEnvelope

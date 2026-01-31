@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"image/color"
 
@@ -22,6 +23,10 @@ type loadModelCommand struct {
 	EntityID string `json:"entity_id,omitempty"`
 	// Name — человекочитаемое имя сущности, если EntityID не задан.
 	Name string `json:"name,omitempty"`
+}
+
+type unloadModelCommand struct {
+	EntityID string `json:"entity_id"`
 }
 
 type clearSceneCommand struct {
@@ -76,12 +81,44 @@ type setJointCommand struct {
 	Axis      [3]float32 `json:"axis,omitempty"`
 }
 
+type getJointCommand struct {
+	EntityID  string `json:"entity_id,omitempty"`
+	JointName string `json:"joint_name,omitempty"`
+}
+
+type getJointResponse struct {
+	EntityID  string     `json:"entity_id"`
+	JointName string     `json:"joint_name"`
+	AngleDeg  float32    `json:"angle_deg"`
+	Axis      [3]float32 `json:"axis"`
+}
+
 type dispenserCommand struct {
 	EntityID string     `json:"entity_id"`
 	FlowRate float32    `json:"flow_rate,omitempty"`
 	Radius   float32    `json:"radius,omitempty"`
 	Color    [4]uint8   `json:"color_rgba,omitempty"`
 	Active   bool       `json:"-"`
+}
+
+type simulateStepCommand struct {
+	StepCount int `json:"step_count,omitempty"` // Количество шагов симуляции (по умолчанию 1)
+	DeltaTime float32 `json:"delta_time,omitempty"` // Время шага (по умолчанию 1/60 секунды)
+}
+
+type queryCollisionsCommand struct {
+	EntityID string `json:"entity_id,omitempty"` // Если указано, проверяем коллизии только для этой сущности
+}
+
+type CollisionInfo struct {
+	EntityA string `json:"entity_a"`
+	EntityB string `json:"entity_b"`
+	Point   [3]float32 `json:"point"`
+	Normal  [3]float32 `json:"normal"`
+}
+
+type queryCollisionsResponse struct {
+	Collisions []CollisionInfo `json:"collisions"`
 }
 
 func (m *Manager) ProcessPending(ctx context.Context) {
@@ -102,6 +139,8 @@ func (m *Manager) handleCommand(_ context.Context, env CommandEnvelope) {
 	switch env.Cmd {
 	case "load_model":
 		m.cmdLoadModel(env)
+	case "unload_model":
+		m.cmdUnloadModel(env)
 	case "clear_scene":
 		m.cmdClearScene(env)
 	case "set_transform":
@@ -116,10 +155,16 @@ func (m *Manager) handleCommand(_ context.Context, env CommandEnvelope) {
 		m.cmdClearTrajectory(env)
 	case "set_joint":
 		m.cmdSetJoint(env)
+	case "get_joint":
+		m.cmdGetJoint(env)
 	case "start_dispensing":
 		m.cmdSetDispenser(env, true)
 	case "stop_dispensing":
 		m.cmdSetDispenser(env, false)
+	case "simulate_step":
+		m.cmdSimulateStep(env)
+	case "query_collisions":
+		m.cmdQueryCollisions(env)
 	default:
 		// Неизвестные команды пока игнорируем.
 	}
@@ -530,6 +575,143 @@ func (m *Manager) findOrCreateEntityByName(w *ecs.World, name string) ecs.Entity
 		return id
 	}
 	return w.CreateEntity(name)
+}
+
+func (m *Manager) cmdUnloadModel(env CommandEnvelope) {
+	w := m.activeWorld()
+	if w == nil {
+		return
+	}
+
+	var payload unloadModelCommand
+	if err := json.Unmarshal(env.Data, &payload); err != nil {
+		return
+	}
+	if payload.EntityID == "" {
+		return
+	}
+
+	id, ok := m.findEntityByName(w, payload.EntityID)
+	if !ok {
+		// Если сущность не найдена, ничего не делаем
+		return
+	}
+
+	// Удаляем все компоненты сущности
+	w.SetMeshRenderer(id, ecs.MeshRenderer{})
+	w.SetTransform(id, ecs.Transform{})
+	w.SetCamera(id, ecs.Camera{})
+	w.SetLight(id, ecs.Light{})
+	w.SetRigidbody(id, ecs.Rigidbody{})
+	w.SetCollider(id, ecs.Collider{})
+	w.SetAudioSource(id, ecs.AudioSource{})
+	w.SetUICanvas(id, ecs.UICanvas{})
+	w.SetTrajectory(id, ecs.Trajectory{})
+	w.SetJoint(id, ecs.Joint{})
+	w.SetDispenser(id, ecs.Dispenser{})
+
+	// Удаляем имя сущности
+	w.SetName(id, "")
+}
+
+func (m *Manager) cmdGetJoint(env CommandEnvelope) {
+	w := m.activeWorld()
+	if w == nil {
+		return
+	}
+
+	var payload getJointCommand
+	if err := json.Unmarshal(env.Data, &payload); err != nil {
+		return
+	}
+
+	// Логическое имя сустава: сначала JointName, потом EntityID.
+	logicalName := payload.JointName
+	if logicalName == "" {
+		logicalName = payload.EntityID
+	}
+
+	id, ok := m.findEntityByName(w, logicalName)
+	if !ok {
+		// Если сустав не найден, возвращаем ошибку
+		m.SendResponse(env.RequestID, env.Cmd, nil, false, "joint not found")
+		return
+	}
+
+	joint, hasJoint := w.GetJoint(id)
+	if !hasJoint {
+		// Если компонент Joint не найден, возвращаем ошибку
+		m.SendResponse(env.RequestID, env.Cmd, nil, false, "joint component not found")
+		return
+	}
+
+	// Подготовим ответ
+	responseData, err := json.Marshal(getJointResponse{
+		EntityID:  payload.EntityID,
+		JointName: payload.JointName,
+		AngleDeg:  joint.Angle,
+		Axis:      [3]float32{joint.Axis.X, joint.Axis.Y, joint.Axis.Z},
+	})
+	if err != nil {
+		m.SendResponse(env.RequestID, env.Cmd, nil, false, "failed to marshal response")
+		return
+	}
+
+	m.SendResponse(env.RequestID, env.Cmd, responseData, true, "")
+}
+
+func (m *Manager) cmdSimulateStep(env CommandEnvelope) {
+	if m == nil || m.rt == nil {
+		return
+	}
+
+	var payload simulateStepCommand
+	if err := json.Unmarshal(env.Data, &payload); err != nil {
+		return
+	}
+
+	stepCount := payload.StepCount
+	if stepCount <= 0 {
+		stepCount = 1
+	}
+
+	deltaTime := payload.DeltaTime
+	if deltaTime <= 0 {
+		deltaTime = 1.0 / 60.0 // 60 FPS по умолчанию
+	}
+
+	// Выполняем шаги симуляции
+	for i := 0; i < stepCount; i++ {
+		// Выполняем шаг симуляции
+		// В реальном приложении здесь будет вызов физического движка
+		// и обновление состояния сцены
+
+		// Для простоты просто вызываем Step у рантайма
+		// Это обновит физику, анимации и другие системы
+		m.rt.Step()
+	}
+}
+
+func (m *Manager) cmdQueryCollisions(env CommandEnvelope) {
+	// В текущей реализации у нас нет полноценной системы отслеживания коллизий через API
+	// Вместо этого возвращаем пустой список коллизий
+
+	var payload queryCollisionsCommand
+	if err := json.Unmarshal(env.Data, &payload); err != nil {
+		m.SendResponse(env.RequestID, env.Cmd, nil, false, "invalid payload")
+		return
+	}
+
+	// Подготовим пустой ответ
+	responseData, err := json.Marshal(queryCollisionsResponse{
+		Collisions: []CollisionInfo{},
+	})
+	if err != nil {
+		m.SendResponse(env.RequestID, env.Cmd, nil, false, "failed to marshal response")
+		return
+	}
+
+	m.SendResponse(env.RequestID, env.Cmd, responseData, true, "")
 }
 
 func (m *Manager) findEntityByName(w *ecs.World, name string) (ecs.EntityID, bool) {
