@@ -36,13 +36,15 @@ if [ ! -f "$DIST/kenga-linux-$ARCH" ]; then
     exit 1
 fi
 
+HAS_EDITOR=""
+[ -f "$DIST/kenga-editor-linux-$ARCH" ] && HAS_EDITOR=1
+
 echo "Будут установлены:"
 echo "  - kenga (CLI)"
-echo "  - kenga-editor"
+[ -n "$HAS_EDITOR" ] && echo "  - kenga-editor"
 echo "  - в каталог: $INSTALL_PREFIX"
 echo ""
 
-# Запрос прав при установке в системный каталог
 NEED_SUDO=""
 if [ ! -w "$INSTALL_PREFIX" ]; then
     echo "Требуются права администратора для записи в $INSTALL_PREFIX"
@@ -52,14 +54,11 @@ fi
 $NEED_SUDO mkdir -p "$BIN_DIR" "$SHARE_DIR/examples" "$APPLICATIONS"
 
 $NEED_SUDO cp "$DIST/kenga-linux-$ARCH" "$BIN_DIR/kenga"
-$NEED_SUDO cp "$DIST/kenga-editor-linux-$ARCH" "$BIN_DIR/kenga-editor"
-$NEED_SUDO chmod 755 "$BIN_DIR/kenga" "$BIN_DIR/kenga-editor"
-
-[ -d "$REPO_ROOT/samples" ] && $NEED_SUDO cp -r "$REPO_ROOT/samples/"* "$SHARE_DIR/examples/" 2>/dev/null || true
-[ -f "$REPO_ROOT/README.md" ] && $NEED_SUDO cp "$REPO_ROOT/README.md" "$SHARE_DIR/" 2>/dev/null || true
-
-# Desktop-файл для редактора
-$NEED_SUDO tee "$APPLICATIONS/goenginekenga.desktop" > /dev/null << EOF
+$NEED_SUDO chmod 755 "$BIN_DIR/kenga"
+if [ -n "$HAS_EDITOR" ]; then
+    $NEED_SUDO cp "$DIST/kenga-editor-linux-$ARCH" "$BIN_DIR/kenga-editor"
+    $NEED_SUDO chmod 755 "$BIN_DIR/kenga-editor"
+    $NEED_SUDO tee "$APPLICATIONS/goenginekenga.desktop" > /dev/null << EOF
 [Desktop Entry]
 Name=GoEngineKenga Editor
 Comment=Game engine and editor (Go)
@@ -69,11 +68,15 @@ Terminal=false
 Type=Application
 Categories=Development;Game;
 EOF
+fi
+
+[ -d "$REPO_ROOT/samples" ] && $NEED_SUDO cp -r "$REPO_ROOT/samples/"* "$SHARE_DIR/examples/" 2>/dev/null || true
+[ -f "$REPO_ROOT/README.md" ] && $NEED_SUDO cp "$REPO_ROOT/README.md" "$SHARE_DIR/" 2>/dev/null || true
 
 echo ""
 echo "Установка завершена."
 echo "  CLI:    $BIN_DIR/kenga"
-echo "  Editor: $BIN_DIR/kenga-editor"
+[ -n "$HAS_EDITOR" ] && echo "  Editor: $BIN_DIR/kenga-editor"
 echo ""
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
     echo "Добавьте в PATH для запуска из терминала:"

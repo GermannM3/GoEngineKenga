@@ -1,5 +1,5 @@
 @echo off
-REM Build one installer exe (no NSIS). Fills embed folder then builds.
+REM Build one installer exe (no NSIS). CLI + Editor (if CGO available) + samples.
 cd /d "%~dp0.."
 
 if not exist dist mkdir dist
@@ -11,6 +11,16 @@ set GOOS=windows
 set GOARCH=amd64
 go build -o cmd\kenga-installer\embed\kenga-windows-amd64.exe .\cmd\kenga
 if errorlevel 1 exit /b 1
+
+echo Building kenga-editor (requires CGO/MinGW)...
+set CGO_ENABLED=1
+go build -o cmd\kenga-installer\embed\kenga-editor-windows-amd64.exe .\cmd\kenga-editor 2>nul
+if errorlevel 1 (
+    echo Editor build skipped - no CGO/MinGW. Installer will include CLI only.
+) else (
+    echo Editor built successfully.
+)
+set CGO_ENABLED=0
 
 echo Copying README, LICENSE, samples into embed...
 copy /Y README.md cmd\kenga-installer\embed\ >nul

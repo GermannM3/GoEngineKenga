@@ -10,7 +10,10 @@
 scripts\make-setup.bat
 ```
 
-Результат: `dist\GoEngineKenga-Setup.exe`. Пользователь запускает его один раз; все файлы встроены в exe. Требуется только Go (без CGO для CLI).
+Результат: `dist\GoEngineKenga-Setup.exe`. Пользователь запускает его один раз; все файлы встроены в exe.
+
+- **CLI** (kenga) — всегда включается, собирается без CGO.
+- **Редактор** (kenga-editor) — включается, если при сборке доступны CGO и MinGW. Иначе — только CLI. Для полного пакета: установите MinGW (`choco install mingw`), затем запустите `make-setup.bat`.
 
 ## Windows: NSIS-установщик
 

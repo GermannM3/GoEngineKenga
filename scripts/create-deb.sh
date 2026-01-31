@@ -43,13 +43,14 @@ mkdir -p "$DEB_DIR/usr/bin"
 mkdir -p "$DEB_DIR/usr/share/doc/$PACKAGE_NAME"
 mkdir -p "$DEB_DIR/usr/share/$PACKAGE_NAME/examples"
 
-# Copy binaries
+# Copy binaries (CLI required; editor optional)
+if [ ! -f "dist/kenga-linux-$ARCH" ]; then
+    echo "Error: dist/kenga-linux-$ARCH not found. Run build-release.sh first."
+    exit 1
+fi
+cp "dist/kenga-linux-$ARCH" "$DEB_DIR/usr/bin/goenginekenga-cli"
 if [ -f "dist/kenga-editor-linux-$ARCH" ]; then
     cp "dist/kenga-editor-linux-$ARCH" "$DEB_DIR/usr/bin/goenginekenga-editor"
-    cp "dist/kenga-linux-$ARCH" "$DEB_DIR/usr/bin/goenginekenga-cli"
-else
-    echo "Error: Binaries not found in dist/"
-    exit 1
 fi
 
 # Copy documentation
@@ -75,26 +76,25 @@ Description: Modern game engine written in Go
  physics simulation, and visual editor.
 EOF
 
-# Create postinst script
+# Create postinst script (desktop entry only if editor installed)
 cat > "$DEB_DIR/DEBIAN/postinst" << 'EOF'
 #!/bin/bash
 set -e
 
-# Create desktop entry
-cat > /usr/share/applications/goenginekenga.desktop << EOL
+if [ -f /usr/bin/goenginekenga-editor ]; then
+    cat > /usr/share/applications/goenginekenga.desktop << EOL
 [Desktop Entry]
 Name=GoEngineKenga
 Comment=Modern game engine written in Go
 Exec=/usr/bin/goenginekenga-editor
-Icon=goenginekenga
+Icon=applications-development
 Terminal=false
 Type=Application
 Categories=Development;Game;
 EOL
+    chmod 644 /usr/share/applications/goenginekenga.desktop
+fi
 
-chmod +x /usr/share/applications/goenginekenga.desktop
-
-# Update desktop database
 if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database
 fi
@@ -119,8 +119,8 @@ EOF
 chmod 755 "$DEB_DIR/DEBIAN/prerm"
 
 # Set permissions
-chmod 755 "$DEB_DIR/usr/bin/goenginekenga-editor"
 chmod 755 "$DEB_DIR/usr/bin/goenginekenga-cli"
+[ -f "$DEB_DIR/usr/bin/goenginekenga-editor" ] && chmod 755 "$DEB_DIR/usr/bin/goenginekenga-editor"
 chmod 644 "$DEB_DIR/usr/share/doc/$PACKAGE_NAME/"*
 
 # Calculate installed size (in KB)
