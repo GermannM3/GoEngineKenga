@@ -7,16 +7,17 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/cogentcore/webgpu/wgpu"
 	"github.com/cogentcore/webgpu/wgpuglfw"
 	"github.com/go-gl/glfw/v3.3/glfw"
 
+	"goenginekenga/engine/asset"
 	"goenginekenga/engine/render"
 )
 
-// Backend (webgpu) — минимальная реализация на базе cogentcore/webgpu.
-// v0: рисуем треугольник, чтобы подтвердить «цепочку» окно→surface→pipeline→present.
+// Backend (webgpu) — GPU рендер 3D-сцены через WebGPU.
 type Backend struct {
 	title  string
 	width  int
@@ -32,8 +33,6 @@ func New(title string, width, height int) *Backend {
 }
 
 func (b *Backend) RunLoop(initial *render.Frame) error {
-	_ = initial
-
 	if err := glfw.Init(); err != nil {
 		return err
 	}
@@ -52,8 +51,14 @@ func (b *Backend) RunLoop(initial *render.Frame) error {
 	}
 	defer s.Destroy()
 
-	window.SetKeyCallback(func(w *glfw.Window, key glfw.Key, scancode int, action glfw.Action, mods glfw.ModifierKey) {
-		// Print resource usage on pressing 'R'
+	var resolver *asset.Resolver
+	if initial != nil && initial.ProjectDir != "" {
+		if r, err := asset.NewResolver(initial.ProjectDir); err == nil {
+			resolver = r
+		}
+	}
+
+	window.SetKeyCallback(func(_ *glfw.Window, key glfw.Key, scancode int, action glfw.Action, mods glfw.ModifierKey) {
 		if key == glfw.KeyR && (action == glfw.Press || action == glfw.Repeat) {
 			report := s.instance.GenerateReport()
 			buf, _ := json.MarshalIndent(report, "", "  ")
@@ -65,17 +70,26 @@ func (b *Backend) RunLoop(initial *render.Frame) error {
 		s.Resize(width, height)
 	})
 
+	lastTime := time.Now()
 	for !window.ShouldClose() {
 		glfw.PollEvents()
-		if err := s.Render(); err != nil {
+
+		dt := time.Since(lastTime).Seconds()
+		lastTime = time.Now()
+		if dt > 0.1 {
+			dt = 1.0 / 60.0
+		}
+
+		if initial != nil && initial.OnUpdate != nil {
+			initial.OnUpdate(dt)
+		}
+
+		if err := s.RenderScene(initial, resolver); err != nil {
 			errstr := err.Error()
 			switch {
 			case strings.Contains(errstr, "Surface timed out"):
-				// ignore
 			case strings.Contains(errstr, "Surface is outdated"):
-				// ignore
 			case strings.Contains(errstr, "Surface was lost"):
-				// ignore
 			default:
 				return err
 			}

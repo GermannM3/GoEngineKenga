@@ -1,0 +1,2 @@
+cargo:rustc-link-search=native=D:\GoEngineKenga\ide\src-tauri\target\release\build\webview2-com-sys-9110379923e991ff\out\x64
+cargo:rustc-link-lib=advapi32

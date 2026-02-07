@@ -58,6 +58,17 @@ func DefaultSphereCollider() *Collider {
 	}
 }
 
+// DefaultCapsuleCollider возвращает стандартный capsule collider (вертикальная ось Y)
+func DefaultCapsuleCollider() *Collider {
+	return &Collider{
+		Type:      "capsule",
+		Center:    emath.V3(0, 0, 0),
+		Radius:    0.5,
+		Height:    2.0,
+		IsTrigger: false,
+	}
+}
+
 // PhysicsWorld управляет физической симуляцией
 type PhysicsWorld struct {
 	Gravity  emath.Vec3 `json:"gravity"`

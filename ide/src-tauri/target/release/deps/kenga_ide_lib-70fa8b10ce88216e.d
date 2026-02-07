@@ -1,0 +1,19 @@
+D:\GoEngineKenga\ide\src-tauri\target\release\deps\kenga_ide_lib-70fa8b10ce88216e.d: src\lib.rs D:\GoEngineKenga\ide\src-tauri\target\release\build\kenga-ide-2d2717ead8eb87b4\out/727882a3d3e3a029612a0df9418ffa8ab5ffa02b9f903d74dc0def0a80e282e0 D:\GoEngineKenga\ide\src-tauri\../dist\index.html \\?\D:\GoEngineKenga\ide\src-tauri\target\release\build\kenga-ide-2d2717ead8eb87b4\out\tauri-codegen-assets\17036448eaa7650d38ade271f34a507a9cbf88216a356a6e762a267aa0e30bdf.html D:\GoEngineKenga\ide\src-tauri\../dist\assets\index-B134jFBt.js \\?\D:\GoEngineKenga\ide\src-tauri\target\release\build\kenga-ide-2d2717ead8eb87b4\out\tauri-codegen-assets\7fbcc6056fa08455329c5ba1bf2322042bed2fb7d9988fccdcdb89d340fec4fd.js D:\GoEngineKenga\ide\src-tauri\../dist\assets\index-CooCIZTn.css \\?\D:\GoEngineKenga\ide\src-tauri\target\release\build\kenga-ide-2d2717ead8eb87b4\out\tauri-codegen-assets\df70bcb8b26baefb903c75a872f0e5862db70977a6d297161c8178fe583f844d.css
+
+D:\GoEngineKenga\ide\src-tauri\target\release\deps\libkenga_ide_lib-70fa8b10ce88216e.rlib: src\lib.rs D:\GoEngineKenga\ide\src-tauri\target\release\build\kenga-ide-2d2717ead8eb87b4\out/727882a3d3e3a029612a0df9418ffa8ab5ffa02b9f903d74dc0def0a80e282e0 D:\GoEngineKenga\ide\src-tauri\../dist\index.html \\?\D:\GoEngineKenga\ide\src-tauri\target\release\build\kenga-ide-2d2717ead8eb87b4\out\tauri-codegen-assets\17036448eaa7650d38ade271f34a507a9cbf88216a356a6e762a267aa0e30bdf.html D:\GoEngineKenga\ide\src-tauri\../dist\assets\index-B134jFBt.js \\?\D:\GoEngineKenga\ide\src-tauri\target\release\build\kenga-ide-2d2717ead8eb87b4\out\tauri-codegen-assets\7fbcc6056fa08455329c5ba1bf2322042bed2fb7d9988fccdcdb89d340fec4fd.js D:\GoEngineKenga\ide\src-tauri\../dist\assets\index-CooCIZTn.css \\?\D:\GoEngineKenga\ide\src-tauri\target\release\build\kenga-ide-2d2717ead8eb87b4\out\tauri-codegen-assets\df70bcb8b26baefb903c75a872f0e5862db70977a6d297161c8178fe583f844d.css
+
+D:\GoEngineKenga\ide\src-tauri\target\release\deps\libkenga_ide_lib-70fa8b10ce88216e.rmeta: src\lib.rs D:\GoEngineKenga\ide\src-tauri\target\release\build\kenga-ide-2d2717ead8eb87b4\out/727882a3d3e3a029612a0df9418ffa8ab5ffa02b9f903d74dc0def0a80e282e0 D:\GoEngineKenga\ide\src-tauri\../dist\index.html \\?\D:\GoEngineKenga\ide\src-tauri\target\release\build\kenga-ide-2d2717ead8eb87b4\out\tauri-codegen-assets\17036448eaa7650d38ade271f34a507a9cbf88216a356a6e762a267aa0e30bdf.html D:\GoEngineKenga\ide\src-tauri\../dist\assets\index-B134jFBt.js \\?\D:\GoEngineKenga\ide\src-tauri\target\release\build\kenga-ide-2d2717ead8eb87b4\out\tauri-codegen-assets\7fbcc6056fa08455329c5ba1bf2322042bed2fb7d9988fccdcdb89d340fec4fd.js D:\GoEngineKenga\ide\src-tauri\../dist\assets\index-CooCIZTn.css \\?\D:\GoEngineKenga\ide\src-tauri\target\release\build\kenga-ide-2d2717ead8eb87b4\out\tauri-codegen-assets\df70bcb8b26baefb903c75a872f0e5862db70977a6d297161c8178fe583f844d.css
+
+src\lib.rs:
+D:\GoEngineKenga\ide\src-tauri\target\release\build\kenga-ide-2d2717ead8eb87b4\out/727882a3d3e3a029612a0df9418ffa8ab5ffa02b9f903d74dc0def0a80e282e0:
+D:\GoEngineKenga\ide\src-tauri\../dist\index.html:
+\\?\D:\GoEngineKenga\ide\src-tauri\target\release\build\kenga-ide-2d2717ead8eb87b4\out\tauri-codegen-assets\17036448eaa7650d38ade271f34a507a9cbf88216a356a6e762a267aa0e30bdf.html:
+D:\GoEngineKenga\ide\src-tauri\../dist\assets\index-B134jFBt.js:
+\\?\D:\GoEngineKenga\ide\src-tauri\target\release\build\kenga-ide-2d2717ead8eb87b4\out\tauri-codegen-assets\7fbcc6056fa08455329c5ba1bf2322042bed2fb7d9988fccdcdb89d340fec4fd.js:
+D:\GoEngineKenga\ide\src-tauri\../dist\assets\index-CooCIZTn.css:
+\\?\D:\GoEngineKenga\ide\src-tauri\target\release\build\kenga-ide-2d2717ead8eb87b4\out\tauri-codegen-assets\df70bcb8b26baefb903c75a872f0e5862db70977a6d297161c8178fe583f844d.css:
+
+# env-dep:CARGO_PKG_AUTHORS=
+# env-dep:CARGO_PKG_DESCRIPTION=
+# env-dep:CARGO_PKG_NAME=kenga-ide
+# env-dep:OUT_DIR=D:\\GoEngineKenga\\ide\\src-tauri\\target\\release\\build\\kenga-ide-2d2717ead8eb87b4\\out

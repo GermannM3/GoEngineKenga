@@ -30,8 +30,6 @@ type Backend struct {
 
 	angle float64
 
-	OnUpdate func(dtSeconds float64)
-
 	resolver *asset.Resolver
 	logf     func(format string, args ...any)
 
@@ -112,8 +110,8 @@ func (b *Backend) Update() error {
 	// Poll input
 	b.pollInput()
 
-	if b.OnUpdate != nil {
-		b.OnUpdate(dt)
+	if b.frame != nil && b.frame.OnUpdate != nil {
+		b.frame.OnUpdate(dt)
 	}
 	b.angle += dt
 

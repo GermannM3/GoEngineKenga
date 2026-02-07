@@ -102,6 +102,7 @@ func doInstall() {
 	if _, err := os.Stat(cliExe); err != nil {
 		fmt.Println("Error: kenga-windows-amd64.exe not found.")
 		fmt.Println("Build with: put kenga-windows-amd64.exe in cmd/kenga-installer/embed/ then go build.")
+		waitBeforeExit()
 		os.Exit(1)
 	}
 
@@ -127,12 +128,14 @@ func doInstall() {
 
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		fmt.Println("Error creating directory:", err)
+		waitBeforeExit()
 		os.Exit(1)
 	}
 
 	copyFile(cliExe, filepath.Join(destDir, "kenga-windows-amd64.exe"))
 	if !fileExists(filepath.Join(destDir, "kenga-windows-amd64.exe")) {
 		fmt.Println("Error: failed to copy kenga. Check that the installer was built correctly (run scripts\\make-setup.bat).")
+		waitBeforeExit()
 		os.Exit(1)
 	}
 	if ed := filepath.Join(srcDir, "kenga-editor-windows-amd64.exe"); fileExists(ed) {
@@ -186,6 +189,20 @@ func doInstall() {
 	fmt.Println("Installation complete.")
 	fmt.Println("  CLI:   ", filepath.Join(destDir, "kenga-windows-amd64.exe"))
 	fmt.Println("  Editor:", filepath.Join(destDir, "kenga-editor-windows-amd64.exe"))
+	waitBeforeExit()
+}
+
+// waitBeforeExit держит окно открытым, чтобы пользователь видел вывод (не в тихом режиме /S).
+func waitBeforeExit() {
+	for _, a := range os.Args[1:] {
+		if a == "/S" || a == "-S" {
+			return
+		}
+	}
+	fmt.Println()
+	fmt.Print("Press Enter to exit...")
+	var dummy string
+	fmt.Scanln(&dummy)
 }
 
 func doUninstall() {
@@ -216,6 +233,7 @@ func doUninstall() {
 	// Папка может остаться, т.к. exe ещё занят; запускаем отложенное удаление
 	exec.Command("cmd", "/c", "ping -n 2 127.0.0.1 >nul && rmdir /s /q \""+dir+"\"").Start()
 	fmt.Println("GoEngineKenga uninstalled.")
+	waitBeforeExit()
 }
 
 func fileExists(p string) bool { _, err := os.Stat(p); return err == nil }

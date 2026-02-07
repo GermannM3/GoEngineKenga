@@ -212,6 +212,143 @@ func CheckBoxSphere(box, sphere *Collider, boxPos, spherePos emath.Vec3, idBox, 
 	}
 }
 
+// capsuleSegment returns world-space endpoints of capsule axis
+func capsuleSegment(c *Collider, pos emath.Vec3) (emath.Vec3, emath.Vec3) {
+	center := pos.Add(c.Center)
+	halfH := c.Height / 2
+	p1 := center.Add(emath.Vec3{X: 0, Y: -halfH, Z: 0})
+	p2 := center.Add(emath.Vec3{X: 0, Y: halfH, Z: 0})
+	return p1, p2
+}
+
+// closestPointOnSegment returns closest point on segment [a,b] to point p
+func closestPointOnSegment(p, a, b emath.Vec3) emath.Vec3 {
+	ab := b.Sub(a)
+	ap := p.Sub(a)
+	t := (ap.X*ab.X + ap.Y*ab.Y + ap.Z*ab.Z) / (ab.X*ab.X + ab.Y*ab.Y + ab.Z*ab.Z + 0.0001)
+	t = clamp(t, 0, 1)
+	return a.Add(emath.Vec3{X: ab.X * t, Y: ab.Y * t, Z: ab.Z * t})
+}
+
+// segmentSegmentDist returns distance between two segments and closest points
+func segmentSegmentDist(a1, a2, b1, b2 emath.Vec3) (float32, emath.Vec3, emath.Vec3) {
+	pa := a1
+	for i := 0; i < 4; i++ {
+		pb := closestPointOnSegment(pa, b1, b2)
+		pa = closestPointOnSegment(pb, a1, a2)
+	}
+	pb := closestPointOnSegment(pa, b1, b2)
+	dist := pa.Sub(pb).Len()
+	return dist, pa, pb
+}
+
+// CheckCapsuleCapsule checks collision between two capsule colliders
+func CheckCapsuleCapsule(a, b *Collider, posA, posB emath.Vec3, idA, idB EntityID) *CollisionInfo {
+	a1, a2 := capsuleSegment(a, posA)
+	b1, b2 := capsuleSegment(b, posB)
+	dist, pA, pB := segmentSegmentDist(a1, a2, b1, b2)
+	if dist >= a.Radius+b.Radius {
+		return nil
+	}
+	normal := pB.Sub(pA)
+	if normal.X*normal.X+normal.Y*normal.Y+normal.Z*normal.Z < 0.0001 {
+		normal = emath.Vec3{X: 0, Y: 1, Z: 0}
+	} else {
+		len := float32(math.Sqrt(float64(normal.X*normal.X + normal.Y*normal.Y + normal.Z*normal.Z)))
+		normal = emath.Vec3{X: normal.X / len, Y: normal.Y / len, Z: normal.Z / len}
+	}
+	depth := (a.Radius + b.Radius) - dist
+	contact := pA.Add(normal.Mul(a.Radius))
+	return &CollisionInfo{
+		EntityA:      idA,
+		EntityB:      idB,
+		Normal:       normal,
+		Depth:        depth,
+		ContactPoint: contact,
+	}
+}
+
+// CheckCapsuleSphere checks collision between capsule and sphere
+func CheckCapsuleSphere(capsule, sphere *Collider, capPos, spherePos emath.Vec3, idCap, idSphere EntityID) *CollisionInfo {
+	a1, a2 := capsuleSegment(capsule, capPos)
+	center := spherePos.Add(sphere.Center)
+	closest := closestPointOnSegment(center, a1, a2)
+	diff := center.Sub(closest)
+	distSq := diff.X*diff.X + diff.Y*diff.Y + diff.Z*diff.Z
+	radiusSum := capsule.Radius + sphere.Radius
+	if distSq >= radiusSum*radiusSum {
+		return nil
+	}
+	dist := float32(math.Sqrt(float64(distSq)))
+	if dist < 0.0001 {
+		return &CollisionInfo{
+			EntityA:      idCap,
+			EntityB:      idSphere,
+			Normal:       emath.Vec3{X: 0, Y: 1, Z: 0},
+			Depth:        radiusSum,
+			ContactPoint: center,
+		}
+	}
+	normal := emath.Vec3{X: diff.X / dist, Y: diff.Y / dist, Z: diff.Z / dist}
+	return &CollisionInfo{
+		EntityA:      idCap,
+		EntityB:      idSphere,
+		Normal:       normal,
+		Depth:        radiusSum - dist,
+		ContactPoint: closest.Add(normal.Mul(capsule.Radius)),
+	}
+}
+
+// CheckCapsuleBox checks collision between capsule and box
+func CheckCapsuleBox(capsule, box *Collider, capPos, boxPos emath.Vec3, idCap, idBox EntityID) *CollisionInfo {
+	a1, a2 := capsuleSegment(capsule, capPos)
+	boxCenter := boxPos.Add(box.Center)
+	halfBox := emath.Vec3{X: box.Size.X / 2, Y: box.Size.Y / 2, Z: box.Size.Z / 2}
+
+	// Closest point on box to capsule segment - check segment endpoints and closest point on box
+	closestOnBox := func(p emath.Vec3) emath.Vec3 {
+		return emath.Vec3{
+			X: clamp(p.X, boxCenter.X-halfBox.X, boxCenter.X+halfBox.X),
+			Y: clamp(p.Y, boxCenter.Y-halfBox.Y, boxCenter.Y+halfBox.Y),
+			Z: clamp(p.Z, boxCenter.Z-halfBox.Z, boxCenter.Z+halfBox.Z),
+		}
+	}
+
+	// Sample along capsule segment
+	minDist := float32(1e9)
+	var bestP, bestQ emath.Vec3
+	for i := 0; i <= 8; i++ {
+		t := float32(i) / 8
+		p := a1.Add(emath.Vec3{X: (a2.X - a1.X) * t, Y: (a2.Y - a1.Y) * t, Z: (a2.Z - a1.Z) * t})
+		q := closestOnBox(p)
+		d := p.Sub(q).Len()
+		if d < minDist {
+			minDist = d
+			bestP = p
+			bestQ = q
+		}
+	}
+
+	if minDist >= capsule.Radius {
+		return nil
+	}
+
+	normal := bestP.Sub(bestQ)
+	if normal.X*normal.X+normal.Y*normal.Y+normal.Z*normal.Z < 0.0001 {
+		normal = emath.Vec3{X: 0, Y: 1, Z: 0}
+	} else {
+		len := float32(math.Sqrt(float64(normal.X*normal.X + normal.Y*normal.Y + normal.Z*normal.Z)))
+		normal = emath.Vec3{X: normal.X / len, Y: normal.Y / len, Z: normal.Z / len}
+	}
+	return &CollisionInfo{
+		EntityA:      idCap,
+		EntityB:      idBox,
+		Normal:       normal,
+		Depth:        capsule.Radius - minDist,
+		ContactPoint: bestQ,
+	}
+}
+
 // CheckCollision checks collision between two colliders of any type
 func CheckCollision(a, b *Collider, posA, posB emath.Vec3, idA, idB EntityID) *CollisionInfo {
 	// First, broad phase check with AABBs
@@ -237,6 +374,26 @@ func CheckCollision(a, b *Collider, posA, posB emath.Vec3, idA, idB EntityID) *C
 		info := CheckBoxSphere(b, a, posB, posA, idB, idA)
 		if info != nil {
 			// Swap entities and invert normal
+			info.EntityA, info.EntityB = idA, idB
+			info.Normal = info.Normal.Mul(-1)
+		}
+		return info
+	case typeA == "capsule" && typeB == "capsule":
+		return CheckCapsuleCapsule(a, b, posA, posB, idA, idB)
+	case typeA == "capsule" && typeB == "sphere":
+		return CheckCapsuleSphere(a, b, posA, posB, idA, idB)
+	case typeA == "sphere" && typeB == "capsule":
+		info := CheckCapsuleSphere(b, a, posB, posA, idB, idA)
+		if info != nil {
+			info.EntityA, info.EntityB = idA, idB
+			info.Normal = info.Normal.Mul(-1)
+		}
+		return info
+	case typeA == "capsule" && typeB == "box":
+		return CheckCapsuleBox(a, b, posA, posB, idA, idB)
+	case typeA == "box" && typeB == "capsule":
+		info := CheckCapsuleBox(b, a, posB, posA, idB, idA)
+		if info != nil {
 			info.EntityA, info.EntityB = idA, idB
 			info.Normal = info.Normal.Mul(-1)
 		}

@@ -51,13 +51,6 @@ func newRunCommand() *cobra.Command {
 				return err
 			}
 
-			frame := &render.Frame{
-				ClearColor: color.RGBA{R: 15, G: 18, B: 24, A: 255},
-				World:      w,
-				ProjectDir: projectDir,
-			}
-
-			// WASM scripts (опционально): .kenga/scripts/game.wasm
 			ctx := context.Background()
 			sh := script.NewHost(func(format string, args ...any) {})
 			wasmAbs := filepath.Join(projectDir, ".kenga", "scripts", "game.wasm")
@@ -66,7 +59,6 @@ func newRunCommand() *cobra.Command {
 				sh.AttachWorld(w)
 			}
 
-			// WebSocket API сервер для внешнего управления (Python/PyQt).
 			var apiManager *api.Manager
 			if !wsDisabled {
 				apiManager = api.NewManager(rt, projectDir)
@@ -80,6 +72,32 @@ func newRunCommand() *cobra.Command {
 				}
 			}
 
+			var frame *render.Frame
+			frame = &render.Frame{
+				ClearColor: color.RGBA{R: 15, G: 18, B: 24, A: 255},
+				World:      w,
+				ProjectDir: projectDir,
+				OnUpdate: func(dt float64) {
+					if apiManager != nil {
+						apiManager.ProcessPending(ctx)
+					}
+					dtDur := time.Duration(dt * float64(time.Second))
+					p := rt.GetProfiler()
+					if p != nil {
+						start := p.StartFrame()
+						defer p.EndFrame(start)
+						p.UpdateMemoryUsage()
+					}
+					delta := rt.Step()
+					if aw, err := rt.ActiveWorld(); err == nil {
+						runtime.SpinSystem(aw, delta)
+						frame.World = aw
+					}
+					_ = sh.HotReloadIfChanged(ctx)
+					_ = sh.Update(ctx, dtDur)
+				},
+			}
+
 			// Headless: нет окна, только WebSocket API
 			var b render.Backend
 			if headlessMode {
@@ -87,27 +105,7 @@ func newRunCommand() *cobra.Command {
 			} else {
 				switch backend {
 				case "", "ebiten":
-					be := ebiten.New("GoEngineKenga Runtime", 1280, 720)
-					be.OnUpdate = func(dt float64) {
-						if apiManager != nil {
-							apiManager.ProcessPending(ctx)
-						}
-						dtDur := time.Duration(dt * float64(time.Second))
-						p := rt.GetProfiler()
-						if p != nil {
-							start := p.StartFrame()
-							defer p.EndFrame(start)
-							p.UpdateMemoryUsage()
-						}
-						delta := rt.Step()
-						if aw, err := rt.ActiveWorld(); err == nil {
-							runtime.SpinSystem(aw, delta)
-							frame.World = aw
-						}
-						_ = sh.HotReloadIfChanged(ctx)
-						_ = sh.Update(ctx, dtDur)
-					}
-					b = be
+					b = ebiten.New("GoEngineKenga Runtime", 1280, 720)
 				case "webgpu":
 					b = webgpu.New("GoEngineKenga Runtime (WebGPU)", 1280, 720)
 				default:

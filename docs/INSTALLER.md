@@ -2,6 +2,33 @@
 
 Установщики: один exe (без NSIS) или NSIS-мастер. Ярлыки, удаление через «Установка и удаление программ».
 
+## IDE (Tauri + React + Monaco)
+
+Современный IDE с Monaco-редактором, командной строкой (AutoCAD-стиль) и панелями. Сборка:
+
+**Windows (MSI + EXE/NSIS):**
+```powershell
+cd ide
+npm install
+npm run tauri build
+```
+Результат: `ide/src-tauri/target/release/bundle/msi/*.msi`, `ide/src-tauri/target/release/bundle/nsis/*-setup.exe`
+
+**Linux (DEB, RPM, AppImage):**
+```bash
+cd ide
+npm install
+npm run tauri build
+```
+Результат: `ide/src-tauri/target/release/bundle/deb/*.deb`, `rpm/*.rpm`, `appimage/*.AppImage`
+
+Скрипты: `scripts/build-ide.bat` (Windows, обходит ExecutionPolicy), `scripts/build-ide.ps1` (Windows), `scripts/build-ide.sh` (Linux).
+
+**Если PowerShell блокирует скрипты** (ExecutionPolicy): используйте `build-ide.bat` или выполните:
+```powershell
+Set-ExecutionPolicy Bypass -Scope Process -Force
+```
+
 ## Где лежат установщики
 
 После сборки:

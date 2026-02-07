@@ -226,6 +226,12 @@ func (r *Renderer3D) updateLightsFromWorld(world *ecs.World) {
 }
 
 func (r *Renderer3D) renderEntities(world *ecs.World, resolver *asset.Resolver) {
+	if r.camera == nil {
+		return
+	}
+	viewProj := r.camera.GetViewProjectionMatrix()
+	frustum := render.ExtractFrustum(viewProj)
+
 	for _, id := range world.Entities() {
 		mr, hasMR := world.GetMeshRenderer(id)
 		if !hasMR {
@@ -239,6 +245,22 @@ func (r *Renderer3D) renderEntities(world *ecs.World, resolver *asset.Resolver) 
 				Rotation: emath.Vec3{},
 				Scale:    emath.Vec3{X: 1, Y: 1, Z: 1},
 			}
+		}
+
+		// Frustum culling
+		sx, sy, sz := tr.Scale.X, tr.Scale.Y, tr.Scale.Z
+		if sx < 0.01 {
+			sx = 1
+		}
+		if sy < 0.01 {
+			sy = 1
+		}
+		if sz < 0.01 {
+			sz = 1
+		}
+		radius := float32(math.Sqrt(float64(sx*sx + sy*sy + sz*sz)))
+		if !frustum.SphereInFrustum(tr.Position, radius) {
+			continue
 		}
 
 		// Build model matrix

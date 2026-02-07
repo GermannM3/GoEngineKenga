@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/components/commandline.tsx","./src/components/consolepanel.tsx","./src/components/editortabs.tsx","./src/components/explorerpanel.tsx","./src/components/inspectorpanel.tsx","./src/components/menubar.tsx","./src/components/viewport.tsx"],"version":"5.9.3"}
