@@ -12,6 +12,7 @@ import (
 	"goenginekenga/engine/api"
 	"goenginekenga/engine/render"
 	"goenginekenga/engine/render/ebiten"
+	"goenginekenga/engine/render/headless"
 	"goenginekenga/engine/render/webgpu"
 	"goenginekenga/engine/runtime"
 	"goenginekenga/engine/scene"
@@ -24,6 +25,7 @@ func newRunCommand() *cobra.Command {
 	var backend string
 	var wsPort string
 	var wsDisabled bool
+	var headlessMode bool
 
 	cmd := &cobra.Command{
 		Use:   "run",
@@ -78,38 +80,39 @@ func newRunCommand() *cobra.Command {
 				}
 			}
 
-			// v0: дефолтный бэкенд — простой desktop-рендер.
+			// Headless: нет окна, только WebSocket API
 			var b render.Backend
-			switch backend {
-			case "", "ebiten":
-				be := ebiten.New("GoEngineKenga Runtime", 1280, 720)
-				be.OnUpdate = func(dt float64) {
-					// Обрабатываем накопившиеся WebSocket-команды в игровом треде.
-					if apiManager != nil {
-						apiManager.ProcessPending(ctx)
+			if headlessMode {
+				b = headless.New(apiManager, rt, projectDir, sh)
+			} else {
+				switch backend {
+				case "", "ebiten":
+					be := ebiten.New("GoEngineKenga Runtime", 1280, 720)
+					be.OnUpdate = func(dt float64) {
+						if apiManager != nil {
+							apiManager.ProcessPending(ctx)
+						}
+						dtDur := time.Duration(dt * float64(time.Second))
+						p := rt.GetProfiler()
+						if p != nil {
+							start := p.StartFrame()
+							defer p.EndFrame(start)
+							p.UpdateMemoryUsage()
+						}
+						delta := rt.Step()
+						if aw, err := rt.ActiveWorld(); err == nil {
+							runtime.SpinSystem(aw, delta)
+							frame.World = aw
+						}
+						_ = sh.HotReloadIfChanged(ctx)
+						_ = sh.Update(ctx, dtDur)
 					}
-
-					dtDur := time.Duration(dt * float64(time.Second))
-					p := rt.GetProfiler()
-					if p != nil {
-						start := p.StartFrame()
-						defer p.EndFrame(start)
-						p.UpdateMemoryUsage()
-					}
-					delta := rt.Step()
-					if aw, err := rt.ActiveWorld(); err == nil {
-						runtime.SpinSystem(aw, delta)
-						frame.World = aw
-					}
-					_ = sh.HotReloadIfChanged(ctx)
-					_ = sh.Update(ctx, dtDur)
+					b = be
+				case "webgpu":
+					b = webgpu.New("GoEngineKenga Runtime (WebGPU)", 1280, 720)
+				default:
+					b = ebiten.New("GoEngineKenga Runtime (fallback)", 1280, 720)
 				}
-				b = be
-			case "webgpu":
-				b = webgpu.New("GoEngineKenga Runtime (WebGPU)", 1280, 720)
-			default:
-				// webgpu будет подключён в отдельном todo (через build tags и реальную реализацию)
-				b = ebiten.New("GoEngineKenga Runtime (fallback)", 1280, 720)
 			}
 
 			return b.RunLoop(frame)
@@ -121,6 +124,7 @@ func newRunCommand() *cobra.Command {
 	cmd.Flags().StringVar(&backend, "backend", "ebiten", "Render backend: ebiten|webgpu")
 	cmd.Flags().StringVar(&wsPort, "ws-port", "127.0.0.1:7777", "WebSocket control listen address (empty to disable)")
 	cmd.Flags().BoolVar(&wsDisabled, "no-ws", false, "Disable WebSocket control server")
+	cmd.Flags().BoolVar(&headlessMode, "headless", false, "Run without window (WebSocket only, for KengaCAD)")
 
 	return cmd
 }
