@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/qmuntal/gltf"
+	"github.com/qmuntal/gltf/modeler"
 
 	emath "goenginekenga/engine/math"
 	"goenginekenga/engine/render"
@@ -26,6 +27,36 @@ type ImportResult struct {
 	BaseColorTexIndex []int
 	// NormalTexIndex[i] — индекс normal map для материала i (-1 если нет)
 	NormalTexIndex []int
+	// Skins — скины для skeletal animation (если есть)
+	Skins []SkinData
+	// Animations — клипы анимации (узлы и/или скелет)
+	Animations []AnimationData
+	// NodeNames — имена узлов по индексу (для связи Track.Name с костями)
+	NodeNames []string
+}
+
+// SkinData — данные скина из glTF (joints, inverse bind matrices)
+type SkinData struct {
+	Name                string
+	Joints              []int           // индексы узлов в doc.Nodes
+	JointNames         []string        // имена костей для animation.Track
+	ParentIndices      []int           // индекс родительской кости (-1 для root)
+	InverseBindMatrices [][16]float32
+}
+
+// AnimationData — данные анимации из glTF
+type AnimationData struct {
+	Name     string
+	Duration float32
+	Channels []AnimationChannelData
+}
+
+// AnimationChannelData — канал анимации (один sampler → один node property)
+type AnimationChannelData struct {
+	NodeIndex int     // индекс узла в doc.Nodes
+	Path      string  // "translation" | "rotation" | "scale"
+	Times     []float32
+	Values    []float32 // VEC3 или VEC4 (quat для rotation)
 }
 
 // Mesh — результат импорта glTF (внутренний для импортера), чтобы избежать циклов импортов.
@@ -37,6 +68,12 @@ type Mesh struct {
 	UV0           []float32 // uv uv ... для текстур
 	Indices       []uint32  // triangle list
 	MaterialIndex int       // индекс материала в glTF (для связи mesh->material)
+	// SkinIndex — индекс в Skins (-1 если меш без скина)
+	SkinIndex int
+	// Joints — индексы костей на вершину (4 на вершину, [j0,j1,j2,j3] для skinning)
+	Joints []uint16
+	// Weights — веса костей на вершину (4 на вершину, нормализованы)
+	Weights []float32
 }
 
 // Texture — результат импорта текстуры из glTF.
@@ -162,6 +199,154 @@ func ImportFile(path string) (*ImportResult, error) {
 		materials = append(materials, *render.DefaultMaterial())
 	}
 
+	// Имена узлов для анимации
+	nodeNames := make([]string, len(doc.Nodes))
+	for i, n := range doc.Nodes {
+		if n != nil && n.Name != "" {
+			nodeNames[i] = n.Name
+		} else {
+			nodeNames[i] = fmt.Sprintf("Node_%d", i)
+		}
+	}
+
+	// Карта родительских узлов: nodeIdx -> parentNodeIdx
+	parentMap := buildNodeParentMap(doc)
+
+	// Скины
+	var skins []SkinData
+	for si, skin := range doc.Skins {
+		if skin == nil || len(skin.Joints) == 0 {
+			continue
+		}
+		nodeToJoint := make(map[int]int)
+		for ji, jIdx := range skin.Joints {
+			nodeToJoint[jIdx] = ji
+		}
+		parentIndices := make([]int, len(skin.Joints))
+		for ji, jIdx := range skin.Joints {
+			parentNodeIdx := parentMap[jIdx]
+			parentIndices[ji] = -1
+			if parentNodeIdx >= 0 {
+				if pji, ok := nodeToJoint[parentNodeIdx]; ok {
+					parentIndices[ji] = pji
+				}
+			}
+		}
+		sd := SkinData{
+			Name:           skin.Name,
+			Joints:         skin.Joints,
+			JointNames:     make([]string, len(skin.Joints)),
+			ParentIndices:  parentIndices,
+		}
+		if sd.Name == "" {
+			sd.Name = fmt.Sprintf("Skin_%d", si)
+		}
+		for ji, jIdx := range skin.Joints {
+			if jIdx >= 0 && jIdx < len(nodeNames) {
+				sd.JointNames[ji] = nodeNames[jIdx]
+			} else {
+				sd.JointNames[ji] = fmt.Sprintf("Joint_%d", ji)
+			}
+		}
+		if skin.InverseBindMatrices != nil {
+			acc := doc.Accessors[*skin.InverseBindMatrices]
+			if acc != nil && acc.BufferView != nil {
+				matrices, err := readFloat32Mat4(doc, buffers, *skin.InverseBindMatrices)
+				if err == nil {
+					sd.InverseBindMatrices = matrices
+				}
+			}
+		}
+		if len(sd.InverseBindMatrices) == 0 {
+			sd.InverseBindMatrices = make([][16]float32, len(skin.Joints))
+			for i := range sd.InverseBindMatrices {
+				sd.InverseBindMatrices[i] = [16]float32{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}
+			}
+		}
+		skins = append(skins, sd)
+	}
+
+	// Анимации
+	var animations []AnimationData
+	for ai, anim := range doc.Animations {
+		if anim == nil || len(anim.Channels) == 0 {
+			continue
+		}
+		ad := AnimationData{
+			Name:     anim.Name,
+			Channels: make([]AnimationChannelData, 0, len(anim.Channels)),
+		}
+		if ad.Name == "" {
+			ad.Name = fmt.Sprintf("Animation_%d", ai)
+		}
+		var maxTime float32
+		for _, ch := range anim.Channels {
+			if ch.Target.Node == nil {
+				continue
+			}
+			nodeIdx := *ch.Target.Node
+			samplerIdx := ch.Sampler
+			if samplerIdx < 0 || samplerIdx >= len(anim.Samplers) {
+				continue
+			}
+			sampler := anim.Samplers[samplerIdx]
+			times, err := readFloat32Scalar(doc, buffers, sampler.Input)
+			if err != nil {
+				continue
+			}
+			path := ch.Target.Path.String()
+			var values []float32
+			switch path {
+			case "translation", "scale":
+				values, err = readFloat32Vec3(doc, buffers, sampler.Output)
+			case "rotation":
+				values, err = readFloat32Vec4(doc, buffers, sampler.Output)
+			default:
+				continue
+			}
+			if err != nil || len(times) == 0 || len(values) == 0 {
+				continue
+			}
+			if n := len(times); n > 0 && float32(times[n-1]) > maxTime {
+				maxTime = float32(times[n-1])
+			}
+			ad.Channels = append(ad.Channels, AnimationChannelData{
+				NodeIndex: nodeIdx,
+				Path:      path,
+				Times:     times,
+				Values:    values,
+			})
+		}
+		ad.Duration = maxTime
+		if len(ad.Channels) > 0 {
+			animations = append(animations, ad)
+		}
+	}
+
+	// Построим mesh->node и mesh->skin mapping
+	meshToNode := findMeshToNodeMap(doc)
+	skinDocToOur := make(map[int]int)
+	for si, skin := range doc.Skins {
+		if skin == nil || len(skin.Joints) == 0 {
+			continue
+		}
+		skinDocToOur[si] = len(skinDocToOur)
+	}
+	meshToSkin := make(map[int]int)
+	for nodeIdx, meshIdx := range meshToNode {
+		if meshIdx < 0 {
+			continue
+		}
+		if n := doc.Nodes[nodeIdx]; n != nil && n.Skin != nil {
+			docSkinIdx := *n.Skin
+			if ourIdx, ok := skinDocToOur[docSkinIdx]; ok {
+				if _, exists := meshToSkin[meshIdx]; !exists {
+					meshToSkin[meshIdx] = ourIdx
+				}
+			}
+		}
+	}
+
 	var meshes []Mesh
 	for mi, m := range doc.Meshes {
 		if m == nil {
@@ -218,6 +403,20 @@ func ImportFile(path string) (*ImportResult, error) {
 			if prim.Material != nil && *prim.Material >= 0 {
 				matIdx = *prim.Material
 			}
+
+			skinIdx := -1
+			var jData []uint16
+			var wData []float32
+			if sIdx, ok := meshToSkin[mi]; ok {
+				skinIdx = sIdx
+				if jointsAcc, ok := prim.Attributes[gltf.JOINTS_0]; ok {
+					jData, _ = readJoints(doc, buffers, jointsAcc)
+				}
+				if weightsAcc, ok := prim.Attributes[gltf.WEIGHTS_0]; ok {
+					wData, _ = readWeights(doc, buffers, weightsAcc)
+				}
+			}
+
 			meshes = append(meshes, Mesh{
 				Name:          meshName,
 				Positions:     pos,
@@ -225,6 +424,9 @@ func ImportFile(path string) (*ImportResult, error) {
 				UV0:           uvs,
 				Indices:       idx,
 				MaterialIndex: matIdx,
+				SkinIndex:     skinIdx,
+				Joints:        jData,
+				Weights:       wData,
 			})
 		}
 	}
@@ -235,7 +437,231 @@ func ImportFile(path string) (*ImportResult, error) {
 		Textures:          textures,
 		BaseColorTexIndex: baseColorTexIndex,
 		NormalTexIndex:    normalTexIndex,
+		Skins:             skins,
+		Animations:        animations,
+		NodeNames:         nodeNames,
 	}, nil
+}
+
+// buildNodeParentMap возвращает map: nodeIdx -> parentNodeIdx (-1 если root)
+func buildNodeParentMap(doc *gltf.Document) map[int]int {
+	out := make(map[int]int)
+	var visit func(nodeIdx int, parent int)
+	visit = func(nodeIdx int, parent int) {
+		if nodeIdx < 0 || nodeIdx >= len(doc.Nodes) {
+			return
+		}
+		n := doc.Nodes[nodeIdx]
+		if n == nil {
+			return
+		}
+		out[nodeIdx] = parent
+		for _, c := range n.Children {
+			visit(c, nodeIdx)
+		}
+	}
+	sceneIdx := 0
+	if doc.Scene != nil {
+		sceneIdx = *doc.Scene
+	}
+	if sceneIdx >= 0 && sceneIdx < len(doc.Scenes) {
+		for _, nodeIdx := range doc.Scenes[sceneIdx].Nodes {
+			visit(nodeIdx, -1)
+		}
+	}
+	return out
+}
+
+// findMeshToNodeMap возвращает map: nodeIndex -> meshIndex (первый узел со ссылкой на меш)
+func findMeshToNodeMap(doc *gltf.Document) map[int]int {
+	out := make(map[int]int)
+	var visit func(nodeIdx int)
+	visit = func(nodeIdx int) {
+		if nodeIdx < 0 || nodeIdx >= len(doc.Nodes) {
+			return
+		}
+		n := doc.Nodes[nodeIdx]
+		if n == nil {
+			return
+		}
+		if n.Mesh != nil {
+			mi := *n.Mesh
+			if mi >= 0 && mi < len(doc.Meshes) {
+				out[nodeIdx] = mi
+			}
+		}
+		for _, c := range n.Children {
+			visit(c)
+		}
+	}
+	sceneIdx := 0
+	if doc.Scene != nil {
+		sceneIdx = *doc.Scene
+	}
+	if sceneIdx >= 0 && sceneIdx < len(doc.Scenes) {
+		for _, nodeIdx := range doc.Scenes[sceneIdx].Nodes {
+			visit(nodeIdx)
+		}
+	}
+	return out
+}
+
+func readFloat32Mat4(doc *gltf.Document, buffers [][]byte, accessorIndex int) ([][16]float32, error) {
+	if accessorIndex < 0 || accessorIndex >= len(doc.Accessors) {
+		return nil, fmt.Errorf("accessor %d out of range", accessorIndex)
+	}
+	acc := doc.Accessors[accessorIndex]
+	if acc == nil || acc.BufferView == nil {
+		return nil, fmt.Errorf("accessor %d invalid", accessorIndex)
+	}
+	if acc.Type != gltf.AccessorMat4 {
+		return nil, fmt.Errorf("expected MAT4, got %s", acc.Type)
+	}
+	bvIndex := int(*acc.BufferView)
+	if bvIndex < 0 || bvIndex >= len(doc.BufferViews) {
+		return nil, fmt.Errorf("bufferView %d out of range", bvIndex)
+	}
+	view := doc.BufferViews[bvIndex]
+	bufIndex := int(view.Buffer)
+	if bufIndex < 0 || bufIndex >= len(buffers) {
+		return nil, fmt.Errorf("buffer %d out of range", bufIndex)
+	}
+	buf := buffers[bufIndex]
+	byteOffset := int(view.ByteOffset) + int(acc.ByteOffset)
+	byteStride := int(view.ByteStride)
+	if byteStride == 0 {
+		byteStride = 64
+	}
+	count := int(acc.Count)
+	out := make([][16]float32, count)
+	for i := 0; i < count; i++ {
+		off := byteOffset + i*byteStride
+		if off+64 > len(buf) {
+			return nil, fmt.Errorf("buffer OOB reading MAT4")
+		}
+		for j := 0; j < 16; j++ {
+			out[i][j] = mathFloat32LE(buf[off+j*4 : off+j*4+4])
+		}
+	}
+	return out, nil
+}
+
+func readFloat32Scalar(doc *gltf.Document, buffers [][]byte, accessorIndex int) ([]float32, error) {
+	if accessorIndex < 0 || accessorIndex >= len(doc.Accessors) {
+		return nil, fmt.Errorf("accessor %d out of range", accessorIndex)
+	}
+	acc := doc.Accessors[accessorIndex]
+	if acc == nil || acc.BufferView == nil {
+		return nil, fmt.Errorf("accessor %d invalid", accessorIndex)
+	}
+	if acc.Type != gltf.AccessorScalar {
+		return nil, fmt.Errorf("expected SCALAR, got %s", acc.Type)
+	}
+	bvIndex := int(*acc.BufferView)
+	if bvIndex < 0 || bvIndex >= len(doc.BufferViews) {
+		return nil, fmt.Errorf("bufferView %d out of range", bvIndex)
+	}
+	view := doc.BufferViews[bvIndex]
+	bufIndex := int(view.Buffer)
+	if bufIndex < 0 || bufIndex >= len(buffers) {
+		return nil, fmt.Errorf("buffer %d out of range", bufIndex)
+	}
+	buf := buffers[bufIndex]
+	byteOffset := int(view.ByteOffset) + int(acc.ByteOffset)
+	byteStride := int(view.ByteStride)
+	if byteStride == 0 {
+		byteStride = 4
+	}
+	count := int(acc.Count)
+	out := make([]float32, count)
+	for i := 0; i < count; i++ {
+		off := byteOffset + i*byteStride
+		if off+4 > len(buf) {
+			return nil, fmt.Errorf("buffer OOB reading SCALAR")
+		}
+		out[i] = mathFloat32LE(buf[off : off+4])
+	}
+	return out, nil
+}
+
+func readFloat32Vec4(doc *gltf.Document, buffers [][]byte, accessorIndex int) ([]float32, error) {
+	if accessorIndex < 0 || accessorIndex >= len(doc.Accessors) {
+		return nil, fmt.Errorf("accessor %d out of range", accessorIndex)
+	}
+	acc := doc.Accessors[accessorIndex]
+	if acc == nil || acc.BufferView == nil {
+		return nil, fmt.Errorf("accessor %d invalid", accessorIndex)
+	}
+	if acc.ComponentType != gltf.ComponentFloat {
+		return nil, fmt.Errorf("expected float component type, got %d", acc.ComponentType)
+	}
+	if acc.Type != gltf.AccessorVec4 {
+		return nil, fmt.Errorf("expected VEC4, got %s", acc.Type)
+	}
+	bvIndex := int(*acc.BufferView)
+	if bvIndex < 0 || bvIndex >= len(doc.BufferViews) {
+		return nil, fmt.Errorf("bufferView %d out of range", bvIndex)
+	}
+	view := doc.BufferViews[bvIndex]
+	bufIndex := int(view.Buffer)
+	if bufIndex < 0 || bufIndex >= len(buffers) {
+		return nil, fmt.Errorf("buffer %d out of range", bufIndex)
+	}
+	buf := buffers[bufIndex]
+	byteOffset := int(view.ByteOffset) + int(acc.ByteOffset)
+	byteStride := int(view.ByteStride)
+	if byteStride == 0 {
+		byteStride = 16
+	}
+	count := int(acc.Count)
+	out := make([]float32, 0, count*4)
+	for i := 0; i < count; i++ {
+		off := byteOffset + i*byteStride
+		if off+16 > len(buf) {
+			return nil, fmt.Errorf("buffer OOB reading VEC4")
+		}
+		out = append(out,
+			mathFloat32LE(buf[off:off+4]),
+			mathFloat32LE(buf[off+4:off+8]),
+			mathFloat32LE(buf[off+8:off+12]),
+			mathFloat32LE(buf[off+12:off+16]),
+		)
+	}
+	return out, nil
+}
+
+func readJoints(doc *gltf.Document, buffers [][]byte, accessorIndex int) ([]uint16, error) {
+	acc := doc.Accessors[accessorIndex]
+	if acc == nil || acc.BufferView == nil {
+		return nil, fmt.Errorf("accessor invalid")
+	}
+	var jBuf [][4]uint16
+	data, err := modeler.ReadJoints(doc, acc, jBuf)
+	if err != nil {
+		return nil, err
+	}
+	flat := make([]uint16, 0, len(data)*4)
+	for _, v := range data {
+		flat = append(flat, v[0], v[1], v[2], v[3])
+	}
+	return flat, nil
+}
+
+func readWeights(doc *gltf.Document, buffers [][]byte, accessorIndex int) ([]float32, error) {
+	acc := doc.Accessors[accessorIndex]
+	if acc == nil || acc.BufferView == nil {
+		return nil, fmt.Errorf("accessor invalid")
+	}
+	var wBuf [][4]float32
+	data, err := modeler.ReadWeights(doc, acc, wBuf)
+	if err != nil {
+		return nil, err
+	}
+	flat := make([]float32, 0, len(data)*4)
+	for _, v := range data {
+		flat = append(flat, v[0], v[1], v[2], v[3])
+	}
+	return flat, nil
 }
 
 func loadBuffers(doc *gltf.Document, baseDir string) ([][]byte, error) {

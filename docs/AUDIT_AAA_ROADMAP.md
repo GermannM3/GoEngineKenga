@@ -10,16 +10,16 @@
 
 | Критерий | GoEngineKenga | Unity | Unreal Engine 5 |
 |----------|---------------|-------|----------------|
-| **Рендер** | Software (Ebiten) + WebGPU PBR | URP/HDRP, GPU | Lumen, Nanite, raytracing |
-| **Материалы** | PBR (albedo, metallic, roughness) | PBR, Shader Graph | PBR, node-based editor |
-| **Освещение** | Ambient, directional, point | GI, shadows, baked | Lumen (real-time GI), shadows |
+| **Рендер** | Software (Ebiten) + WebGPU PBR, mesh cache | URP/HDRP, GPU | Lumen, Nanite, raytracing |
+| **Материалы** | PBR (albedo, metallic, roughness, normal) | PBR, Shader Graph | PBR, node-based editor |
+| **Освещение** | Ambient, directional, point | GI, baked | Lumen (real-time GI) |
 | **Тени** | Shadow map (directional) | Shadow maps | Cascaded shadow maps |
-| **Постобработка** | Vignette, chromatic aberration | Bloom, SSAO, DOF | Полный набор |
-| **LOD** | Quality presets (draw calls) | LOD groups | Nanite, HLOD |
-| **Физика** | AABB, Sphere, Box-Sphere, импульсы | PhysX, joints | Chaos |
+| **Постобработка** | Bloom, SSAO | Bloom, SSAO, DOF | Полный набор |
+| **LOD** | LODRefs, frustum culling | LOD groups | Nanite, HLOD |
+| **Физика** | AABB, Sphere, Box, Capsule, Raycast, joints | PhysX, joints | Chaos |
 | **Анимация** | Skeletal, keyframe, sprite | Mecanim, blend trees | Control Rig, sequencer |
-| **Редактор** | IDE (Tauri), Web (Vue) | Полноценный | Blueprint, Sequencer |
-| **Платформы** | Desktop (Ebiten) | Все | Все |
+| **Редактор** | IDE (Tauri), viewport WebSocket, orbit camera | Полноценный | Blueprint, Sequencer |
+| **Платформы** | Desktop, WASM, Mobile | Все | Все |
 | **Сеть** | Client/Server API | Netcode | Replication |
 | **Asset pipeline** | glTF, JSON | FBX, много форматов | FBX, USD |
 
@@ -27,45 +27,41 @@
 
 ## 2. Критические пробелы (блокируют AAA)
 
-### 2.1 GPU-рендеринг — главный bottleneck
+### 2.1 Масштаб сцен
 
-**Текущее состояние:** Software rasterizer, ~1000–5000 треугольников при 60 FPS. WebGPU backend только рисует один треугольник.
+**Текущее:** Ebiten ~5k tris, WebGPU 10k+ tris с mesh cache. Instancing, LOD, frustum culling есть.
 
-**UE5/Unity:** GPU, миллионы полигонов, instancing.
+**UE5/Unity:** Миллионы полигонов, Nanite, Lumen.
 
-**Требуется:**
-- Полноценный WebGPU backend с рендером ECS-сцены
-- Или OpenGL/Vulkan backend
-- Vertex/index buffers, MVP матрицы, текстуры
+**Разрыв:** Software rasterizer ограничен. WebGPU требует CGO. Для AAA нужен больший масштаб.
 
-### 2.2 PBR и освещение
+### 2.2 Skeletal animation
 
-**Текущее:** Lambert diffuse, ambient, directional, point.
+**Текущее:** API (Clip, Animator, blend) есть. Импорт skin/animation из glTF — реализован (Skin, JOINTS_0, WEIGHTS_0, inverse bind matrices, Animation channels → Clip).
 
-**Требуется:** Albedo, metallic, roughness, normal maps. Fresnel, IBL (опционально).
+**Осталось:** Связь с рендерером (skinning в vertex shader), привязка к ECS.
 
-### 2.3 Тени
+### 2.3 IBL, отражения
+
+**Текущее:** Нет baked environment, отражений.
+
+**Требуется:** Опционально для PBR-качества.
+
+### 2.4 Occlusion culling
 
 **Текущее:** Нет.
 
-**Требуется:** Shadow maps (directional, point).
-
-### 2.4 Физика
-
-**Текущее:** Spatial hash, AABB/Sphere/Box коллизии, импульсы. Нет джойнтов, рэгдолла.
-
-**Требуется:** Интеграция с Bullet/Jolt или расширение до constraints, joints.
+**Требуется:** Portal, PVS или Hi-Z для больших сцен.
 
 ---
 
 ## 3. Важные пробелы (снижают конкурентоспособность)
 
-- **LOD:** Quality presets есть, но нет переключения мешей по дистанции
-- **Frustum culling:** Проверить наличие
-- **Occlusion culling:** Нет
-- **Постобработка:** Частично (vignette, outline)
-- **Редактор:** IDE отделён от рантайма, нет real-time preview
-- **Документация:** Базовый уровень
+- **Point/spot shadows:** Только directional shadow map
+- **DOF, motion blur:** Нет
+- **Shader Graph:** Нет, только фиксированные шейдеры
+- ~~**Mesh cache invalidation**~~ — реализовано
+- **WebGPU orbit camera:** Orbit только в Ebiten
 
 ---
 
@@ -89,7 +85,7 @@
 ### Блок 3: Тени и постобработка (приоритет 3) ✅
 - [x] 3.1 Shadow map (directional light)
 - [x] 3.2 Bloom (Ebiten software rasterizer)
-- [ ] 3.3 SSAO (опционально)
+- [x] 3.3 SSAO (screen-space ambient occlusion, software rasterizer)
 
 ### Блок 4: LOD и оптимизация (приоритет 4) ✅
 - [x] 4.1 LOD levels в asset (Mesh.LODRefs, переключение по дистанции)
@@ -99,16 +95,17 @@
 ### Блок 5: Физика (приоритет 5) ✅
 - [x] 5.1 Capsule collider (DefaultCapsuleCollider, CheckCapsuleCapsule/Sphere/Box)
 - [x] 5.2 Raycast API (physics.Raycast, RaycastHit)
-- [ ] 5.3 Joints/constraints (опционально)
+- [x] 5.3 Joints/constraints (DistanceConstraint, FixedPointConstraint, ResolveConstraints)
 
 ### Блок 6: Редактор (приоритет 6)
 - [x] 6.1 IDE Viewport: real-time preview через WebSocket
 - [x] 6.2 Drag-and-drop ассетов (glTF на окно → assets → import)
 - [x] 6.3 Asset/Scene hot-reload (fsnotify: glTF, сцены, index → автообновление viewport)
+- [x] 6.4 Orbit camera: ПКМ rotate, СКМ pan, scroll zoom (Ebiten)
 
 ### Блок 7: Платформы (приоритет 7)
-- [ ] 7.1 WebAssembly (Ebiten на WASM)
-- [ ] 7.2 Mobile (Ebiten gomobile)
+- [x] 7.1 WebAssembly (Ebiten на WASM)
+- [x] 7.2 Mobile (Ebiten ebitenmobile: Android .aar, iOS .xcframework)
 
 ---
 
@@ -124,11 +121,11 @@
 
 ## 6. Критерии готовности к коммерческому использованию
 
-- [ ] GPU-рендер сцен 10k+ треугольников при 60 FPS
-- [ ] PBR материалы
-- [ ] Тени (хотя бы directional)
-- [ ] Стабильный редактор/IDE
-- [ ] Документация для разработчиков
+- [x] GPU-рендер сцен 10k+ треугольников при 60 FPS (WebGPU: instancing + mesh cache)
+- [x] PBR материалы
+- [x] Тени (directional shadow map)
+- [x] Стабильный редактор/IDE (window-state: сохранение позиции/размера)
+- [x] Документация для разработчиков ([docs/DEVELOPER.md](DEVELOPER.md))
 - [ ] Один опубликованный инди-проект на движке
 
 ---
@@ -152,7 +149,15 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
-Артефакты: Windows, Linux, macOS (amd64/arm64). Подробнее: [docs/RELEASE.md](RELEASE.md).
+Артефакты: Windows, Linux, macOS (amd64/arm64), WASM. Подробнее: [docs/RELEASE.md](RELEASE.md).
+
+Платформы: WASM ([wasm/README.md](wasm/README.md)), Mobile ([docs/MOBILE.md](MOBILE.md)).
+
+---
+
+## 9. Честный аудит
+
+Подробное сравнение с Unity и Unreal: [docs/AUDIT_UNITY_UNREAL.md](AUDIT_UNITY_UNREAL.md).
 
 ---
 

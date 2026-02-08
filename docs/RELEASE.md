@@ -24,6 +24,7 @@ git push origin v0.2.0
 ## Артефакты
 
 - `GoEngineKenga-{version}-windows-amd64.zip` — Windows x64
+- `kenga.wasm` + `wasm_exec.js` — WebAssembly (браузер)
 - `GoEngineKenga-{version}-linux-amd64.tar.gz` — Linux x64
 - `GoEngineKenga-{version}-linux-arm64.tar.gz` — Linux ARM64
 - `GoEngineKenga-{version}-darwin-amd64.tar.gz` — macOS Intel

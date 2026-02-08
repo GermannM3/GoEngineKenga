@@ -157,6 +157,12 @@ func meshFromResolver(resolver *asset.Resolver, meshAssetID string) (positions, 
 	return cube.Vertices, cube.Normals, cube.UVs, cube.Indices
 }
 
+// cachedMesh — закэшированный vertex buffer для mesh (переиспользуется между кадрами)
+type cachedMesh struct {
+	vertexBuf   *wgpu.Buffer
+	vertexCount uint32
+}
+
 // sceneState holds GPU resources for rendering a 3D scene.
 type sceneState struct {
 	device          *wgpu.Device
@@ -167,6 +173,8 @@ type sceneState struct {
 	bindGroupShadow *wgpu.BindGroup
 	cubeVertexBuf   *wgpu.Buffer
 	cubeVertexCount uint32
+
+	meshCache map[string]*cachedMesh // meshAssetID -> vertex buffer (для 10k+ tris без пересоздания)
 
 	shadowMap       *wgpu.Texture
 	shadowView      *wgpu.TextureView
@@ -440,6 +448,7 @@ func (s *state) initSceneState() error {
 		bindGroupShadow: bgShadow,
 		cubeVertexBuf:   cubeBuf,
 		cubeVertexCount: uint32(len(cubeData) / 32),
+		meshCache:       make(map[string]*cachedMesh),
 		shadowMap:       shadowTex,
 		shadowView:      shadowView,
 		shadowPipeline:  shadowPl,
@@ -448,6 +457,35 @@ func (s *state) initSceneState() error {
 		shadowSampler:   shadowSampler,
 	}
 	return nil
+}
+
+// getOrCreateMeshBuffer возвращает закэшированный vertex buffer для mesh. Создаёт при первом обращении.
+func (sc *sceneState) getOrCreateMeshBuffer(resolver *asset.Resolver, meshAssetID string) (*wgpu.Buffer, uint32) {
+	if meshAssetID == "" {
+		return nil, 0
+	}
+	if c, ok := sc.meshCache[meshAssetID]; ok && c != nil {
+		return c.vertexBuf, c.vertexCount
+	}
+	positions, normals, uvs, indices := meshFromResolver(resolver, meshAssetID)
+	if len(positions) == 0 || len(indices) == 0 {
+		return nil, 0
+	}
+	vertData := buildVertexData(positions, normals, uvs, indices)
+	if len(vertData) == 0 {
+		return nil, 0
+	}
+	vb, err := sc.device.CreateBufferInit(&wgpu.BufferInitDescriptor{
+		Label:    "mesh cache " + meshAssetID,
+		Contents: vertData,
+		Usage:    wgpu.BufferUsageVertex,
+	})
+	if err != nil {
+		return nil, 0
+	}
+	vertexCount := uint32(len(vertData) / 32)
+	sc.meshCache[meshAssetID] = &cachedMesh{vertexBuf: vb, vertexCount: vertexCount}
+	return vb, vertexCount
 }
 
 // pbrSceneData содержит данные для PBR рендера из World.

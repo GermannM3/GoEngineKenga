@@ -29,6 +29,9 @@ type Renderer3D struct {
 	// Bloom post-processing
 	Bloom render.BloomParams
 
+	// SSAO post-processing
+	SSAO render.SSAOParams
+
 	width, height int
 }
 
@@ -38,6 +41,7 @@ func NewRenderer3D(width, height int) *Renderer3D {
 		rasterizer: render.NewRasterizer(width, height),
 		camera:     render.NewCamera3D(),
 		Bloom:      render.DefaultBloomParams(),
+		SSAO:       render.DefaultSSAOParams(),
 		width:      width,
 		height:     height,
 	}
@@ -134,6 +138,9 @@ func (r *Renderer3D) RenderWorld(world *ecs.World, resolver *asset.Resolver, cle
 
 	// Render particles
 	r.renderParticles()
+
+	// SSAO (до Bloom — затемняет ambient в углублениях)
+	render.ApplySSAO(r.rasterizer.ColorBuffer, r.rasterizer.DepthBuffer, r.SSAO)
 
 	// Bloom post-processing
 	render.ApplyBloom(r.rasterizer.ColorBuffer, r.Bloom)

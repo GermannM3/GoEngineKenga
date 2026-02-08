@@ -15,4 +15,12 @@ type Mesh struct {
 	// LODRefs — пути к упрощённым мешам (LOD1, LOD2, ...), относительно проекта.
 	// LOD0 = этот меш. При расстоянии > LODThreshold рендерер переключается на LODRefs[0] и т.д.
 	LODRefs []string `json:"lodRefs,omitempty"`
+
+	// Скиннинг (skeletal animation)
+	// SkinID — путь к .skeleton.json (-1 или пусто = без скина)
+	SkinID string `json:"skinId,omitempty"`
+	// Joints — индексы костей на вершину (4 на вершину)
+	Joints []uint16 `json:"joints,omitempty"`
+	// Weights — веса костей на вершину (4 на вершину)
+	Weights []float32 `json:"weights,omitempty"`
 }

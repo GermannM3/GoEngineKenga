@@ -1,1 +1,1 @@
-{"$schema":"https://schema.tauri.app/config/2/capability","identifier":"default","description":"Default capabilities for the IDE","windows":["main"],"permissions":["core:default","core:invoke","shell:allow-open","shell:allow-execute"]}
+{"$schema":"https://schema.tauri.app/config/2/capability","identifier":"default","description":"Default capabilities for the IDE","windows":["main"],"permissions":["core:default","shell:allow-open","shell:allow-execute","window-state:default"]}

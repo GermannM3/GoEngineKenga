@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GoEngineKenga</title>
+  <style>
+    body { margin: 0; background: #0f1218; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <script src="wasm_exec.js"></script>
+  <script>
+    const canvas = document.getElementById("canvas");
+    const go = new Go();
+    WebAssembly.instantiateStreaming(fetch("kenga.wasm"), go.importObject).then(function(result) {
+      go.run(result.instance);
+    }).catch(function(err) {
+      console.error("WASM load failed:", err);
+      document.body.innerHTML = "<pre style='color:#fff'>WASM load failed. Serve via HTTP (e.g. python -m http.server 8080)</pre>";
+    });
+  </script>
+</body>
+</html>

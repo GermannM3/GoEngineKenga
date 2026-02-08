@@ -14,7 +14,7 @@ import "./App.css";
 function App() {
   const [activeView, setActiveView] = useState<"editor" | "viewport">("editor");
   const [selectedEntity] = useState<string | null>(null);
-  const [projectPath, setProjectPath] = useState<string>(".");
+  const [projectPath] = useState<string>(".");
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;

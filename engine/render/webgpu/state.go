@@ -115,6 +115,19 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 		s.surface.Present()
 		return nil
 	}
+	// Инвалидация mesh cache при hot-reload ассетов
+	if frame.InvalidateMeshCache {
+		frame.InvalidateMeshCache = false
+		if s.scene != nil {
+			for _, c := range s.scene.meshCache {
+				if c != nil && c.vertexBuf != nil {
+					c.vertexBuf.Release()
+				}
+			}
+			s.scene.meshCache = make(map[string]*cachedMesh)
+		}
+	}
+
 	width, height := int(s.config.Width), int(s.config.Height)
 	nextTexture, err := s.surface.GetCurrentTexture()
 	if err != nil {
@@ -179,7 +192,7 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 
 		for _, id := range frame.World.Entities() {
 			mr, hasMR := frame.World.GetMeshRenderer(id)
-			if !hasMR {
+			if !hasMR || mr.MeshAssetID == "" {
 				continue
 			}
 			tr, hasTr := frame.World.GetTransform(id)
@@ -200,27 +213,15 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 			if !frustum.SphereInFrustum(tr.Position, radius) {
 				continue
 			}
+			vb, vc := sc.getOrCreateMeshBuffer(resolver, mr.MeshAssetID)
+			if vb == nil {
+				continue
+			}
 			model := buildModelMatrix(&tr)
 			copy(shadowUbBytes[64:128], matrixToBytes(model))
 			s.queue.WriteBuffer(sc.shadowUniform, 0, shadowUbBytes)
-
-			positions, normals, uvs, indices := meshFromResolver(resolver, mr.MeshAssetID)
-			if len(positions) == 0 || len(indices) == 0 {
-				continue
-			}
-			vertData := buildVertexData(positions, normals, uvs, indices)
-			if len(vertData) == 0 {
-				continue
-			}
-			vb, err := s.device.CreateBufferInit(&wgpu.BufferInitDescriptor{
-				Label: "shadow vb", Contents: vertData, Usage: wgpu.BufferUsageVertex,
-			})
-			if err != nil {
-				continue
-			}
 			shadowPass.SetVertexBuffer(0, vb, 0, wgpu.WholeSize)
-			shadowPass.Draw(uint32(len(vertData)/32), 1, 0, 0)
-			vb.Release()
+			shadowPass.Draw(vc, 1, 0, 0)
 		}
 		shadowPass.End()
 		shadowPass.Release()
@@ -243,32 +244,18 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 			pbrData.ambient, pbrData.camPos, lightViewProj)
 		s.queue.WriteBuffer(sc.uniformBuffer, 0, ubBytes)
 
-		positions, normals, uvs, indices := meshFromResolver(resolver, batch.meshAssetID)
-		if len(positions) == 0 || len(indices) == 0 {
-			continue
-		}
-		vertData := buildVertexData(positions, normals, uvs, indices)
-		if len(vertData) == 0 {
-			continue
-		}
-		vb, err := s.device.CreateBufferInit(&wgpu.BufferInitDescriptor{
-			Label:    "mesh vertices",
-			Contents: vertData,
-			Usage:    wgpu.BufferUsageVertex,
-		})
-		if err != nil {
+		vb, vc := sc.getOrCreateMeshBuffer(resolver, batch.meshAssetID)
+		if vb == nil {
 			continue
 		}
 		instanceBuf := buildInstanceBuffer(s.device, batch.transforms)
 		if instanceBuf == nil {
-			vb.Release()
 			continue
 		}
 		renderPass.SetVertexBuffer(0, vb, 0, wgpu.WholeSize)
 		renderPass.SetVertexBuffer(1, instanceBuf, 0, wgpu.WholeSize)
-		renderPass.Draw(uint32(len(vertData)/32), uint32(len(batch.transforms)), 0, 0)
+		renderPass.Draw(vc, uint32(len(batch.transforms)), 0, 0)
 		instanceBuf.Release()
-		vb.Release()
 	}
 
 	// Fallback: cube if no meshes
@@ -312,6 +299,12 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 
 func (s *state) Destroy() {
 	if s.scene != nil {
+		for _, c := range s.scene.meshCache {
+			if c != nil && c.vertexBuf != nil {
+				c.vertexBuf.Release()
+			}
+		}
+		s.scene.meshCache = nil
 		if s.scene.bindGroupShadow != nil {
 			s.scene.bindGroupShadow.Release()
 		}

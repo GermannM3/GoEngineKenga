@@ -135,9 +135,11 @@ func newRunCommand() *cobra.Command {
 							if db, err := asset.Open(projectDir); err == nil {
 								_, _ = db.ImportAll()
 							}
+							frame.InvalidateMeshCache = true
 						}
 						if watcher.ConsumeIndexDirty() && resolver != nil {
 							_ = resolver.Refresh()
+							frame.InvalidateMeshCache = true
 						}
 						if watcher.ConsumeSceneDirty() {
 							if reloaded, err := scene.Load(scenePathAbs); err == nil {
@@ -145,6 +147,7 @@ func newRunCommand() *cobra.Command {
 								if world, err := rt.ActiveWorld(); err == nil {
 									frame.World = world
 								}
+								frame.OrbitResetRequested = true
 							}
 						}
 					}

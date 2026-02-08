@@ -34,10 +34,13 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![import_dropped_assets])
         .setup(|app| {
+            #[cfg(desktop)]
+            let _ = app.handle().plugin(tauri_plugin_window_state::Builder::default().build());
             #[cfg(debug_assertions)]
             {
-                let window = app.get_webview_window("main").unwrap();
-                window.open_devtools();
+                if let Ok(window) = app.get_webview_window("main") {
+                    window.open_devtools();
+                }
             }
             Ok(())
         })

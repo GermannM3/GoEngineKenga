@@ -71,9 +71,22 @@ func (rt *Runtime) stepPhysics(deltaTime float32) {
 
 		rt.PhysicsWorld.Update(deltaTime, bodies, nil, posSlice)
 
-		// Copy positions back
+		// Copy positions back (constraints need them updated)
 		for i, id := range entityIDs {
 			*positions[id] = posSlice[i]
+		}
+
+		// Apply constraints (distance, fixed point)
+		if len(rt.Constraints) > 0 {
+			physPositions := make(map[physics.EntityID]*emath.Vec3)
+			physRigidbodies := make(map[physics.EntityID]*physics.Rigidbody)
+			for id, pos := range positions {
+				physPositions[physics.EntityID(id)] = pos
+			}
+			for id, rb := range rigidbodies {
+				physRigidbodies[physics.EntityID(id)] = rb
+			}
+			physics.ResolveConstraints(rt.Constraints, physPositions, physRigidbodies, 3)
 		}
 	}
 

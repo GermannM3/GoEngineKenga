@@ -14,6 +14,7 @@ func NewRootCommand() *cobra.Command {
 	cmd.AddCommand(
 		newRunCommand(),
 		newImportCommand(),
+		newConvertCommand(),
 		newScriptCommand(),
 		newNewCommand(),
 		newEditorCommand(),

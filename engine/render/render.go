@@ -23,6 +23,12 @@ type Frame struct {
 	// OnFrameRendered вызывается после отрисовки кадра (screen — *ebiten.Image или аналог).
 	// Используется для стриминга viewport в IDE по WebSocket.
 	OnFrameRendered func(screen interface{})
+
+	// OrbitResetRequested — при true backend сбрасывает orbit camera и синхронизирует с камерой сцены (hot-reload).
+	OrbitResetRequested bool
+
+	// InvalidateMeshCache — при true WebGPU backend очищает кэш мешей (hot-reload ассетов).
+	InvalidateMeshCache bool
 }
 
 type Backend interface {

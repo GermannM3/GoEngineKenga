@@ -14,6 +14,7 @@ import (
 	"goenginekenga/engine/asset"
 	"goenginekenga/engine/ecs"
 	"goenginekenga/engine/input"
+	emath "goenginekenga/engine/math"
 	"goenginekenga/engine/render"
 	"goenginekenga/engine/ui"
 )
@@ -47,17 +48,24 @@ type Backend struct {
 	// 3D Renderer
 	renderer3D  *Renderer3D
 	use3DRender bool
+
+	// Orbit camera (ПКМ rotate, СКМ pan, scroll zoom)
+	orbitState   render.OrbitState
+	orbitEnabled bool
+	orbitSynced  bool
 }
 
 func New(title string, width, height int) *Backend {
 	return &Backend{
-		title:       title,
-		width:       width,
-		height:      height,
-		InputState:  input.NewState(),
-		UIContext:   ui.NewUIRenderContext(),
-		renderer3D:  NewRenderer3D(width, height),
-		use3DRender: true, // Enable 3D rendering by default
+		title:        title,
+		width:        width,
+		height:       height,
+		InputState:   input.NewState(),
+		UIContext:    ui.NewUIRenderContext(),
+		renderer3D:   NewRenderer3D(width, height),
+		use3DRender:  true,
+		orbitState:   render.DefaultOrbitState(),
+		orbitEnabled: true,
 	}
 }
 
@@ -66,12 +74,18 @@ func (b *Backend) Enable3D(enabled bool) {
 	b.use3DRender = enabled
 }
 
+// EnableOrbitCamera включает/выключает orbit camera (ПКМ, СКМ, scroll)
+func (b *Backend) EnableOrbitCamera(enabled bool) {
+	b.orbitEnabled = enabled
+}
+
 // GetRenderer3D returns the 3D renderer
 func (b *Backend) GetRenderer3D() *Renderer3D {
 	return b.renderer3D
 }
 
-func (b *Backend) RunLoop(initial *render.Frame) error {
+// SetFrame инициализирует backend для mobile (без RunGame).
+func (b *Backend) SetFrame(initial *render.Frame) {
 	b.frame = initial
 	if initial != nil && initial.ProjectDir != "" {
 		if r, ok := initial.Resolver.(*asset.Resolver); ok && r != nil {
@@ -83,18 +97,17 @@ func (b *Backend) RunLoop(initial *render.Frame) error {
 	if b.logf == nil {
 		b.logf = func(string, ...any) {}
 	}
-
-	// Инициализация splash screen
-	b.splashSeconds = 2.5                                        // показываем лого 2.5 секунды
-	b.splashBgColor = color.RGBA{R: 245, G: 240, B: 230, A: 255} // кремовый фон под лого
-
-	// Декодируем логотип из embedded bytes
+	b.splashSeconds = 2.5
+	b.splashBgColor = color.RGBA{R: 245, G: 240, B: 230, A: 255}
 	if len(logoBytes) > 0 {
 		if img, _, err := image.Decode(bytes.NewReader(logoBytes)); err == nil {
 			b.splashImage = ebiten.NewImageFromImage(img)
 		}
 	}
+}
 
+func (b *Backend) RunLoop(initial *render.Frame) error {
+	b.SetFrame(initial)
 	ebiten.SetWindowTitle(b.title)
 	ebiten.SetWindowSize(b.width, b.height)
 	return ebiten.RunGame(b)
@@ -112,6 +125,11 @@ func (b *Backend) Update() error {
 	// Poll input
 	b.pollInput()
 
+	// Orbit camera: ПКМ orbit, СКМ pan, scroll zoom
+	if b.orbitEnabled && b.use3DRender && b.frame != nil && b.frame.World != nil {
+		b.updateOrbitCamera()
+	}
+
 	if b.frame != nil && b.frame.OnUpdate != nil {
 		b.frame.OnUpdate(dt)
 	}
@@ -121,6 +139,57 @@ func (b *Backend) Update() error {
 	b.InputState.EndFrame()
 
 	return nil
+}
+
+// updateOrbitCamera применяет orbit/pan/zoom к первой камере в сцене
+func (b *Backend) updateOrbitCamera() {
+	w := b.frame.World
+	var camID ecs.EntityID
+	var hasCam bool
+	for _, id := range w.Entities() {
+		if _, ok := w.GetCamera(id); ok {
+			camID = id
+			hasCam = true
+			break
+		}
+	}
+	if !hasCam {
+		b.orbitSynced = false
+		return
+	}
+
+	tr, hasTr := w.GetTransform(camID)
+	if !hasTr {
+		tr = ecs.Transform{Position: emath.Vec3{X: 0, Y: 5, Z: 10}, Scale: emath.Vec3{X: 1, Y: 1, Z: 1}}
+	}
+
+	// Синхронизация при первой камере, после смены сцены или по запросу
+	if b.frame.OrbitResetRequested {
+		b.frame.OrbitResetRequested = false
+		b.orbitSynced = false
+	}
+	if !b.orbitSynced {
+		b.orbitState.SyncFromTransform(tr.Position, tr.Rotation.Y, tr.Rotation.X)
+		b.orbitSynced = true
+	}
+
+	// ПКМ: orbit
+	if b.InputState.IsMouseButtonPressed(input.MouseButtonRight) {
+		b.orbitState.Orbit(float32(b.InputState.MouseDeltaX), float32(b.InputState.MouseDeltaY))
+	}
+	// СКМ: pan
+	if b.InputState.IsMouseButtonPressed(input.MouseButtonMiddle) {
+		b.orbitState.Pan(float32(b.InputState.MouseDeltaX), float32(b.InputState.MouseDeltaY))
+	}
+	// Scroll: zoom
+	if b.InputState.MouseScrollY != 0 {
+		b.orbitState.Zoom(float32(b.InputState.MouseScrollY))
+	}
+
+	pos := b.orbitState.Position()
+	tr.Position = pos
+	tr.Rotation = emath.Vec3{X: b.orbitState.Pitch, Y: b.orbitState.Yaw, Z: tr.Rotation.Z}
+	w.SetTransform(camID, tr)
 }
 
 // pollInput reads current input state from Ebiten

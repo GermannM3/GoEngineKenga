@@ -6,6 +6,10 @@ ide/src-tauri/target/
 
 # Сборка
 dist/
+wasm/kenga.wasm
+wasm/wasm_exec.js
+mobile/*.aar
+mobile/*.xcframework
 *.exe
 *.so
 *.dll

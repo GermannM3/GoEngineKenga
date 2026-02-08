@@ -22,6 +22,7 @@ type Runtime struct {
 	PlayWorld        *ecs.World
 	PhysicsWorld     *physics.PhysicsWorld
 	CollisionManager *physics.CollisionManager
+	Constraints      []physics.Constraint // DistanceConstraint, FixedPointConstraint и т.д.
 	Profiler         *profiler.Profiler
 	Quality          *QualitySystem
 	Mode             Mode
