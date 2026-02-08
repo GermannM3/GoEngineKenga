@@ -26,6 +26,9 @@ type Renderer3D struct {
 	// Output image for Ebiten
 	outputImage *ebiten.Image
 
+	// Bloom post-processing
+	Bloom render.BloomParams
+
 	width, height int
 }
 
@@ -34,6 +37,7 @@ func NewRenderer3D(width, height int) *Renderer3D {
 	r := &Renderer3D{
 		rasterizer: render.NewRasterizer(width, height),
 		camera:     render.NewCamera3D(),
+		Bloom:      render.DefaultBloomParams(),
 		width:      width,
 		height:     height,
 	}
@@ -131,6 +135,9 @@ func (r *Renderer3D) RenderWorld(world *ecs.World, resolver *asset.Resolver, cle
 	// Render particles
 	r.renderParticles()
 
+	// Bloom post-processing
+	render.ApplyBloom(r.rasterizer.ColorBuffer, r.Bloom)
+
 	// Create Ebiten image from rasterizer output
 	return r.createOutputImage()
 }
@@ -151,12 +158,12 @@ func (r *Renderer3D) updateCameraFromWorld(world *ecs.World) {
 		r.camera.SetPosition(tr.Position)
 
 		// Calculate target from rotation
-		// Simple: assume camera looks forward along Z axis, rotated by Y
+		// Camera looks along -Z (into scene) by default; rotation Y yaws
 		radY := tr.Rotation.Y * math.Pi / 180
 		forward := emath.Vec3{
 			X: float32(math.Sin(float64(radY))),
 			Y: 0,
-			Z: float32(math.Cos(float64(radY))),
+			Z: float32(-math.Cos(float64(radY))), // -Z into scene
 		}
 		r.camera.SetTarget(emath.Vec3{
 			X: tr.Position.X + forward.X*10,
@@ -270,14 +277,52 @@ func (r *Renderer3D) renderEntities(world *ecs.World, resolver *asset.Resolver) 
 		var positions, normals, uvs []float32
 		var indices []uint32
 		var texture *image.RGBA
+		var normalMap *image.RGBA
+		normalScale := float32(1.0)
 
 		if resolver != nil && mr.MeshAssetID != "" {
-			// Try to get mesh asset via resolver
-			if meshAsset, err := resolver.ResolveMeshByAssetID(mr.MeshAssetID); err == nil {
+			meshAsset, err := resolver.ResolveMeshByAssetID(mr.MeshAssetID)
+			if err == nil && meshAsset != nil {
+				// LOD: по дистанции до камеры выбираем упрощённый меш
+				camPos := r.camera.Position
+				distSq := (tr.Position.X-camPos.X)*(tr.Position.X-camPos.X) +
+					(tr.Position.Y-camPos.Y)*(tr.Position.Y-camPos.Y) +
+					(tr.Position.Z-camPos.Z)*(tr.Position.Z-camPos.Z)
+				dist := float32(math.Sqrt(float64(distSq)))
+
+				// Пороги: 0–12 = LOD0, 12–35 = LOD1, 35+ = LOD2
+				if len(meshAsset.LODRefs) >= 2 && dist > 35 {
+					if lod2, err := resolver.ResolveMeshByPath(meshAsset.LODRefs[1]); err == nil && lod2 != nil {
+						meshAsset = lod2
+					}
+				} else if len(meshAsset.LODRefs) >= 1 && dist > 12 {
+					if lod1, err := resolver.ResolveMeshByPath(meshAsset.LODRefs[0]); err == nil && lod1 != nil {
+						meshAsset = lod1
+					}
+				}
+
 				positions = meshAsset.Positions
 				normals = meshAsset.Normals
 				uvs = meshAsset.UV0
 				indices = meshAsset.Indices
+				// Resolve texture and normal map from material
+				if meshAsset.MaterialID != "" {
+					if mat, err := resolver.ResolveMaterialByPath(meshAsset.MaterialID); err == nil {
+						if mat.BaseColorTex != "" {
+							if tex, err := resolver.ResolveTextureByPath(mat.BaseColorTex); err == nil {
+								texture = tex.ToRGBA()
+							}
+						}
+						if mat.NormalTex != "" {
+							if nm, err := resolver.ResolveTextureByPath(mat.NormalTex); err == nil {
+								normalMap = nm.ToRGBA()
+							}
+						}
+						if mat.NormalScale > 0 {
+							normalScale = mat.NormalScale
+						}
+					}
+				}
 			}
 		}
 
@@ -296,7 +341,7 @@ func (r *Renderer3D) renderEntities(world *ecs.World, resolver *asset.Resolver) 
 			vertexColor = color.RGBA{R: mr.ColorR, G: mr.ColorG, B: mr.ColorB, A: mr.ColorA}
 		}
 
-		r.rasterizer.DrawMesh(positions, indices, normals, uvs, modelMatrix, texture, vertexColor)
+		r.rasterizer.DrawMesh(positions, indices, normals, uvs, modelMatrix, texture, normalMap, normalScale, vertexColor)
 	}
 }
 
@@ -451,8 +496,8 @@ func (r *Renderer3D) renderGridAndAxes() {
 		return sx, sy, true
 	}
 
-	// Сетка на плоскости XZ
-	gridColor := color.RGBA{R: 60, G: 70, B: 90, A: 255}
+	// Сетка на плоскости XZ (приглушённая, чтобы не перебивать меши)
+	gridColor := color.RGBA{R: 45, G: 52, B: 65, A: 255}
 	origin := emath.V3(0, 0, 0)
 	extent := float32(10)
 	step := float32(1)

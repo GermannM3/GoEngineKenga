@@ -13,6 +13,8 @@ type CommandEnvelope struct {
 	Cmd       string          `json:"cmd"`
 	RequestID string          `json:"request_id,omitempty"`
 	Data      json.RawMessage `json:"data,omitempty"`
+	// ConnID заполняется сервером при чтении (для subscribe_viewport и т.п.)
+	ConnID string `json:"-"`
 }
 
 // ResponseEnvelope описывает базовый ответ/событие.

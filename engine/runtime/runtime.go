@@ -72,6 +72,17 @@ func (rt *Runtime) StopPlay() {
 	rt.Mode = ModeEdit
 }
 
+// ReplaceFromScene заменяет EditWorld новым world из сцены. Для hot-reload при изменении сцены на диске.
+func (rt *Runtime) ReplaceFromScene(s *scene.Scene) {
+	if s == nil {
+		return
+	}
+	rt.EditWorld = s.ToWorld()
+	if rt.Mode == ModePlay {
+		rt.PlayWorld = rt.EditWorld.Clone()
+	}
+}
+
 func (rt *Runtime) ActiveWorld() (*ecs.World, error) {
 	switch rt.Mode {
 	case ModeEdit:

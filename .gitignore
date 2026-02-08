@@ -1,6 +1,9 @@
 # IDE / local
 .cursor/
 
+# IDE Tauri (Rust target — большие артефакты)
+ide/src-tauri/target/
+
 # Сборка
 dist/
 *.exe

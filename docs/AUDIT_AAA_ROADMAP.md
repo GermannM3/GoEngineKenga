@@ -2,6 +2,8 @@
 
 Честное сравнение с Unreal Engine 5 и Unity. План доработки по блокам до коммерческой готовности.
 
+**Движок используется в двух сценариях:** игры (runtime, физика, анимация) и CAD-подобные приложения (KengaCAD, рендер моделей, viewport). Hot-reload ассетов и сцен критичен для обоих.
+
 ---
 
 ## 1. Сводная таблица сравнения
@@ -25,7 +27,7 @@
 
 ## 2. Критические пробелы (блокируют AAA)
 
-### 2.1 GPU-рендеринг — главный瓶颈
+### 2.1 GPU-рендеринг — главный bottleneck
 
 **Текущее состояние:** Software rasterizer, ~1000–5000 треугольников при 60 FPS. WebGPU backend только рисует один треугольник.
 
@@ -77,22 +79,22 @@
 - [x] 1.3 Upload mesh: vertex buffer (pos, normal, uv), index buffer
 - [x] 1.4 Рендер всех MeshRenderer из World
 - [x] 1.5 Камера из ECS Camera
-- [ ] 1.6 Текстуры через asset.Resolver (пока без текстур)
+- [x] 1.6 Текстуры через asset.Resolver (MaterialID в mesh, BaseColorTex в material)
 
 ### Блок 2: PBR материалы (приоритет 2) ✅
 - [x] 2.1 PBR shader: albedo, metallic, roughness
-- [ ] 2.2 Normal mapping
+- [x] 2.2 Normal mapping (TBN, sample perturbed normal в software rasterizer)
 - [x] 2.3 Directional lights в PBR (из ECS)
 
 ### Блок 3: Тени и постобработка (приоритет 3) ✅
 - [x] 3.1 Shadow map (directional light)
-- [ ] 3.2 Bloom
+- [x] 3.2 Bloom (Ebiten software rasterizer)
 - [ ] 3.3 SSAO (опционально)
 
 ### Блок 4: LOD и оптимизация (приоритет 4) ✅
-- [ ] 4.1 LOD levels в asset
+- [x] 4.1 LOD levels в asset (Mesh.LODRefs, переключение по дистанции)
 - [x] 4.2 Frustum culling
-- [ ] 4.3 GPU instancing (одинаковые меши)
+- [x] 4.3 GPU instancing (одинаковые меши)
 
 ### Блок 5: Физика (приоритет 5) ✅
 - [x] 5.1 Capsule collider (DefaultCapsuleCollider, CheckCapsuleCapsule/Sphere/Box)
@@ -100,11 +102,12 @@
 - [ ] 5.3 Joints/constraints (опционально)
 
 ### Блок 6: Редактор (приоритет 6)
-- [ ] 6.1 IDE Viewport: real-time preview через WebSocket
-- [ ] 6.2 Drag-and-drop ассетов
+- [x] 6.1 IDE Viewport: real-time preview через WebSocket
+- [x] 6.2 Drag-and-drop ассетов (glTF на окно → assets → import)
+- [x] 6.3 Asset/Scene hot-reload (fsnotify: glTF, сцены, index → автообновление viewport)
 
 ### Блок 7: Платформы (приоритет 7)
-- [ ] 7.1 WebAssembly (Ebiten)
+- [ ] 7.1 WebAssembly (Ebiten на WASM)
 - [ ] 7.2 Mobile (Ebiten gomobile)
 
 ---
@@ -137,6 +140,19 @@ go build -tags webgpu -o kenga.exe ./cmd/kenga
 ```
 
 Требования: CGO, wgpuglfw (могут быть ограничения по платформам). Без тега используется Ebiten (software rasterizer).
+
+---
+
+## 8. GitHub Release
+
+Релизы создаются при push тега `v*`:
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+Артефакты: Windows, Linux, macOS (amd64/arm64). Подробнее: [docs/RELEASE.md](RELEASE.md).
 
 ---
 

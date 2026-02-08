@@ -1,13 +1,29 @@
 {
   "assets": [
     {
-      "id": "9c6f2adc-55d6-48fd-8113-cce47423e305",
+      "id": "b518865e-e445-490b-82e0-6c593e6ca063",
+      "type": "gltf",
+      "sourcePath": "assets/helmet/DamagedHelmet.gltf",
+      "derived": [
+        ".kenga/derived/b518865e-e445-490b-82e0-6c593e6ca063_0.mesh.json",
+        ".kenga/derived/b518865e-e445-490b-82e0-6c593e6ca063_0.material.json",
+        ".kenga/derived/b518865e-e445-490b-82e0-6c593e6ca063_0.texture.json",
+        ".kenga/derived/b518865e-e445-490b-82e0-6c593e6ca063_1.texture.json",
+        ".kenga/derived/b518865e-e445-490b-82e0-6c593e6ca063_2.texture.json",
+        ".kenga/derived/b518865e-e445-490b-82e0-6c593e6ca063_3.texture.json",
+        ".kenga/derived/b518865e-e445-490b-82e0-6c593e6ca063_4.texture.json"
+      ],
+      "importedAt": "2026-02-08T02:50:20.4639615+03:00"
+    },
+    {
+      "id": "4b436105-771d-4695-af73-d9802948b361",
       "type": "gltf",
       "sourcePath": "assets/triangle.gltf",
       "derived": [
-        ".kenga/derived/9c6f2adc-55d6-48fd-8113-cce47423e305_0.mesh.json"
+        ".kenga/derived/4b436105-771d-4695-af73-d9802948b361_0.mesh.json",
+        ".kenga/derived/4b436105-771d-4695-af73-d9802948b361_0.material.json"
       ],
-      "importedAt": "2026-01-24T16:28:33.9593836+03:00"
+      "importedAt": "2026-02-08T02:50:20.5042306+03:00"
     }
   ]
 }

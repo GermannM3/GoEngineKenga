@@ -12,6 +12,15 @@ export function MenuBar() {
     }
   };
 
+  const handleImportAssets = async () => {
+    try {
+      await Command.create("kenga", ["import", "--project", "."]).execute();
+      console.log("Import completed");
+    } catch (e) {
+      console.error("Import failed:", e);
+    }
+  };
+
   return (
     <header className="menu-bar">
       <div className="menu-items">
@@ -21,6 +30,7 @@ export function MenuBar() {
             <div onClick={handleNew}>New Project</div>
             <div onClick={handleOpen}>Open Project</div>
             <div onClick={handleSave}>Save</div>
+            <div onClick={handleImportAssets}>Import Assets</div>
             <div className="sep" />
             <div>Exit</div>
           </div>

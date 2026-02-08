@@ -57,3 +57,15 @@ func LoadTextureFromFile(path string) (*Texture, error) {
 		Format: "RGBA8",
 	}, nil
 }
+
+// ToRGBA конвертирует Texture в *image.RGBA для рендерера
+func (t *Texture) ToRGBA() *image.RGBA {
+	if t == nil || len(t.Data) < t.Width*t.Height*4 {
+		return nil
+	}
+	rect := image.Rect(0, 0, t.Width, t.Height)
+	rgba := image.NewRGBA(rect)
+	copy(rgba.Pix, t.Data)
+	return rgba
+}
+

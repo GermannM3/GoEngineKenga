@@ -165,6 +165,14 @@ func (m *Manager) handleCommand(_ context.Context, env CommandEnvelope) {
 		m.cmdSimulateStep(env)
 	case "query_collisions":
 		m.cmdQueryCollisions(env)
+	case "subscribe_viewport":
+		if env.ConnID != "" {
+			m.SubscribeViewport(env.ConnID)
+		}
+	case "unsubscribe_viewport":
+		if env.ConnID != "" {
+			m.UnsubscribeViewport(env.ConnID)
+		}
 	default:
 		// Неизвестные команды пока игнорируем.
 	}

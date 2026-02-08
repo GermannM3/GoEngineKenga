@@ -12,6 +12,10 @@ const defaultTree: FileNode[] = [
     { name: "main.go", type: "file" },
     { name: "assets", type: "folder", children: [
       { name: "triangle.gltf", type: "file" },
+      { name: "helmet", type: "folder", children: [
+        { name: "DamagedHelmet.gltf", type: "file" },
+        { name: "Default_normal.jpg", type: "file" },
+      ]},
     ]},
     { name: "scenes", type: "folder", children: [
       { name: "main.scene.json", type: "file" },

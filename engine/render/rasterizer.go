@@ -113,7 +113,7 @@ func (r *Rasterizer) SetAmbientColor(c color.RGBA) {
 }
 
 // DrawTriangle draws a single 3D triangle
-func (r *Rasterizer) DrawTriangle(tri Triangle3D, modelMatrix Matrix4, texture *image.RGBA) {
+func (r *Rasterizer) DrawTriangle(tri Triangle3D, modelMatrix Matrix4, texture *image.RGBA, normalMap *image.RGBA, normalScale float32) {
 	if r.camera == nil {
 		return
 	}
@@ -136,8 +136,16 @@ func (r *Rasterizer) DrawTriangle(tri Triangle3D, modelMatrix Matrix4, texture *
 		return
 	}
 
+	// Compute TBN for normal mapping (per-triangle)
+	var worldT, worldB emath.Vec3
+	if normalMap != nil && normalScale != 0 {
+		t, b := computeTangentBitangent(tri.V0, tri.V1, tri.V2)
+		worldT = Normalize3(modelMatrix.TransformDirection(t))
+		worldB = Normalize3(modelMatrix.TransformDirection(b))
+	}
+
 	// Rasterize the triangle
-	r.rasterizeTriangle(v0, v1, v2, texture)
+	r.rasterizeTriangle(v0, v1, v2, texture, normalMap, normalScale, worldT, worldB)
 }
 
 type transformedVertex struct {
@@ -185,7 +193,30 @@ func (r *Rasterizer) isBackface(v0, v1, v2 emath.Vec2) bool {
 	return area < 0
 }
 
-func (r *Rasterizer) rasterizeTriangle(v0, v1, v2 transformedVertex, texture *image.RGBA) {
+func computeTangentBitangent(v0, v1, v2 Vertex3D) (tangent, bitangent emath.Vec3) {
+	e1 := emath.Vec3{X: v1.Position.X - v0.Position.X, Y: v1.Position.Y - v0.Position.Y, Z: v1.Position.Z - v0.Position.Z}
+	e2 := emath.Vec3{X: v2.Position.X - v0.Position.X, Y: v2.Position.Y - v0.Position.Y, Z: v2.Position.Z - v0.Position.Z}
+	duv1 := emath.Vec2{X: v1.UV.X - v0.UV.X, Y: v1.UV.Y - v0.UV.Y}
+	duv2 := emath.Vec2{X: v2.UV.X - v0.UV.X, Y: v2.UV.Y - v0.UV.Y}
+	f := float32(1.0)
+	det := duv1.X*duv2.Y - duv2.X*duv1.Y
+	if det != 0 {
+		f = 1.0 / det
+	}
+	tangent = emath.Vec3{
+		X: f * (duv2.Y*e1.X - duv1.Y*e2.X),
+		Y: f * (duv2.Y*e1.Y - duv1.Y*e2.Y),
+		Z: f * (duv2.Y*e1.Z - duv1.Y*e2.Z),
+	}
+	bitangent = emath.Vec3{
+		X: f * (-duv2.X*e1.X + duv1.X*e2.X),
+		Y: f * (-duv2.X*e1.Y + duv1.X*e2.Y),
+		Z: f * (-duv2.X*e1.Z + duv1.X*e2.Z),
+	}
+	return tangent, bitangent
+}
+
+func (r *Rasterizer) rasterizeTriangle(v0, v1, v2 transformedVertex, texture *image.RGBA, normalMap *image.RGBA, normalScale float32, worldT, worldB emath.Vec3) {
 	// Compute bounding box
 	minX := int(math.Max(0, math.Floor(float64(min3f(v0.screenPos.X, v1.screenPos.X, v2.screenPos.X)))))
 	maxX := int(math.Min(float64(r.Width-1), math.Ceil(float64(max3f(v0.screenPos.X, v1.screenPos.X, v2.screenPos.X)))))
@@ -250,6 +281,22 @@ func (r *Rasterizer) rasterizeTriangle(v0, v1, v2 transformedVertex, texture *im
 					Y: corrW0*v0.worldNormal.Y + corrW1*v1.worldNormal.Y + corrW2*v2.worldNormal.Y,
 					Z: corrW0*v0.worldNormal.Z + corrW1*v1.worldNormal.Z + corrW2*v2.worldNormal.Z,
 				})
+
+				// Normal mapping: perturb normal using TBN
+				if normalMap != nil && normalScale != 0 {
+					sampled := r.sampleTexture(normalMap, u, v)
+					mapN := emath.Vec3{
+						X: ((float32(sampled.R)/255)*2 - 1) * normalScale,
+						Y: ((float32(sampled.G)/255)*2 - 1) * normalScale,
+						Z: ((float32(sampled.B)/255)*2 - 1) * normalScale,
+					}
+					// TBN: tangent (worldT), bitangent (worldB), normal (worldNormal)
+					worldNormal = Normalize3(emath.Vec3{
+						X: mapN.X*worldT.X + mapN.Y*worldB.X + mapN.Z*worldNormal.X,
+						Y: mapN.X*worldT.Y + mapN.Y*worldB.Y + mapN.Z*worldNormal.Y,
+						Z: mapN.X*worldT.Z + mapN.Y*worldB.Z + mapN.Z*worldNormal.Z,
+					})
+				}
 
 				// Get base color
 				var baseColor color.RGBA
@@ -378,7 +425,7 @@ func (r *Rasterizer) setPixel(x, y int, c color.RGBA) {
 }
 
 // DrawMesh draws a mesh with transformation
-func (r *Rasterizer) DrawMesh(positions []float32, indices []uint32, normals []float32, uvs []float32, modelMatrix Matrix4, texture *image.RGBA, vertexColor color.RGBA) {
+func (r *Rasterizer) DrawMesh(positions []float32, indices []uint32, normals []float32, uvs []float32, modelMatrix Matrix4, texture *image.RGBA, normalMap *image.RGBA, normalScale float32, vertexColor color.RGBA) {
 	// Build triangles from mesh data
 	for i := 0; i+2 < len(indices); i += 3 {
 		i0, i1, i2 := indices[i], indices[i+1], indices[i+2]
@@ -389,7 +436,7 @@ func (r *Rasterizer) DrawMesh(positions []float32, indices []uint32, normals []f
 			V2: r.buildVertex(positions, normals, uvs, int(i2), vertexColor),
 		}
 
-		r.DrawTriangle(tri, modelMatrix, texture)
+		r.DrawTriangle(tri, modelMatrix, texture, normalMap, normalScale)
 	}
 }
 

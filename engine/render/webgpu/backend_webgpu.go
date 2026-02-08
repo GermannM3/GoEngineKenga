@@ -53,7 +53,9 @@ func (b *Backend) RunLoop(initial *render.Frame) error {
 
 	var resolver *asset.Resolver
 	if initial != nil && initial.ProjectDir != "" {
-		if r, err := asset.NewResolver(initial.ProjectDir); err == nil {
+		if r, ok := initial.Resolver.(*asset.Resolver); ok && r != nil {
+			resolver = r
+		} else if r, err := asset.NewResolver(initial.ProjectDir); err == nil {
 			resolver = r
 		}
 	}

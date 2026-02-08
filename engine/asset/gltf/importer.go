@@ -22,14 +22,21 @@ type ImportResult struct {
 	Meshes    []Mesh
 	Materials []render.Material
 	Textures  []Texture
+	// BaseColorTexIndex[i] — индекс текстуры для материала i (-1 если нет)
+	BaseColorTexIndex []int
+	// NormalTexIndex[i] — индекс normal map для материала i (-1 если нет)
+	NormalTexIndex []int
 }
 
 // Mesh — результат импорта glTF (внутренний для импортера), чтобы избежать циклов импортов.
 // Конвертация в `engine/asset.Mesh` делается в AssetDatabase.
 type Mesh struct {
-	Name      string
-	Positions []float32 // xyz xyz ...
-	Indices   []uint32  // triangle list
+	Name          string
+	Positions     []float32 // xyz xyz ...
+	Normals       []float32 // для освещения
+	UV0           []float32 // uv uv ... для текстур
+	Indices       []uint32  // triangle list
+	MaterialIndex int       // индекс материала в glTF (для связи mesh->material)
 }
 
 // Texture — результат импорта текстуры из glTF.
@@ -70,7 +77,11 @@ func ImportFile(path string) (*ImportResult, error) {
 
 	// Загружаем материалы
 	var materials []render.Material // nolint
+	var baseColorTexIndex []int
+	var normalTexIndex []int
 	for i, mat := range doc.Materials {
+		texIdx := -1
+		normIdx := -1
 		if mat == nil {
 			continue
 		}
@@ -110,9 +121,21 @@ func ImportFile(path string) (*ImportResult, error) {
 			if pbr.RoughnessFactor != nil {
 				material.Roughness = float32(*pbr.RoughnessFactor)
 			}
-
-			// Textures (пока пропустим, добавим позже)
+			if pbr.BaseColorTexture != nil && pbr.BaseColorTexture.Index >= 0 {
+				texIdx = pbr.BaseColorTexture.Index
+			}
 		}
+
+		// Normal texture
+		if mat.NormalTexture != nil && mat.NormalTexture.Index != nil && *mat.NormalTexture.Index >= 0 {
+			normIdx = *mat.NormalTexture.Index
+			if mat.NormalTexture.Scale != nil {
+				material.NormalScale = float32(*mat.NormalTexture.Scale)
+			}
+		}
+
+		baseColorTexIndex = append(baseColorTexIndex, texIdx)
+		normalTexIndex = append(normalTexIndex, normIdx)
 
 		// Emissive
 		material.EmissiveColor = emath.Vec3{
@@ -169,6 +192,14 @@ func ImportFile(path string) (*ImportResult, error) {
 				return nil, fmt.Errorf("read POSITION: %w", err)
 			}
 
+			var normals, uvs []float32
+			if normAcc, ok := prim.Attributes["NORMAL"]; ok {
+				normals, _ = readFloat32Vec3(doc, buffers, normAcc)
+			}
+			if uvAcc, ok := prim.Attributes["TEXCOORD_0"]; ok {
+				uvs, _ = readFloat32Vec2(doc, buffers, uvAcc)
+			}
+
 			var idx []uint32
 			if prim.Indices != nil {
 				idx, err = readIndices(doc, buffers, *prim.Indices)
@@ -183,18 +214,27 @@ func ImportFile(path string) (*ImportResult, error) {
 				}
 			}
 
+			matIdx := 0
+			if prim.Material != nil && *prim.Material >= 0 {
+				matIdx = *prim.Material
+			}
 			meshes = append(meshes, Mesh{
-				Name:      meshName,
-				Positions: pos,
-				Indices:   idx,
+				Name:          meshName,
+				Positions:     pos,
+				Normals:       normals,
+				UV0:           uvs,
+				Indices:       idx,
+				MaterialIndex: matIdx,
 			})
 		}
 	}
 
 	return &ImportResult{
-		Meshes:    meshes,
-		Materials: materials,
-		Textures:  textures,
+		Meshes:            meshes,
+		Materials:         materials,
+		Textures:          textures,
+		BaseColorTexIndex: baseColorTexIndex,
+		NormalTexIndex:    normalTexIndex,
 	}, nil
 }
 
@@ -275,6 +315,53 @@ func readFloat32Vec3(doc *gltf.Document, buffers [][]byte, accessorIndex int) ([
 			mathFloat32LE(buf[off:off+4]),
 			mathFloat32LE(buf[off+4:off+8]),
 			mathFloat32LE(buf[off+8:off+12]),
+		)
+	}
+	return out, nil
+}
+
+func readFloat32Vec2(doc *gltf.Document, buffers [][]byte, accessorIndex int) ([]float32, error) {
+	if accessorIndex < 0 || accessorIndex >= len(doc.Accessors) {
+		return nil, fmt.Errorf("accessor %d out of range", accessorIndex)
+	}
+	acc := doc.Accessors[accessorIndex]
+	if acc == nil || acc.BufferView == nil {
+		return nil, fmt.Errorf("accessor %d invalid", accessorIndex)
+	}
+	if acc.ComponentType != gltf.ComponentFloat {
+		return nil, fmt.Errorf("expected float component type, got %d", acc.ComponentType)
+	}
+	if acc.Type != gltf.AccessorVec2 {
+		return nil, fmt.Errorf("expected VEC2, got %s", acc.Type)
+	}
+	bvIndex := int(*acc.BufferView)
+	if bvIndex < 0 || bvIndex >= len(doc.BufferViews) {
+		return nil, fmt.Errorf("bufferView %d out of range", bvIndex)
+	}
+	view := doc.BufferViews[bvIndex]
+	if view == nil {
+		return nil, fmt.Errorf("bufferView %d is nil", *acc.BufferView)
+	}
+	bufIndex := int(view.Buffer)
+	if bufIndex < 0 || bufIndex >= len(buffers) {
+		return nil, fmt.Errorf("buffer %d out of range", bufIndex)
+	}
+	buf := buffers[bufIndex]
+	byteOffset := int(view.ByteOffset) + int(acc.ByteOffset)
+	byteStride := int(view.ByteStride)
+	if byteStride == 0 {
+		byteStride = 8
+	}
+	count := int(acc.Count)
+	out := make([]float32, 0, count*2)
+	for i := 0; i < count; i++ {
+		off := byteOffset + i*byteStride
+		if off+8 > len(buf) {
+			return nil, fmt.Errorf("buffer OOB reading VEC2")
+		}
+		out = append(out,
+			mathFloat32LE(buf[off:off+4]),
+			mathFloat32LE(buf[off+4:off+8]),
 		)
 	}
 	return out, nil

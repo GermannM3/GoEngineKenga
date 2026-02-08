@@ -74,7 +74,9 @@ func (b *Backend) GetRenderer3D() *Renderer3D {
 func (b *Backend) RunLoop(initial *render.Frame) error {
 	b.frame = initial
 	if initial != nil && initial.ProjectDir != "" {
-		if r, err := asset.NewResolver(initial.ProjectDir); err == nil {
+		if r, ok := initial.Resolver.(*asset.Resolver); ok && r != nil {
+			b.resolver = r
+		} else if r, err := asset.NewResolver(initial.ProjectDir); err == nil {
 			b.resolver = r
 		}
 	}
@@ -192,7 +194,14 @@ func (b *Backend) Draw(screen *ebiten.Image) {
 		if !b.use3DRender {
 			mode = "2D"
 		}
-		ebitenutil.DebugPrint(screen, "GoEngineKenga v0 ["+mode+"]\nEntities: "+itoa(len(b.frame.World.Entities())))
+		fps := ebiten.ActualFPS()
+		tps := ebiten.ActualTPS()
+		msg := "GoEngineKenga [" + mode + "] Entities: " + itoa(len(b.frame.World.Entities()))
+		if fps > 0 {
+			msg += " | FPS: " + itoa(int(fps)) + " TPS: " + itoa(int(tps))
+		}
+		msg += "\n"
+		ebitenutil.DebugPrint(screen, msg)
 	}
 
 	// Render UI on top
@@ -200,6 +209,11 @@ func (b *Backend) Draw(screen *ebiten.Image) {
 		mousePressed := b.InputState.IsMouseButtonPressed(input.MouseButtonLeft)
 		b.UIContext.Update(b.InputState.MouseX, b.InputState.MouseY, mousePressed)
 		b.UIContext.Render(screen)
+	}
+
+	// Viewport stream для IDE (WebSocket)
+	if b.frame != nil && b.frame.OnFrameRendered != nil {
+		b.frame.OnFrameRendered(screen)
 	}
 }
 

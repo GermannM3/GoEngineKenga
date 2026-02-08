@@ -7,13 +7,15 @@ toolchain go1.24.12
 require (
 	fyne.io/fyne/v2 v2.7.2
 	github.com/cogentcore/webgpu v0.23.0
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-gl/glfw/v3.3/glfw v0.0.0-20250301202403-da16c1255728
 	github.com/google/uuid v1.6.0
-	github.com/hajimehoshi/ebiten/v2 v2.9.7
 	github.com/gorilla/websocket v1.5.3
+	github.com/hajimehoshi/ebiten/v2 v2.9.7
 	github.com/qmuntal/gltf v0.28.0
 	github.com/spf13/cobra v1.10.2
 	github.com/tetratelabs/wazero v1.11.0
+	golang.org/x/sys v0.38.0
 )
 
 require (
@@ -25,7 +27,6 @@ require (
 	github.com/ebitengine/oto/v3 v3.4.0 // indirect
 	github.com/ebitengine/purego v0.9.0 // indirect
 	github.com/fredbi/uri v1.1.1 // indirect
-	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/fyne-io/gl-js v0.2.0 // indirect
 	github.com/fyne-io/glfw-js v0.3.0 // indirect
 	github.com/fyne-io/image v0.1.1 // indirect
@@ -56,7 +57,6 @@ require (
 	golang.org/x/image v0.31.0 // indirect
 	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/text v0.29.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

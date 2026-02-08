@@ -45,6 +45,19 @@ func LoadMaterial(path string) (*render.Material, error) {
 	return &m, nil
 }
 
+// LoadTexture загружает текстуру из .texture.json (Data в JSON — base64)
+func LoadTexture(path string) (*Texture, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var t Texture
+	if err := json.Unmarshal(b, &t); err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
 // AudioClipAsset represents an audio clip with metadata
 type AudioClipAsset struct {
 	Name   string `json:"name"`

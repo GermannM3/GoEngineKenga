@@ -52,8 +52,9 @@ func matrixToBytes(m render.Matrix4) []byte {
 // pbrUniformsSize — размер uniform buffer для PBR + light_view_proj.
 const pbrUniformsSize = 320
 
-// writePBRUniforms пишет MVP, model, material, light, camera, light_view_proj в буфер.
-func writePBRUniforms(out []byte, mvp, model render.Matrix4, baseColor []float32, metallic, roughness float32,
+// writePBRUniforms пишет viewProj, material, light, camera, light_view_proj в буфер.
+// model передаётся через instance buffer.
+func writePBRUniforms(out []byte, viewProj render.Matrix4, baseColor []float32, metallic, roughness float32,
 	lightDir []float32, lightIntensity float32, lightColor []float32, ambient float32, camPos []float32, lightViewProj render.Matrix4) {
 	if len(out) < pbrUniformsSize {
 		return
@@ -67,8 +68,7 @@ func writePBRUniforms(out []byte, mvp, model render.Matrix4, baseColor []float32
 		}
 	}
 
-	copy(out[0:64], matrixToBytes(mvp))
-	copy(out[64:128], matrixToBytes(model))
+	copy(out[0:64], matrixToBytes(viewProj))
 
 	bc := baseColor
 	if len(bc) < 3 {
@@ -223,6 +223,16 @@ func (s *state) initSceneState() error {
 						{Format: wgpu.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 0},
 						{Format: wgpu.VertexFormatFloat32x3, Offset: 12, ShaderLocation: 1},
 						{Format: wgpu.VertexFormatFloat32x2, Offset: 24, ShaderLocation: 2},
+					},
+				},
+				{
+					ArrayStride: 64,
+					StepMode:    wgpu.VertexStepModeInstance,
+					Attributes: []wgpu.VertexAttribute{
+						{Format: wgpu.VertexFormatFloat32x4, Offset: 0, ShaderLocation: 3},
+						{Format: wgpu.VertexFormatFloat32x4, Offset: 16, ShaderLocation: 4},
+						{Format: wgpu.VertexFormatFloat32x4, Offset: 32, ShaderLocation: 5},
+						{Format: wgpu.VertexFormatFloat32x4, Offset: 48, ShaderLocation: 6},
 					},
 				},
 			},
@@ -555,6 +565,88 @@ func getPBRSceneData(world *ecs.World, width, height int) (data pbrSceneData, ok
 	data.roughness = 0.5
 	data.baseColor = []float32{0.8, 0.8, 0.8}
 	return data, true
+}
+
+// instanceBatch — группа entities с одинаковым mesh и material для instancing.
+type instanceBatch struct {
+	meshAssetID   string
+	materialKey   string // MaterialAssetID или "" для default
+	transforms    []ecs.Transform
+	baseColor     []float32
+	metallic      float32
+	roughness     float32
+}
+
+// buildInstanceBatches группирует entities по (mesh, material) для instancing.
+func buildInstanceBatches(world *ecs.World, frustum *render.Frustum, resolver *asset.Resolver) []instanceBatch {
+	group := make(map[string]*instanceBatch)
+
+	for _, id := range world.Entities() {
+		mr, hasMR := world.GetMeshRenderer(id)
+		if !hasMR {
+			continue
+		}
+		tr, hasTr := world.GetTransform(id)
+		if !hasTr {
+			tr = ecs.Transform{Scale: emath.Vec3{X: 1, Y: 1, Z: 1}}
+		}
+		sx, sy, sz := tr.Scale.X, tr.Scale.Y, tr.Scale.Z
+		if sx < 0.01 {
+			sx = 1
+		}
+		if sy < 0.01 {
+			sy = 1
+		}
+		if sz < 0.01 {
+			sz = 1
+		}
+		radius := float32(math.Sqrt(float64(sx*sx + sy*sy + sz*sz)))
+		if frustum != nil && !frustum.SphereInFrustum(tr.Position, radius) {
+			continue
+		}
+		key := mr.MeshAssetID + "|" + mr.MaterialAssetID
+		if _, ok := group[key]; !ok {
+			bc, metallic, roughness := getMeshMaterial(mr, resolver)
+			group[key] = &instanceBatch{
+				meshAssetID: mr.MeshAssetID,
+				materialKey: mr.MaterialAssetID,
+				transforms:  nil,
+				baseColor:   bc,
+				metallic:    metallic,
+				roughness:   roughness,
+			}
+		}
+		group[key].transforms = append(group[key].transforms, tr)
+	}
+
+	var batches []instanceBatch
+	for _, b := range group {
+		if len(b.transforms) > 0 {
+			batches = append(batches, *b)
+		}
+	}
+	return batches
+}
+
+// buildInstanceBuffer создаёт GPU buffer с model matrices для N instances.
+func buildInstanceBuffer(device *wgpu.Device, transforms []ecs.Transform) *wgpu.Buffer {
+	if len(transforms) == 0 {
+		return nil
+	}
+	data := make([]byte, len(transforms)*64)
+	for i, tr := range transforms {
+		model := buildModelMatrix(&tr)
+		copy(data[i*64:(i+1)*64], matrixToBytes(model))
+	}
+	buf, err := device.CreateBufferInit(&wgpu.BufferInitDescriptor{
+		Label:    "instance matrices",
+		Contents: data,
+		Usage:    wgpu.BufferUsageVertex,
+	})
+	if err != nil {
+		return nil
+	}
+	return buf
 }
 
 // getMeshMaterial возвращает baseColor, metallic, roughness из MeshRenderer и resolver.

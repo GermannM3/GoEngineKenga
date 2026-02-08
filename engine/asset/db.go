@@ -122,11 +122,18 @@ func (db *Database) importGLTF(sourceAbs string) (*Record, error) {
 	for i, m := range res.Meshes {
 		name := fmt.Sprintf("%s_%d.mesh.json", meta.ID, i)
 		outAbs := filepath.Join(db.derivedDirAbs(), name)
-		// Конвертируем из результата импортера в канонический derived формат движка.
+		matIdx := m.MaterialIndex
+		if matIdx < 0 || matIdx >= len(res.Materials) {
+			matIdx = 0
+		}
+		matRelPath := filepath.ToSlash(filepath.Join(db.Project.DerivedDir, fmt.Sprintf("%s_%d.material.json", meta.ID, matIdx)))
 		mesh := Mesh{
-			Name:      m.Name,
-			Positions: m.Positions,
-			Indices:   m.Indices,
+			Name:       m.Name,
+			Positions:  m.Positions,
+			Normals:    m.Normals,
+			UV0:        m.UV0,
+			Indices:    m.Indices,
+			MaterialID: matRelPath,
 		}
 		if err := writeJSONFile(outAbs, mesh); err != nil {
 			return nil, err
@@ -134,11 +141,20 @@ func (db *Database) importGLTF(sourceAbs string) (*Record, error) {
 		derived = append(derived, filepath.ToSlash(filepath.Join(db.Project.DerivedDir, name)))
 	}
 
-	// Сохраняем материалы
+		// Сохраняем материалы
 	for i, mat := range res.Materials {
 		name := fmt.Sprintf("%s_%d.material.json", meta.ID, i)
 		outAbs := filepath.Join(db.derivedDirAbs(), name)
-		if err := writeJSONFile(outAbs, mat); err != nil {
+		matCopy := mat
+		if i < len(res.BaseColorTexIndex) && res.BaseColorTexIndex[i] >= 0 && res.BaseColorTexIndex[i] < len(res.Textures) {
+			texRelPath := filepath.ToSlash(filepath.Join(db.Project.DerivedDir, fmt.Sprintf("%s_%d.texture.json", meta.ID, res.BaseColorTexIndex[i])))
+			matCopy.BaseColorTex = texRelPath
+		}
+		if i < len(res.NormalTexIndex) && res.NormalTexIndex[i] >= 0 && res.NormalTexIndex[i] < len(res.Textures) {
+			normRelPath := filepath.ToSlash(filepath.Join(db.Project.DerivedDir, fmt.Sprintf("%s_%d.texture.json", meta.ID, res.NormalTexIndex[i])))
+			matCopy.NormalTex = normRelPath
+		}
+		if err := writeJSONFile(outAbs, matCopy); err != nil {
 			return nil, err
 		}
 		derived = append(derived, filepath.ToSlash(filepath.Join(db.Project.DerivedDir, name)))

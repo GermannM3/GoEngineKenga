@@ -6,8 +6,13 @@ import (
 	"goenginekenga/engine/cli"
 )
 
+var version = "dev"
+
 func main() {
-	if err := cli.NewRootCommand().Execute(); err != nil {
+	cli.Version = version
+	root := cli.NewRootCommand()
+	root.Version = version
+	if err := root.Execute(); err != nil {
 		os.Exit(1)
 	}
 }

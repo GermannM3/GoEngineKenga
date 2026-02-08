@@ -143,8 +143,13 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 	defer encoder.Release()
 
 	sc := s.scene
+	pbrData, ok := getPBRSceneData(frame.World, width, height)
 	if !ok {
-		pbrData.viewProj = render.NewCamera3D().GetViewProjectionMatrix()
+		cam := render.NewCamera3D()
+		cam.SetPosition(emath.Vec3{X: 0, Y: 0, Z: 5})
+		cam.SetTarget(emath.Vec3{X: 0, Y: 0, Z: 0})
+		cam.SetAspectRatio(float32(width) / float32(height))
+		pbrData.viewProj = cam.GetViewProjectionMatrix()
 		pbrData.camPos = []float32{0, 0, 5}
 		pbrData.lightDir = []float32{0.5, 1.0, 0.3}
 		pbrData.lightColor = []float32{1.0, 1.0, 1.0}
@@ -221,7 +226,7 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 		shadowPass.Release()
 	}
 
-	// Main pass
+	// Main pass (GPU instancing: batch by mesh+material)
 	renderPass := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		ColorAttachments: []wgpu.RenderPassColorAttachment{
 			{View: view, LoadOp: wgpu.LoadOpClear, StoreOp: wgpu.StoreOpStore, ClearValue: cc},
@@ -231,41 +236,14 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 	renderPass.SetBindGroup(0, sc.bindGroup, nil)
 	renderPass.SetBindGroup(1, sc.bindGroupShadow, nil)
 
-	// Draw each mesh entity
-	for _, id := range frame.World.Entities() {
-		mr, hasMR := frame.World.GetMeshRenderer(id)
-		if !hasMR {
-			continue
-		}
-		tr, hasTr := frame.World.GetTransform(id)
-		if !hasTr {
-			tr = ecs.Transform{Scale: emath.Vec3{X: 1, Y: 1, Z: 1}}
-		}
-		// Frustum culling: bounding sphere radius from scale (diagonal of box)
-		sx, sy, sz := tr.Scale.X, tr.Scale.Y, tr.Scale.Z
-		if sx < 0.01 {
-			sx = 1
-		}
-		if sy < 0.01 {
-			sy = 1
-		}
-		if sz < 0.01 {
-			sz = 1
-		}
-		radius := float32(math.Sqrt(float64(sx*sx + sy*sy + sz*sz)))
-		if !frustum.SphereInFrustum(tr.Position, radius) {
-			continue
-		}
-		model := buildModelMatrix(&tr)
-		mvp := pbrData.viewProj.Multiply(model)
-
-		baseColor, metallic, roughness := getMeshMaterial(mr, resolver)
-		writePBRUniforms(ubBytes, mvp, model, baseColor, metallic, roughness,
+	batches := buildInstanceBatches(frame.World, &frustum, resolver)
+	for _, batch := range batches {
+		writePBRUniforms(ubBytes, pbrData.viewProj, batch.baseColor, batch.metallic, batch.roughness,
 			pbrData.lightDir, pbrData.lightIntensity, pbrData.lightColor,
 			pbrData.ambient, pbrData.camPos, lightViewProj)
 		s.queue.WriteBuffer(sc.uniformBuffer, 0, ubBytes)
 
-		positions, normals, uvs, indices := meshFromResolver(resolver, mr.MeshAssetID)
+		positions, normals, uvs, indices := meshFromResolver(resolver, batch.meshAssetID)
 		if len(positions) == 0 || len(indices) == 0 {
 			continue
 		}
@@ -273,7 +251,6 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 		if len(vertData) == 0 {
 			continue
 		}
-		// Create temp vertex buffer for this mesh (v0: no caching)
 		vb, err := s.device.CreateBufferInit(&wgpu.BufferInitDescriptor{
 			Label:    "mesh vertices",
 			Contents: vertData,
@@ -282,12 +259,19 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 		if err != nil {
 			continue
 		}
+		instanceBuf := buildInstanceBuffer(s.device, batch.transforms)
+		if instanceBuf == nil {
+			vb.Release()
+			continue
+		}
 		renderPass.SetVertexBuffer(0, vb, 0, wgpu.WholeSize)
-		renderPass.Draw(uint32(len(vertData)/32), 1, 0, 0)
+		renderPass.SetVertexBuffer(1, instanceBuf, 0, wgpu.WholeSize)
+		renderPass.Draw(uint32(len(vertData)/32), uint32(len(batch.transforms)), 0, 0)
+		instanceBuf.Release()
 		vb.Release()
 	}
 
-	// Fallback: draw cube if no meshes
+	// Fallback: cube if no meshes
 	if frame.World != nil {
 		hasMesh := false
 		for _, id := range frame.World.Entities() {
@@ -297,14 +281,18 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 			}
 		}
 		if !hasMesh {
-			model := buildModelMatrix(&ecs.Transform{Position: emath.Vec3{X: 0, Y: 0, Z: 0}, Scale: emath.Vec3{X: 1, Y: 1, Z: 1}})
-			mvp := pbrData.viewProj.Multiply(model)
-			writePBRUniforms(ubBytes, mvp, model, []float32{0.75, 0.75, 0.78}, 0.0, 0.5,
+			tr := ecs.Transform{Position: emath.Vec3{X: 0, Y: 0, Z: 0}, Scale: emath.Vec3{X: 1, Y: 1, Z: 1}}
+			writePBRUniforms(ubBytes, pbrData.viewProj, []float32{0.75, 0.75, 0.78}, 0.0, 0.5,
 				pbrData.lightDir, pbrData.lightIntensity, pbrData.lightColor,
 				pbrData.ambient, pbrData.camPos, lightViewProj)
 			s.queue.WriteBuffer(sc.uniformBuffer, 0, ubBytes)
-			renderPass.SetVertexBuffer(0, sc.cubeVertexBuf, 0, wgpu.WholeSize)
-			renderPass.Draw(sc.cubeVertexCount, 1, 0, 0)
+			instanceBuf := buildInstanceBuffer(s.device, []ecs.Transform{tr})
+			if instanceBuf != nil {
+				renderPass.SetVertexBuffer(0, sc.cubeVertexBuf, 0, wgpu.WholeSize)
+				renderPass.SetVertexBuffer(1, instanceBuf, 0, wgpu.WholeSize)
+				renderPass.Draw(sc.cubeVertexCount, 1, 0, 0)
+				instanceBuf.Release()
+			}
 		}
 	}
 

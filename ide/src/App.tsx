@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { MenuBar } from "./components/MenuBar";
 import { CommandLine } from "./components/CommandLine";
@@ -12,6 +14,29 @@ import "./App.css";
 function App() {
   const [activeView, setActiveView] = useState<"editor" | "viewport">("editor");
   const [selectedEntity] = useState<string | null>(null);
+  const [projectPath, setProjectPath] = useState<string>(".");
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    getCurrentWindow()
+      .onDragDropEvent((event) => {
+        if (event.payload.type === "drop" && event.payload.paths?.length) {
+          const ext = (p: string) => p.toLowerCase().endsWith(".gltf") || p.toLowerCase().endsWith(".glb");
+          const valid = event.payload.paths.filter(ext);
+          if (valid.length) {
+            invoke<string>("import_dropped_assets", {
+              paths: valid,
+              projectDir: projectPath,
+            })
+              .then((msg) => console.log(msg))
+              .catch((e) => console.error("Import failed:", e));
+          }
+        }
+      })
+      .then((fn) => { unlisten = fn; })
+      .catch(console.error);
+    return () => unlisten?.();
+  }, [projectPath]);
 
   const handleCommand = (cmd: string) => {
     console.log("Command:", cmd);

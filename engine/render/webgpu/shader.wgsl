@@ -1,11 +1,19 @@
 // GoEngineKenga WebGPU PBR shader
 // Vertex: position, normal, uv
-// Uniform: MVP, Model, Material (baseColor, metallic, roughness), Light
+// Instance: model matrix (locations 3-6)
+// Uniform: viewProj, Material, Light
 
 struct VertexInput {
   @location(0) position: vec3<f32>,
   @location(1) normal: vec3<f32>,
   @location(2) uv: vec2<f32>,
+}
+
+struct InstanceInput {
+  @location(3) model_0: vec4<f32>,
+  @location(4) model_1: vec4<f32>,
+  @location(5) model_2: vec4<f32>,
+  @location(6) model_3: vec4<f32>,
 }
 
 struct VertexOutput {
@@ -16,8 +24,8 @@ struct VertexOutput {
 }
 
 struct Uniforms {
-  mvp: mat4x4<f32>,
-  model: mat4x4<f32>,
+  view_proj: mat4x4<f32>,
+  _model_pad: mat4x4<f32>,
   base_color: vec3<f32>,
   metallic: f32,
   roughness: f32,
@@ -39,11 +47,13 @@ var shadow_map: texture_depth_2d;
 var shadow_sampler: sampler_comparison;
 
 @vertex
-fn vs_main(in: VertexInput) -> VertexOutput {
+fn vs_main(in: VertexInput, instance: InstanceInput) -> VertexOutput {
+  let model = mat4x4<f32>(instance.model_0, instance.model_1, instance.model_2, instance.model_3);
+  let mvp = uniforms.view_proj * model;
   var out: VertexOutput;
-  out.clip_position = uniforms.mvp * vec4<f32>(in.position, 1.0);
-  out.world_pos = (uniforms.model * vec4<f32>(in.position, 1.0)).xyz;
-  out.world_normal = (uniforms.model * vec4<f32>(in.normal, 0.0)).xyz;
+  out.clip_position = mvp * vec4<f32>(in.position, 1.0);
+  out.world_pos = (model * vec4<f32>(in.position, 1.0)).xyz;
+  out.world_normal = (model * vec4<f32>(in.normal, 0.0)).xyz;
   out.uv = in.uv;
   return out;
 }
