@@ -4,11 +4,12 @@ import "encoding/json"
 
 // CommandEnvelope описывает входящую JSON-команду по WebSocket.
 // Формат на проводе:
-// {
-//   "cmd": "load_model",
-//   "request_id": "optional",
-//   "data": { ... }
-// }
+//
+//	{
+//	  "cmd": "load_model",
+//	  "request_id": "optional",
+//	  "data": { ... }
+//	}
 type CommandEnvelope struct {
 	Cmd       string          `json:"cmd"`
 	RequestID string          `json:"request_id,omitempty"`
