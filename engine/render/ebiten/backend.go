@@ -565,7 +565,8 @@ func (b *Backend) kartHUD(w *ecs.World) string {
 	if !found {
 		return msg
 	}
-	speed := int(math.Sqrt(float64(rb.Velocity.X*rb.Velocity.X+rb.Velocity.Y*rb.Velocity.Y)) * 3.6)
+	// Скорость в px/с; масштаб спрайта карта 2.5 → метры/с → км/ч
+	speed := int(math.Sqrt(float64(rb.Velocity.X*rb.Velocity.X+rb.Velocity.Y*rb.Velocity.Y)) * 3.6 / 2.5)
 	pu := player.PowerUp
 	if pu == "" {
 		pu = "-"
@@ -574,12 +575,32 @@ func (b *Backend) kartHUD(w *ecs.World) string {
 	}
 	out := gameplay.Tr("race.lap", itoa(player.CurrentLap+1), itoa(gameplay.LapsToWin))
 	out += "  " + gameplay.Tr("race.pos", itoa(pos)) + "  " + itoa(speed) + " " + gameplay.Tr("race.kmh")
+	out += "\n" + gameplay.Tr("race.time", fmtTime(rs.Elapsed()))
+	if player.BestLapTime > 0 {
+		out += "  " + gameplay.Tr("race.best", fmtTime(player.BestLapTime))
+	}
 	out += "\n" + gameplay.Tr("race.power", pu)
 	out += "\n" + gameplay.Tr("race.controls")
 	if msg != "" {
 		out = msg + "\n" + out
 	}
 	return out
+}
+
+// fmtTime форматирует секунды как М:СС.д (1:23.4).
+func fmtTime(sec float32) string {
+	total := int(sec)
+	min := total / 60
+	rem := total % 60
+	dec := int((sec-float32(total))*10 + 0.5)
+	if dec > 9 {
+		dec = 9
+	}
+	s := itoa(min) + ":"
+	if rem < 10 {
+		s += "0"
+	}
+	return s + itoa(rem) + "." + itoa(dec)
 }
 
 // SetUIManager sets the UI manager for this backend

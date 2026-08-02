@@ -4,6 +4,8 @@
   "race.lap": "Lap %s/%s",
   "race.pos": "Pos %s",
   "race.kmh": "km/h",
+  "race.time": "Time: %s",
+  "race.best": "Best lap: %s",
   "race.power": "Power: %s",
   "race.controls": "W/S gas  A/D steer  Shift drift  Space use",
   "race.finish": "FINISH! Pos %s\nENTER — menu",

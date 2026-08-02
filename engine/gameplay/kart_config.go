@@ -20,33 +20,34 @@ type CarConfig struct {
 	SpecialAbility string  // "electric_boost" | ""
 }
 
-// Cars конфиги всех машин
+// Cars конфиги всех машин. Скорости в px/с для 2D-трассы 1280×720:
+// круг овала ≈ 2150px, таргет ~13-15 с на круг.
 var Cars = map[CarID]CarConfig{
 	CarAtom: {
 		ID:              CarAtom,
 		DisplayName:     "Atom",
-		MaxSpeed:        24,
-		Acceleration:    18,
-		Handling:        2.5,
+		MaxSpeed:        200,
+		Acceleration:    160,
+		Handling:        3.0,
 		Mass:            1.0,
 		SpecialAbility:  "electric_boost",
 	},
 	CarMoskvichM70: {
-		ID:            CarMoskvichM70,
-		DisplayName:   "Moskvich M70",
-		MaxSpeed:      26,
-		Acceleration:  15,
-		Handling:      2.0,
-		Mass:          1.5,
+		ID:             CarMoskvichM70,
+		DisplayName:    "Moskvich M70",
+		MaxSpeed:       210,
+		Acceleration:   150,
+		Handling:       2.4,
+		Mass:           1.5,
 		SpecialAbility: "",
 	},
 	CarMoskvichM90: {
-		ID:            CarMoskvichM90,
-		DisplayName:   "Moskvich M90",
-		MaxSpeed:      28,
-		Acceleration:  12,
-		Handling:      1.5,
-		Mass:          2.2,
+		ID:             CarMoskvichM90,
+		DisplayName:    "Moskvich M90",
+		MaxSpeed:       220,
+		Acceleration:   140,
+		Handling:       1.8,
+		Mass:           2.2,
 		SpecialAbility: "",
 	},
 }

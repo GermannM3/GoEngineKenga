@@ -4,6 +4,8 @@
   "race.lap": "Круг %s/%s",
   "race.pos": "Поз. %s",
   "race.kmh": "км/ч",
+  "race.time": "Время: %s",
+  "race.best": "Лучший круг: %s",
   "race.power": "Бонус: %s",
   "race.controls": "W/S газ  A/D руль  Shift дрифт  Space бонус",
   "race.finish": "ФИНИШ! Место %s\nENTER — меню",

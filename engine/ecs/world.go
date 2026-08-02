@@ -151,10 +151,15 @@ type Kart struct {
 	CarID         string  `json:"carId"`
 	CurrentLap    int     `json:"currentLap"`
 	LastCheckpoint int    `json:"lastCheckpoint"` // индекс чекпоинта для детекции круга
-	PowerUp       string  `json:"powerUp"`       // nitro, shield, rocket, oil, electric_boost, ""
-	PowerUpTimer  float32 `json:"powerUpTimer"`  // время действия бонуса
+	PowerUp       string  `json:"powerUp"`        // nitro, shield, rocket, oil, electric_boost, ""
+	PowerUpTimer  float32 `json:"powerUpTimer"`   // время действия бонуса
 	IsBot         bool    `json:"isBot"`
-	RacePosition  int     `json:"racePosition"`  // 1-based на основе прогресса
+	RacePosition  int     `json:"racePosition"` // 1-based на основе прогресса
+
+	// Тайминги кругов (секунды, относительно RaceState.RaceTime)
+	LapStartTime float32 `json:"lapStartTime"` // время старта текущего круга
+	LastLapTime  float32 `json:"lastLapTime"`  // время последнего круга, с (0 = ещё нет)
+	BestLapTime  float32 `json:"bestLapTime"`  // лучший круг, с (0 = ещё нет)
 }
 
 // PowerUpPickup — коробка/иконка бонуса на трассе (триггер).

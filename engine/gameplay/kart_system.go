@@ -10,11 +10,11 @@ import (
 )
 
 const (
-	kartFriction    = 6.0
+	kartFriction    = 45.0 // замедление без газа (px/с²)
 	kartDriftFactor = 0.7
 	LapsToWin       = 3
-	pickupRadius    = 40.0
-	waypointRadius  = 90.0
+	pickupRadius    = 60.0
+	waypointRadius  = 100.0
 )
 
 // RacePhase состояние гонки
@@ -35,6 +35,8 @@ type RaceState struct {
 	SelectedCar  string  // atom | moskvich_m70 | moskvich_m90
 	WinnerName   string
 	Message      string
+	RaceTime     float32 // секунды с момента старта (PhaseRacing)
+	goTimer      float32 // таймер показа надписи GO! после старта
 	Waypoints    []emath.Vec3
 	TrackCenterX float32
 	TrackCenterY float32
@@ -61,6 +63,13 @@ func (rs *RaceState) Snapshot() (phase RacePhase, message, selectedCar, winner s
 	rs.mu.RLock()
 	defer rs.mu.RUnlock()
 	return rs.Phase, rs.Message, rs.SelectedCar, rs.WinnerName
+}
+
+// Elapsed возвращает время гонки (с момента старта), для HUD.
+func (rs *RaceState) Elapsed() float32 {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+	return rs.RaceTime
 }
 
 func (rs *RaceState) ensureWaypoints() {
@@ -91,6 +100,8 @@ func ResetRace(w *ecs.World) {
 	rs.Countdown = 3.5
 	rs.WinnerName = ""
 	rs.Message = "3"
+	rs.RaceTime = 0
+	rs.goTimer = 0
 	cx, cy := rs.TrackCenterX, rs.TrackCenterY
 	_, ry := rs.TrackRX, rs.TrackRY
 	wp0 := rs.Waypoints[0]
@@ -137,6 +148,9 @@ func ResetRace(w *ecs.World) {
 		kart.PowerUp = ""
 		kart.PowerUpTimer = 0
 		kart.RacePosition = 1
+		kart.LapStartTime = 0
+		kart.LastLapTime = 0
+		kart.BestLapTime = 0
 		if hasRb {
 			rb.Velocity = emath.Vec3{}
 			rb.UseGravity = false
@@ -188,6 +202,15 @@ func KartSystem(w *ecs.World, inputState interface{}, dt float32) {
 	}
 
 	// PhaseRacing
+	rs.RaceTime += dt
+	// Надпись GO! показываем 1.5с после старта, затем убираем
+	if rs.Message != "" {
+		rs.goTimer += dt
+		if rs.goTimer > 1.5 {
+			rs.Message = ""
+			rs.goTimer = 0
+		}
+	}
 	updateKarts(w, st, dt, rs)
 	updatePickups(w, dt)
 	updateLapsAndPositions(w, rs)
@@ -391,6 +414,22 @@ func activatePowerUp(kart *ecs.Kart, cfg *CarConfig) {
 	}
 }
 
+// pickupDuration — длительность бонуса при авто-активации ботом.
+func pickupDuration(t string) float32 {
+	switch t {
+	case "nitro":
+		return 2.5
+	case "electric_boost":
+		return 3.0
+	case "shield":
+		return 5
+	case "oil", "rocket":
+		return 1
+	default:
+		return 2
+	}
+}
+
 func pullToOval(tr *ecs.Transform, rs *RaceState, speed, dt float32) {
 	dx := tr.Position.X - rs.TrackCenterX
 	dy := tr.Position.Y - rs.TrackCenterY
@@ -438,11 +477,17 @@ func updatePickups(w *ecs.World, dt float32) {
 		}
 		for _, kid := range w.Entities() {
 			kart, ok := w.GetKart(kid)
-			if !ok || kart.IsBot {
+			if !ok {
 				continue
 			}
 			if kart.PowerUp != "" {
 				continue
+			}
+			// Боты подбирают бонусы реже и используют сразу (у игрока — по Space)
+			if kart.IsBot {
+				if (kart.RacePosition % 2) == 0 {
+					continue
+				}
 			}
 			tr, _ := w.GetTransform(kid)
 			dx := tr.Position.X - ptr.Position.X
@@ -453,7 +498,11 @@ func updatePickups(w *ecs.World, dt float32) {
 					t = types[ti%len(types)]
 				}
 				kart.PowerUp = t
-				kart.PowerUpTimer = 0 // ждёт Space
+				kart.PowerUpTimer = 0 // ждёт Space (у игрока)
+				if kart.IsBot {
+					// бот активирует бонус немедленно
+					kart.PowerUpTimer = pickupDuration(t)
+				}
 				w.SetKart(kid, kart)
 				pickup.Cooldown = pickup.RespawnSec
 				if pickup.Cooldown <= 0 {
@@ -498,6 +547,15 @@ func updateLapsAndPositions(w *ecs.World, rs *RaceState) {
 			// полный круг: перешли с последнего на 0
 			if prev == n-1 && next == 0 {
 				kart.CurrentLap++
+				// тайминг круга: LapStartTime ставится на старте гонки/предыдущего круга
+				if kart.LapStartTime >= 0 {
+					lapTime := rs.RaceTime - kart.LapStartTime
+					kart.LastLapTime = lapTime
+					if kart.BestLapTime <= 0 || lapTime < kart.BestLapTime {
+						kart.BestLapTime = lapTime
+					}
+				}
+				kart.LapStartTime = rs.RaceTime
 			}
 			w.SetKart(id, kart)
 		}
