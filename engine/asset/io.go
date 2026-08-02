@@ -33,6 +33,19 @@ func LoadMesh(path string) (*Mesh, error) {
 	return &m, nil
 }
 
+// LoadSkeleton загружает скелет из .skeleton.json
+func LoadSkeleton(path string) (*Skeleton, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var s Skeleton
+	if err := json.Unmarshal(b, &s); err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
 func LoadMaterial(path string) (*render.Material, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {

@@ -140,18 +140,11 @@ func (rt *Runtime) stepPhysics(deltaTime float32) {
 	rt.stepDispensers(deltaTime)
 }
 
-// v0: простая «система», чтобы видеть, что PlayWorld реально живёт отдельно.
+// SpinSystem — пустая система (ранее вращала объекты вокруг Y; отключено для платформера).
+// Игрок управляется через ApplyPlayerInput, остальные объекты статичны.
 func SpinSystem(w *ecs.World, dt time.Duration) {
-	ids := w.Entities()
-	for _, id := range ids {
-		t, ok := w.GetTransform(id)
-		if !ok {
-			continue
-		}
-		// вращаем вокруг Y
-		t.Rotation = t.Rotation.Add(emath.V3(0, float32(dt.Seconds()*30.0), 0))
-		w.SetTransform(id, t)
-	}
+	_ = w
+	_ = dt
 }
 
 // stepDispensers добавляет точки траектории для активных Dispenser-компонентов.

@@ -1,0 +1,50 @@
+{
+  "name": "Race",
+  "entities": [
+    {
+      "name": "Player",
+      "transform": {"position": {"x": 640, "y": 590, "z": 0}, "rotation": {"x": 0, "y": 0, "z": 180}, "scale": {"x": 2.5, "y": 2.5, "z": 1}},
+      "spriteRenderer": {"texturePath": "assets/cars/atom.png", "layer": 20, "visible": true, "colorR": 0, "colorG": 200, "colorB": 255, "colorA": 255},
+      "rigidbody": {"mass": 1, "velocity": {"x": 0, "y": 0, "z": 0}, "angularVelocity": {"x": 0, "y": 0, "z": 0}, "drag": 0, "angularDrag": 0, "useGravity": false, "isKinematic": false},
+      "collider": {"type": "box", "center": {"x": 0, "y": 0, "z": 0}, "size": {"x": 40, "y": 24, "z": 1}, "isTrigger": false},
+      "kart": {"carId": "atom", "currentLap": 0, "lastCheckpoint": 0, "powerUp": "", "powerUpTimer": 0, "isBot": false, "racePosition": 1}
+    },
+    {
+      "name": "Bot1",
+      "transform": {"position": {"x": 580, "y": 610, "z": 0}, "rotation": {"x": 0, "y": 0, "z": 180}, "scale": {"x": 2.5, "y": 2.5, "z": 1}},
+      "spriteRenderer": {"texturePath": "assets/cars/moskvich_m70.png", "layer": 15, "visible": true, "colorR": 255, "colorG": 120, "colorB": 40, "colorA": 255},
+      "rigidbody": {"mass": 1.5, "velocity": {"x": 0, "y": 0, "z": 0}, "angularVelocity": {"x": 0, "y": 0, "z": 0}, "drag": 0, "angularDrag": 0, "useGravity": false, "isKinematic": false},
+      "kart": {"carId": "moskvich_m70", "currentLap": 0, "lastCheckpoint": 0, "powerUp": "", "powerUpTimer": 0, "isBot": true, "racePosition": 2}
+    },
+    {
+      "name": "Bot2",
+      "transform": {"position": {"x": 700, "y": 610, "z": 0}, "rotation": {"x": 0, "y": 0, "z": 180}, "scale": {"x": 2.5, "y": 2.5, "z": 1}},
+      "spriteRenderer": {"texturePath": "assets/cars/moskvich_m90.png", "layer": 15, "visible": true, "colorR": 60, "colorG": 80, "colorB": 255, "colorA": 255},
+      "rigidbody": {"mass": 2.2, "velocity": {"x": 0, "y": 0, "z": 0}, "angularVelocity": {"x": 0, "y": 0, "z": 0}, "drag": 0, "angularDrag": 0, "useGravity": false, "isKinematic": false},
+      "kart": {"carId": "moskvich_m90", "currentLap": 0, "lastCheckpoint": 0, "powerUp": "", "powerUpTimer": 0, "isBot": true, "racePosition": 3}
+    },
+    {
+      "name": "PowerUp1",
+      "transform": {"position": {"x": 1060, "y": 360, "z": 0}, "rotation": {"x": 0, "y": 0, "z": 0}, "scale": {"x": 1.8, "y": 1.8, "z": 1}},
+      "spriteRenderer": {"texturePath": "assets/powerup_box.png", "layer": 5, "visible": true, "colorR": 255, "colorG": 220, "colorB": 40, "colorA": 255},
+      "powerUpPickup": {"type": "nitro", "respawnSec": 8}
+    },
+    {
+      "name": "PowerUp2",
+      "transform": {"position": {"x": 220, "y": 360, "z": 0}, "rotation": {"x": 0, "y": 0, "z": 0}, "scale": {"x": 1.8, "y": 1.8, "z": 1}},
+      "spriteRenderer": {"texturePath": "assets/powerup_box.png", "layer": 5, "visible": true, "colorR": 255, "colorG": 220, "colorB": 40, "colorA": 255},
+      "powerUpPickup": {"type": "shield", "respawnSec": 10}
+    },
+    {
+      "name": "PowerUp3",
+      "transform": {"position": {"x": 640, "y": 140, "z": 0}, "rotation": {"x": 0, "y": 0, "z": 0}, "scale": {"x": 1.8, "y": 1.8, "z": 1}},
+      "spriteRenderer": {"texturePath": "assets/powerup_box.png", "layer": 5, "visible": true, "colorR": 255, "colorG": 220, "colorB": 40, "colorA": 255},
+      "powerUpPickup": {"type": "electric_boost", "respawnSec": 12}
+    },
+    {
+      "name": "Camera2D",
+      "transform": {"position": {"x": 640, "y": 360, "z": 0}, "rotation": {"x": 0, "y": 0, "z": 0}, "scale": {"x": 1, "y": 1, "z": 1}},
+      "camera2D": {"zoom": 1, "followId": 1}
+    }
+  ]
+}

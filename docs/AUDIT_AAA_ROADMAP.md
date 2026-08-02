@@ -107,6 +107,13 @@
 - [x] 7.1 WebAssembly (Ebiten на WASM)
 - [x] 7.2 Mobile (Ebiten ebitenmobile: Android .aar, iOS .xcframework)
 
+### Блок 8: International readiness (приоритет 8)
+- [x] 8.1 Localization: per-locale loading, fallback, Tr(key, args)
+- [x] 8.2 Project locale (project.kenga.json)
+- [x] 8.3 Документация [docs/INTERNATIONAL.md](INTERNATIONAL.md)
+- [ ] 8.4 README/API docs на английском (частично есть)
+- [ ] 8.5 Один опубликованный инди-проект
+
 ---
 
 ## 5. Порядок реализации

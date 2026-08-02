@@ -16,14 +16,19 @@ type Scene struct {
 type SceneEntity struct {
 	Name string `json:"name"`
 
-	Transform    *ecs.Transform    `json:"transform,omitempty"`
-	Camera       *ecs.Camera       `json:"camera,omitempty"`
-	MeshRenderer *ecs.MeshRenderer `json:"meshRenderer,omitempty"`
-	Light        *ecs.Light        `json:"light,omitempty"`
-	Rigidbody    *ecs.Rigidbody    `json:"rigidbody,omitempty"`
-	Collider     *ecs.Collider     `json:"collider,omitempty"`
-	AudioSource  *ecs.AudioSource  `json:"audioSource,omitempty"`
-	UICanvas     *ecs.UICanvas     `json:"uiCanvas,omitempty"`
+	Transform     *ecs.Transform     `json:"transform,omitempty"`
+	Camera        *ecs.Camera        `json:"camera,omitempty"`
+	MeshRenderer  *ecs.MeshRenderer  `json:"meshRenderer,omitempty"`
+	SpriteRenderer *ecs.SpriteRenderer `json:"spriteRenderer,omitempty"`
+	Camera2D      *ecs.Camera2D      `json:"camera2D,omitempty"`
+	AnimationController *ecs.AnimationController `json:"animationController,omitempty"`
+	Light         *ecs.Light         `json:"light,omitempty"`
+	Rigidbody     *ecs.Rigidbody     `json:"rigidbody,omitempty"`
+	Collider      *ecs.Collider      `json:"collider,omitempty"`
+	Kart          *ecs.Kart          `json:"kart,omitempty"`
+	PowerUpPickup *ecs.PowerUpPickup `json:"powerUpPickup,omitempty"`
+	AudioSource   *ecs.AudioSource   `json:"audioSource,omitempty"`
+	UICanvas      *ecs.UICanvas      `json:"uiCanvas,omitempty"`
 
 	// Для префабов
 	PrefabID  string                 `json:"prefabId,omitempty"`  // ID префаба, если это инстанс
@@ -51,6 +56,33 @@ func DefaultScene() *Scene {
 					Scale:    emath.V3(1, 1, 1),
 				},
 				MeshRenderer: &ecs.MeshRenderer{MeshAssetID: ""}, // v0: procedural triangle
+			},
+			{
+				Name: "SpriteExample",
+				Transform: &ecs.Transform{
+					Position: emath.V3(2, 0, 0),
+					Rotation: emath.V3(0, 0, 0),
+					Scale:    emath.V3(1, 1, 1),
+				},
+				SpriteRenderer: &ecs.SpriteRenderer{
+					TexturePath: "textures/example.png",
+					Layer:       10,
+					Visible:     true,
+					FlipX:       false,
+					FlipY:       false,
+				},
+			},
+			{
+				Name: "Camera2DExample",
+				Transform: &ecs.Transform{
+					Position: emath.V3(0, 0, 0),
+					Rotation: emath.V3(0, 0, 0),
+					Scale:    emath.V3(1, 1, 1),
+				},
+				Camera2D: &ecs.Camera2D{
+					Zoom:     1.0,
+					FollowID: 0, // Static camera
+				},
 			},
 		},
 	}
@@ -89,6 +121,15 @@ func (s *Scene) ToWorld() *ecs.World {
 		if se.MeshRenderer != nil {
 			w.SetMeshRenderer(id, *se.MeshRenderer)
 		}
+		if se.SpriteRenderer != nil {
+			w.SetSpriteRenderer(id, *se.SpriteRenderer)
+		}
+		if se.Camera2D != nil {
+			w.SetCamera2D(id, *se.Camera2D)
+		}
+		if se.AnimationController != nil {
+			w.SetAnimationController(id, *se.AnimationController)
+		}
 		if se.Light != nil {
 			w.SetLight(id, *se.Light)
 		}
@@ -98,8 +139,17 @@ func (s *Scene) ToWorld() *ecs.World {
 		if se.Collider != nil {
 			w.SetCollider(id, *se.Collider)
 		}
+		if se.Kart != nil {
+			w.SetKart(id, *se.Kart)
+		}
+		if se.PowerUpPickup != nil {
+			w.SetPowerUpPickup(id, *se.PowerUpPickup)
+		}
 		if se.AudioSource != nil {
 			w.SetAudioSource(id, *se.AudioSource)
+		}
+		if se.UICanvas != nil {
+			w.SetUICanvas(id, *se.UICanvas)
 		}
 	}
 	return w

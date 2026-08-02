@@ -17,6 +17,9 @@ import (
 //go:embed shader.wgsl
 var shaderWGSL string
 
+//go:embed shader_skinned.wgsl
+var shaderSkinnedWGSL string
+
 type state struct {
 	instance *wgpu.Instance
 	adapter  *wgpu.Adapter
@@ -125,6 +128,12 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 				}
 			}
 			s.scene.meshCache = make(map[string]*cachedMesh)
+			for _, c := range s.scene.meshSkinnedCache {
+				if c != nil && c.vertexBuf != nil {
+					c.vertexBuf.Release()
+				}
+			}
+			s.scene.meshSkinnedCache = make(map[string]*cachedMesh)
 		}
 	}
 
@@ -173,6 +182,7 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 	lightViewProj := buildLightViewProj(pbrData.lightDir)
 	ubBytes := make([]byte, pbrUniformsSize)
 	shadowUbBytes := make([]byte, 128)
+	boneBytes := make([]byte, boneUniformsSize)
 	frustum := render.ExtractFrustum(pbrData.viewProj)
 
 	// Shadow pass
@@ -213,7 +223,18 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 			if !frustum.SphereInFrustum(tr.Position, radius) {
 				continue
 			}
-			vb, vc := sc.getOrCreateMeshBuffer(resolver, mr.MeshAssetID)
+			skinned := isMeshSkinned(resolver, mr.MeshAssetID)
+			var vb *wgpu.Buffer
+			var vc uint32
+			if skinned {
+				vb, vc = sc.getOrCreateSkinnedMeshBuffer(resolver, mr.MeshAssetID)
+				if sc.shadowSkinnedPipeline != nil {
+					shadowPass.SetPipeline(sc.shadowSkinnedPipeline)
+				}
+			} else {
+				vb, vc = sc.getOrCreateMeshBuffer(resolver, mr.MeshAssetID)
+				shadowPass.SetPipeline(sc.shadowPipeline)
+			}
 			if vb == nil {
 				continue
 			}
@@ -241,7 +262,7 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 	for _, batch := range batches {
 		writePBRUniforms(ubBytes, pbrData.viewProj, batch.baseColor, batch.metallic, batch.roughness,
 			pbrData.lightDir, pbrData.lightIntensity, pbrData.lightColor,
-			pbrData.ambient, pbrData.camPos, lightViewProj)
+			pbrData.ambient, pbrData.camPos, lightViewProj, nil)
 		s.queue.WriteBuffer(sc.uniformBuffer, 0, ubBytes)
 
 		vb, vc := sc.getOrCreateMeshBuffer(resolver, batch.meshAssetID)
@@ -258,6 +279,32 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 		instanceBuf.Release()
 	}
 
+	// Skinned mesh pass (bone matrices in vertex shader)
+	skinnedDraws := buildSkinnedDraws(frame.World, &frustum, resolver)
+	writeBoneMatricesIdentity(boneBytes)
+	if len(skinnedDraws) > 0 && sc.skinnedPipeline != nil {
+		s.queue.WriteBuffer(sc.boneUniform, 0, boneBytes)
+		for _, d := range skinnedDraws {
+			vb, vc := sc.getOrCreateSkinnedMeshBuffer(resolver, d.meshAssetID)
+			if vb == nil {
+				continue
+			}
+			model := buildModelMatrix(&d.transform)
+			writePBRUniforms(ubBytes, pbrData.viewProj, d.baseColor, d.metallic, d.roughness,
+				pbrData.lightDir, pbrData.lightIntensity, pbrData.lightColor,
+				pbrData.ambient, pbrData.camPos, lightViewProj, &model)
+			s.queue.WriteBuffer(sc.skinnedUniform, 0, ubBytes)
+			renderPass.SetPipeline(sc.skinnedPipeline)
+			renderPass.SetBindGroup(0, sc.skinnedBindGroup, nil)
+			renderPass.SetBindGroup(1, sc.skinnedBindGroupShadow, nil)
+			renderPass.SetVertexBuffer(0, vb, 0, wgpu.WholeSize)
+			renderPass.Draw(vc, 1, 0, 0)
+		}
+		renderPass.SetPipeline(sc.pipeline)
+		renderPass.SetBindGroup(0, sc.bindGroup, nil)
+		renderPass.SetBindGroup(1, sc.bindGroupShadow, nil)
+	}
+
 	// Fallback: cube if no meshes
 	if frame.World != nil {
 		hasMesh := false
@@ -271,7 +318,7 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 			tr := ecs.Transform{Position: emath.Vec3{X: 0, Y: 0, Z: 0}, Scale: emath.Vec3{X: 1, Y: 1, Z: 1}}
 			writePBRUniforms(ubBytes, pbrData.viewProj, []float32{0.75, 0.75, 0.78}, 0.0, 0.5,
 				pbrData.lightDir, pbrData.lightIntensity, pbrData.lightColor,
-				pbrData.ambient, pbrData.camPos, lightViewProj)
+				pbrData.ambient, pbrData.camPos, lightViewProj, nil)
 			s.queue.WriteBuffer(sc.uniformBuffer, 0, ubBytes)
 			instanceBuf := buildInstanceBuffer(s.device, []ecs.Transform{tr})
 			if instanceBuf != nil {
@@ -305,6 +352,30 @@ func (s *state) Destroy() {
 			}
 		}
 		s.scene.meshCache = nil
+		for _, c := range s.scene.meshSkinnedCache {
+			if c != nil && c.vertexBuf != nil {
+				c.vertexBuf.Release()
+			}
+		}
+		s.scene.meshSkinnedCache = nil
+		if s.scene.shadowSkinnedPipeline != nil {
+			s.scene.shadowSkinnedPipeline.Release()
+		}
+		if s.scene.skinnedBindGroupShadow != nil {
+			s.scene.skinnedBindGroupShadow.Release()
+		}
+		if s.scene.skinnedBindGroup != nil {
+			s.scene.skinnedBindGroup.Release()
+		}
+		if s.scene.boneUniform != nil {
+			s.scene.boneUniform.Release()
+		}
+		if s.scene.skinnedUniform != nil {
+			s.scene.skinnedUniform.Release()
+		}
+		if s.scene.skinnedPipeline != nil {
+			s.scene.skinnedPipeline.Release()
+		}
 		if s.scene.bindGroupShadow != nil {
 			s.scene.bindGroupShadow.Release()
 		}

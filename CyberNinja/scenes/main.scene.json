@@ -1,0 +1,353 @@
+{
+  "name": "CyberNinja Main Scene",
+  "entities": [
+    {
+      "name": "MainCamera2D",
+      "transform": {
+        "position": {"x": 100, "y": 400, "z": 0},
+        "rotation": {"x": 0, "y": 0, "z": 0},
+        "scale": {"x": 1, "y": 1, "z": 1}
+      },
+      "camera2D": {
+        "zoom": 1.0,
+        "followId": 2
+      }
+    },
+    {
+      "name": "Background",
+      "transform": {
+        "position": {"x": 0, "y": 0, "z": 0},
+        "rotation": {"x": 0, "y": 0, "z": 0},
+        "scale": {"x": 2, "y": 2, "z": 1}
+      },
+      "spriteRenderer": {
+        "texturePath": "backgrounds/city_street.png",
+        "layer": 0,
+        "visible": true,
+        "flipX": false,
+        "flipY": false
+      }
+    },
+    {
+      "name": "Player",
+      "transform": {
+        "position": {"x": 100, "y": 400, "z": 0},
+        "rotation": {"x": 0, "y": 0, "z": 0},
+        "scale": {"x": 1.5, "y": 1.5, "z": 1}
+      },
+      "spriteRenderer": {
+        "texturePath": "characters/hero/hero_tpose_front.png",
+        "layer": 20,
+        "visible": true,
+        "flipX": false,
+        "flipY": false,
+        "srcX": 0,
+        "srcY": 0,
+        "srcW": 128,
+        "srcH": 128
+      },
+      "animationController": {
+        "clips": [
+          {
+            "name": "idle",
+            "frames": [0],
+            "duration": 1.0,
+            "loop": true,
+            "layout": "horizontal",
+            "startX": 0,
+            "startY": 0,
+            "stepX": 128,
+            "stepY": 0,
+            "frameWidth": 128,
+            "frameHeight": 128
+          },
+          {
+            "name": "walk",
+            "frames": [1, 2, 3, 4],
+            "duration": 0.5,
+            "loop": true,
+            "layout": "horizontal",
+            "startX": 128,
+            "startY": 0,
+            "stepX": 128,
+            "stepY": 0,
+            "frameWidth": 128,
+            "frameHeight": 128
+          },
+          {
+            "name": "jump",
+            "frames": [5],
+            "duration": 0.2,
+            "loop": false,
+            "layout": "horizontal",
+            "startX": 640,
+            "startY": 0,
+            "stepX": 128,
+            "stepY": 0,
+            "frameWidth": 128,
+            "frameHeight": 128
+          },
+          {
+            "name": "attack",
+            "frames": [6, 7, 8],
+            "duration": 0.3,
+            "loop": false,
+            "layout": "horizontal",
+            "startX": 768,
+            "startY": 0,
+            "stepX": 128,
+            "stepY": 0,
+            "frameWidth": 128,
+            "frameHeight": 128
+          }
+        ],
+        "defaultClip": "idle",
+        "currentClip": "idle",
+        "playbackSpeed": 1.0,
+        "autoPlay": true
+      },
+      "rigidbody": {
+        "mass": 1,
+        "velocity": {"x": 0, "y": 0, "z": 0},
+        "angularVelocity": {"x": 0, "y": 0, "z": 0},
+        "drag": 0.1,
+        "angularDrag": 0.05,
+        "useGravity": true,
+        "isKinematic": false
+      },
+      "collider": {
+        "type": "box",
+        "center": {"x": 0, "y": 0, "z": 0},
+        "size": {"x": 40, "y": 60, "z": 1},
+        "isTrigger": false
+      }
+    },
+    {
+      "name": "Ground",
+      "transform": {
+        "position": {"x": 0, "y": 550, "z": 0},
+        "rotation": {"x": 0, "y": 0, "z": 0},
+        "scale": {"x": 1, "y": 1, "z": 1}
+      },
+      "spriteRenderer": {
+        "texturePath": "items/item_set.png",
+        "layer": 1,
+        "visible": true,
+        "flipX": false,
+        "flipY": false,
+        "srcX": 128,
+        "srcY": 0,
+        "srcW": 64,
+        "srcH": 64
+      },
+      "collider": {
+        "type": "box",
+        "center": {"x": 0, "y": 0, "z": 0},
+        "size": {"x": 1024, "y": 32, "z": 1},
+        "isTrigger": false
+      }
+    },
+    {
+      "name": "Platform1",
+      "transform": {
+        "position": {"x": 300, "y": 400, "z": 0},
+        "rotation": {"x": 0, "y": 0, "z": 0},
+        "scale": {"x": 1, "y": 1, "z": 1}
+      },
+      "spriteRenderer": {
+        "texturePath": "items/item_set.png",
+        "layer": 1,
+        "visible": true,
+        "flipX": false,
+        "flipY": false,
+        "srcX": 128,
+        "srcY": 0,
+        "srcW": 64,
+        "srcH": 64
+      },
+      "collider": {
+        "type": "box",
+        "center": {"x": 0, "y": 0, "z": 0},
+        "size": {"x": 200, "y": 20, "z": 1},
+        "isTrigger": false
+      }
+    },
+    {
+      "name": "Platform2",
+      "transform": {
+        "position": {"x": 600, "y": 300, "z": 0},
+        "rotation": {"x": 0, "y": 0, "z": 0},
+        "scale": {"x": 1, "y": 1, "z": 1}
+      },
+      "spriteRenderer": {
+        "texturePath": "items/item_set.png",
+        "layer": 1,
+        "visible": true,
+        "flipX": false,
+        "flipY": false,
+        "srcX": 128,
+        "srcY": 0,
+        "srcW": 64,
+        "srcH": 64
+      },
+      "collider": {
+        "type": "box",
+        "center": {"x": 0, "y": 0, "z": 0},
+        "size": {"x": 150, "y": 20, "z": 1},
+        "isTrigger": false
+      }
+    },
+    {
+      "name": "Enemy_DroneScout",
+      "transform": {
+        "position": {"x": 500, "y": 350, "z": 0},
+        "rotation": {"x": 0, "y": 0, "z": 0},
+        "scale": {"x": 1.2, "y": 1.2, "z": 1}
+      },
+      "spriteRenderer": {
+        "texturePath": "characters/enemies/drone_scout.png",
+        "layer": 10,
+        "visible": true,
+        "flipX": false,
+        "flipY": false,
+        "srcX": 0,
+        "srcY": 0,
+        "srcW": 128,
+        "srcH": 128
+      },
+      "animationController": {
+        "clips": [
+          {
+            "name": "idle",
+            "frames": [0],
+            "duration": 1.0,
+            "loop": true,
+            "layout": "horizontal",
+            "startX": 0,
+            "startY": 0,
+            "stepX": 128,
+            "stepY": 0,
+            "frameWidth": 128,
+            "frameHeight": 128
+          },
+          {
+            "name": "patrol",
+            "frames": [1, 2],
+            "duration": 0.8,
+            "loop": true,
+            "layout": "horizontal",
+            "startX": 128,
+            "startY": 0,
+            "stepX": 128,
+            "stepY": 0,
+            "frameWidth": 128,
+            "frameHeight": 128
+          }
+        ],
+        "defaultClip": "idle",
+        "currentClip": "idle",
+        "playbackSpeed": 1.0,
+        "autoPlay": true
+      },
+      "rigidbody": {
+        "mass": 0.5,
+        "velocity": {"x": 0, "y": 0, "z": 0},
+        "angularVelocity": {"x": 0, "y": 0, "z": 0},
+        "drag": 0.2,
+        "angularDrag": 0.05,
+        "useGravity": true,
+        "isKinematic": false
+      },
+      "collider": {
+        "type": "box",
+        "center": {"x": 0, "y": 0, "z": 0},
+        "size": {"x": 40, "y": 40, "z": 1},
+        "isTrigger": false
+      }
+    },
+    {
+      "name": "NPC_Mentor",
+      "transform": {
+        "position": {"x": 200, "y": 400, "z": 0},
+        "rotation": {"x": 0, "y": 0, "z": 0},
+        "scale": {"x": 1.5, "y": 1.5, "z": 1}
+      },
+      "spriteRenderer": {
+        "texturePath": "characters/npc/mentor_koala.png",
+        "layer": 15,
+        "visible": true,
+        "flipX": false,
+        "flipY": false,
+        "srcX": 0,
+        "srcY": 0,
+        "srcW": 128,
+        "srcH": 128
+      },
+      "animationController": {
+        "clips": [
+          {
+            "name": "idle",
+            "frames": [0],
+            "duration": 1.0,
+            "loop": true,
+            "layout": "horizontal",
+            "startX": 0,
+            "startY": 0,
+            "stepX": 128,
+            "stepY": 0,
+            "frameWidth": 128,
+            "frameHeight": 128
+          },
+          {
+            "name": "talk",
+            "frames": [1, 2],
+            "duration": 0.6,
+            "loop": true,
+            "layout": "horizontal",
+            "startX": 128,
+            "startY": 0,
+            "stepX": 128,
+            "stepY": 0,
+            "frameWidth": 128,
+            "frameHeight": 128
+          }
+        ],
+        "defaultClip": "idle",
+        "currentClip": "idle",
+        "playbackSpeed": 1.0,
+        "autoPlay": true
+      },
+      "collider": {
+        "type": "box",
+        "center": {"x": 0, "y": 0, "z": 0},
+        "size": {"x": 40, "y": 60, "z": 1},
+        "isTrigger": true
+      }
+    },
+    {
+      "name": "Item_Sword",
+      "transform": {
+        "position": {"x": 400, "y": 370, "z": 0},
+        "rotation": {"x": 0, "y": 0, "z": 0},
+        "scale": {"x": 1.2, "y": 1.2, "z": 1}
+      },
+      "spriteRenderer": {
+        "texturePath": "items/item_set.png",
+        "layer": 5,
+        "visible": true,
+        "flipX": false,
+        "flipY": false,
+        "srcX": 0,
+        "srcY": 0,
+        "srcW": 64,
+        "srcH": 64
+      },
+      "collider": {
+        "type": "box",
+        "center": {"x": 0, "y": 0, "z": 0},
+        "size": {"x": 30, "y": 30, "z": 1},
+        "isTrigger": true
+      }
+    }
+  ]
+}

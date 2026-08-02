@@ -27,7 +27,13 @@ type Backend struct {
 	sh         *script.Host
 	watcher   *asset.Watcher
 	tickRate   time.Duration
+	// onTick — игровые системы (ввод/анимация/логика), вызываются до шага физики.
+	// Нужен для паритета с оконным режимом: headless выполняет ту же логику игры.
+	onTick func(dt float64)
 }
+
+// SetOnTick задаёт колбэк игровых систем, вызываемый каждый тик до шага физики.
+func (b *Backend) SetOnTick(fn func(dt float64)) { b.onTick = fn }
 
 // New creates a headless backend.
 func New(apiManager *api.Manager, rt *runtime.Runtime, projectDir string, sh *script.Host) *Backend {
@@ -85,6 +91,9 @@ func (b *Backend) RunLoop(initial *render.Frame) error {
 						}
 					}
 				}
+			}
+			if b.onTick != nil {
+				b.onTick(b.tickRate.Seconds())
 			}
 			delta := b.rt.Step()
 			if aw, err := b.rt.ActiveWorld(); err == nil {

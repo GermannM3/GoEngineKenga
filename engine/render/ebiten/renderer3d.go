@@ -32,6 +32,10 @@ type Renderer3D struct {
 	// SSAO post-processing
 	SSAO render.SSAOParams
 
+	// Если true — позиция и target камеры уже заданы внешним контроллером
+	// (orbit camera), updateCameraFromWorld только читает FOV.
+	CameraSetExternally bool
+
 	width, height int
 }
 
@@ -129,12 +133,22 @@ func (r *Renderer3D) RenderWorld(world *ecs.World, resolver *asset.Resolver, cle
 	if world != nil {
 		r.updateCameraFromWorld(world)
 		r.updateLightsFromWorld(world)
+		// Сетку и оси рисуем только при пустой сцене; иначе они перебивают игру.
+		hasMeshes := false
+		for _, id := range world.Entities() {
+			if mr, ok := world.GetMeshRenderer(id); ok && mr.MeshAssetID != "" {
+				hasMeshes = true
+				break
+			}
+		}
+		if !hasMeshes {
+			r.renderGridAndAxes()
+		}
 		r.renderEntities(world, resolver)
 		r.renderTrajectories(world)
+	} else {
+		r.renderGridAndAxes()
 	}
-
-	// Draw world-space helpers (grid + axes), чтобы окно никогда не было пустым.
-	r.renderGridAndAxes()
 
 	// Render particles
 	r.renderParticles()
@@ -161,29 +175,29 @@ func (r *Renderer3D) updateCameraFromWorld(world *ecs.World) {
 			continue
 		}
 
-		// Set camera position from transform
-		r.camera.SetPosition(tr.Position)
+		// Orbit camera уже задал Position и Target напрямую — не перезатираем.
+		if !r.CameraSetExternally {
+			r.camera.SetPosition(tr.Position)
 
-		// Calculate target from rotation
-		// Camera looks along -Z (into scene) by default; rotation Y yaws
-		radY := tr.Rotation.Y * math.Pi / 180
-		forward := emath.Vec3{
-			X: float32(math.Sin(float64(radY))),
-			Y: 0,
-			Z: float32(-math.Cos(float64(radY))), // -Z into scene
+			radY := tr.Rotation.Y * math.Pi / 180
+			forward := emath.Vec3{
+				X: float32(math.Sin(float64(radY))),
+				Y: 0,
+				Z: float32(-math.Cos(float64(radY))),
+			}
+			r.camera.SetTarget(emath.Vec3{
+				X: tr.Position.X + forward.X*10,
+				Y: tr.Position.Y,
+				Z: tr.Position.Z + forward.Z*10,
+			})
 		}
-		r.camera.SetTarget(emath.Vec3{
-			X: tr.Position.X + forward.X*10,
-			Y: tr.Position.Y,
-			Z: tr.Position.Z + forward.Z*10,
-		})
 
-		// Set FOV
+		// FOV из сцены всегда
 		if cam.FovYDegrees > 0 {
 			r.camera.SetFOV(cam.FovYDegrees)
 		}
 
-		break // Only use first camera
+		break
 	}
 }
 

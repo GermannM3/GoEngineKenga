@@ -112,22 +112,18 @@ func (o *OrbitState) Zoom(delta float32) {
 	}
 }
 
-// SyncFromTransform восстанавливает orbit state из позиции и rotation камеры
+// SyncFromTransform восстанавливает orbit state из позиции и rotation камеры.
+// Конвенция сцены: rotY=0 → камера смотрит в -Z.
+// Конвенция orbit: yaw=0 → forward()=(0,0,-1), Position()=target+forward*d → камера смотрит в +Z.
+// Поэтому сдвигаем yaw на 180°.
 func (o *OrbitState) SyncFromTransform(pos emath.Vec3, rotY, rotX float32) {
-	o.Yaw = rotY
+	o.Yaw = rotY + 180
 	o.Pitch = rotX
-	radY := float64(rotY) * math.Pi / 180
-	radP := float64(rotX) * math.Pi / 180
-	forward := emath.Vec3{
-		X: float32(math.Sin(radY) * math.Cos(radP)),
-		Y: float32(-math.Sin(radP)),
-		Z: float32(-math.Cos(radY) * math.Cos(radP)),
-	}
-	// Расстояние примем 10 если не можем вычислить
 	o.Distance = 10
+	fwd := o.forward() // использует o.Yaw (уже со сдвигом)
 	o.Target = emath.Vec3{
-		X: pos.X - forward.X*o.Distance,
-		Y: pos.Y - forward.Y*o.Distance,
-		Z: pos.Z - forward.Z*o.Distance,
+		X: pos.X - fwd.X*o.Distance,
+		Y: pos.Y - fwd.Y*o.Distance,
+		Z: pos.Z - fwd.Z*o.Distance,
 	}
 }

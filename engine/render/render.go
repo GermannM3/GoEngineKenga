@@ -17,6 +17,10 @@ type Frame struct {
 	// interface{} для избежания цикла импортов; backend делает type assertion на *asset.Resolver.
 	Resolver interface{}
 
+	// InputState — состояние ввода (клавиатура/мышь). Заполняется бэкендом каждый кадр.
+	// Тип *input.State; interface{} чтобы render не тянул input.
+	InputState interface{}
+
 	// OnUpdate вызывается каждый кадр (dt в секундах). Нужен для единого game loop в любом backend.
 	OnUpdate func(dt float64)
 

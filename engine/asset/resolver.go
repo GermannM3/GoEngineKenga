@@ -98,3 +98,12 @@ func (r *Resolver) ResolveTextureByPath(relPath string) (*Texture, error) {
 	abs := filepath.Join(r.projectDir, filepath.FromSlash(relPath))
 	return LoadTexture(abs)
 }
+
+// ResolveSkeletonByPath загружает скелет по относительному пути (например ".kenga/derived/xxx_skin_0.skeleton.json").
+func (r *Resolver) ResolveSkeletonByPath(relPath string) (*Skeleton, error) {
+	if relPath == "" {
+		return nil, fmt.Errorf("skeleton path is empty")
+	}
+	abs := filepath.Join(r.projectDir, filepath.FromSlash(relPath))
+	return LoadSkeleton(abs)
+}

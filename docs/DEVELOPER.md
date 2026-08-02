@@ -78,6 +78,20 @@ go build -tags webgpu -o kenga.exe ./cmd/kenga
 - Команды: `invoke('command_name', { ... })`
 - Состояние: `app.manage(MyState{})`, `State<MyState>` в командах
 
+## Localization (i18n)
+
+Модуль `engine/gameplay` — `Localization` для мультиязычных игр:
+
+```go
+loc := gameplay.NewLocalization("en", "en")
+loc.LoadDir("locales")           // locales/en.json, locales/ru.json
+text := loc.Get("menu.start")    // "Start"
+text := loc.Tr("score", 100)    // "Score: %d" → "Score: 100"
+loc.SetLocale("ru")
+```
+
+Подробнее: [docs/INTERNATIONAL.md](INTERNATIONAL.md)
+
 ## Референсы
 
 - [Ebiten](https://github.com/hajimehoshi/ebiten) — рендер, input

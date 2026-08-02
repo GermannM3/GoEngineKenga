@@ -61,6 +61,82 @@ type UICanvas struct {
 	Height int `json:"height"`
 }
 
+// SpriteRenderer компонент для 2D-спрайтов
+type SpriteRenderer struct {
+	TexturePath string `json:"texturePath"` // путь к PNG относительно assets/
+	Layer       int    `json:"layer"`       // порядок отрисовки (0=фон, 10=враги, 20=герой, 100=UI)
+	FlipX       bool   `json:"flipX"`
+	FlipY       bool   `json:"flipY"`
+	Visible     bool   `json:"visible"`
+	// Source rect для спрайт-листов (item_set.png)
+	SrcX, SrcY, SrcW, SrcH int `json:"srcX,omitempty"` // 0 = весь спрайт
+	// Tint color
+	ColorR, ColorG, ColorB, ColorA uint8 `json:"colorR,omitempty"`
+}
+
+// Camera2D компонент для 2D-камеры
+type Camera2D struct {
+	Zoom     float32  `json:"zoom"`      // 1.0 = 100%
+	FollowID EntityID `json:"followId"`  // entity to follow (0 = static)
+}
+
+// AnimationState определяет текущее состояние анимации
+type AnimationState struct {
+	CurrentClip     string  `json:"currentClip"`     // название текущей анимации
+	CurrentFrame    int     `json:"currentFrame"`    // текущий кадр
+	FrameTime       float32 `json:"frameTime"`       // время на кадр
+	ElapsedTime     float32 `json:"elapsedTime"`     // прошедшее время с начала анимации
+	IsPlaying       bool    `json:"isPlaying"`       // воспроизводится ли анимация
+	Loop            bool    `json:"loop"`            // зациклена ли анимация
+	Speed           float32 `json:"speed"`           // скорость воспроизведения
+}
+
+// AnimationClip определяет клип анимации
+type AnimationClip struct {
+	Name           string  `json:"name"`           // название анимации
+	Frames         []int   `json:"frames"`         // индексы кадров в спрайт-листе
+	Duration       float32 `json:"duration"`       // длительность в секундах
+	FrameDuration  float32 `json:"frameDuration"`  // длительность одного кадра
+	Loop           bool    `json:"loop"`           // зациклена ли анимация
+	Layout         string  `json:"layout"`         // способ организации кадров: "horizontal", "vertical", "grid"
+	StartX         int     `json:"startX"`         // начальная позиция X для первого кадра
+	StartY         int     `json:"startY"`         // начальная позиция Y для первого кадра
+	StepX          int     `json:"stepX"`         // шаг по X между кадрами
+	StepY          int     `json:"stepY"`         // шаг по Y между кадрами
+	FrameWidth     int     `json:"frameWidth"`     // ширина одного кадра
+	FrameHeight    int     `json:"frameHeight"`    // высота одного кадра
+}
+
+// AnimationController управляет анимациями спрайта
+type AnimationController struct {
+	Clips          []AnimationClip `json:"clips"`           // доступные анимации
+	DefaultClip    string          `json:"defaultClip"`     // анимация по умолчанию
+	CurrentClip    string          `json:"currentClip"`     // текущая анимация
+	PlaybackSpeed  float32         `json:"playbackSpeed"`   // общая скорость воспроизведения
+	AutoPlay       bool            `json:"autoPlay"`        // автовоспроизведение
+}
+
+// Kart — аркадный картинг: машина (Atom, Moskvich M70, M90), лапы, бонус.
+// CarID: "atom" | "moskvich_m70" | "moskvich_m90"
+// Скорость и позиция — в Rigidbody и Transform.
+type Kart struct {
+	CarID         string  `json:"carId"`
+	CurrentLap    int     `json:"currentLap"`
+	LastCheckpoint int    `json:"lastCheckpoint"` // индекс чекпоинта для детекции круга
+	PowerUp       string  `json:"powerUp"`       // nitro, shield, rocket, oil, electric_boost, ""
+	PowerUpTimer  float32 `json:"powerUpTimer"`  // время действия бонуса
+	IsBot         bool    `json:"isBot"`
+	RacePosition  int     `json:"racePosition"`  // 1-based на основе прогресса
+}
+
+// PowerUpPickup — коробка/иконка бонуса на трассе (триггер).
+// Type: nitro, shield, rocket, oil, electric_boost
+type PowerUpPickup struct {
+	Type       string  `json:"type"`
+	RespawnSec float32 `json:"respawnSec"` // 0 = не респавнится
+	Cooldown   float32 `json:"-"`         // оставшееся время до появления
+}
+
 // Trajectory описывает набор 3D-точек для визуализации траектории движения.
 type Trajectory struct {
 	Points []emath.Vec3 `json:"points"`
@@ -99,6 +175,8 @@ type World struct {
 	transforms    map[EntityID]Transform
 	cameras       map[EntityID]Camera
 	meshRenderers map[EntityID]MeshRenderer
+	spriteRenderers map[EntityID]SpriteRenderer
+	camera2Ds     map[EntityID]Camera2D
 	lights        map[EntityID]Light
 	rigidbodies   map[EntityID]Rigidbody
 	colliders     map[EntityID]Collider
@@ -110,6 +188,12 @@ type World struct {
 
 	trajectories map[EntityID]Trajectory
 
+	animationStates map[EntityID]AnimationState
+	animationControllers map[EntityID]AnimationController
+
+	karts        map[EntityID]Kart
+	powerUpPickups map[EntityID]PowerUpPickup
+
 	names map[EntityID]string
 }
 
@@ -120,6 +204,8 @@ func NewWorld() *World {
 		transforms:    map[EntityID]Transform{},
 		cameras:       map[EntityID]Camera{},
 		meshRenderers: map[EntityID]MeshRenderer{},
+		spriteRenderers: map[EntityID]SpriteRenderer{},
+		camera2Ds:     map[EntityID]Camera2D{},
 		lights:        map[EntityID]Light{},
 		rigidbodies:   map[EntityID]Rigidbody{},
 		colliders:     map[EntityID]Collider{},
@@ -128,6 +214,10 @@ func NewWorld() *World {
 		dispensers:    map[EntityID]Dispenser{},
 		joints:        map[EntityID]Joint{},
 		trajectories:  map[EntityID]Trajectory{},
+		animationStates: map[EntityID]AnimationState{},
+		animationControllers: map[EntityID]AnimationController{},
+		karts:         map[EntityID]Kart{},
+		powerUpPickups: map[EntityID]PowerUpPickup{},
 		names:         map[EntityID]string{},
 	}
 }
@@ -272,6 +362,84 @@ func (w *World) GetUICanvas(id EntityID) (UICanvas, bool) {
 	return canvas, ok
 }
 
+func (w *World) SetSpriteRenderer(id EntityID, sr SpriteRenderer) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.spriteRenderers[id] = sr
+}
+
+func (w *World) GetSpriteRenderer(id EntityID) (SpriteRenderer, bool) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	sr, ok := w.spriteRenderers[id]
+	return sr, ok
+}
+
+func (w *World) SetCamera2D(id EntityID, cam2D Camera2D) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.camera2Ds[id] = cam2D
+}
+
+func (w *World) GetCamera2D(id EntityID) (Camera2D, bool) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	cam2D, ok := w.camera2Ds[id]
+	return cam2D, ok
+}
+
+func (w *World) SetKart(id EntityID, k Kart) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.karts[id] = k
+}
+
+func (w *World) GetKart(id EntityID) (Kart, bool) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	k, ok := w.karts[id]
+	return k, ok
+}
+
+func (w *World) SetPowerUpPickup(id EntityID, p PowerUpPickup) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.powerUpPickups[id] = p
+}
+
+func (w *World) GetPowerUpPickup(id EntityID) (PowerUpPickup, bool) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	p, ok := w.powerUpPickups[id]
+	return p, ok
+}
+
+func (w *World) SetAnimationState(id EntityID, animState AnimationState) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.animationStates[id] = animState
+}
+
+func (w *World) GetAnimationState(id EntityID) (AnimationState, bool) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	animState, ok := w.animationStates[id]
+	return animState, ok
+}
+
+func (w *World) SetAnimationController(id EntityID, animCtrl AnimationController) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.animationControllers[id] = animCtrl
+}
+
+func (w *World) GetAnimationController(id EntityID) (AnimationController, bool) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	animCtrl, ok := w.animationControllers[id]
+	return animCtrl, ok
+}
+
 // SetTrajectory задаёт или обновляет траекторию для сущности.
 func (w *World) SetTrajectory(id EntityID, t Trajectory) {
 	w.mu.Lock()
@@ -333,6 +501,18 @@ func (w *World) Clone() *World {
 	for k, v := range w.meshRenderers {
 		nw.meshRenderers[k] = v
 	}
+	for k, v := range w.spriteRenderers {
+		nw.spriteRenderers[k] = v
+	}
+	for k, v := range w.camera2Ds {
+		nw.camera2Ds[k] = v
+	}
+	for k, v := range w.animationStates {
+		nw.animationStates[k] = v
+	}
+	for k, v := range w.animationControllers {
+		nw.animationControllers[k] = v
+	}
 	for k, v := range w.lights {
 		nw.lights[k] = v
 	}
@@ -356,6 +536,12 @@ func (w *World) Clone() *World {
 	}
 	for k, v := range w.trajectories {
 		nw.trajectories[k] = v
+	}
+	for k, v := range w.karts {
+		nw.karts[k] = v
+	}
+	for k, v := range w.powerUpPickups {
+		nw.powerUpPickups[k] = v
 	}
 	for k, v := range w.names {
 		nw.names[k] = v

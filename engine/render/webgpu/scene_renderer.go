@@ -53,9 +53,9 @@ func matrixToBytes(m render.Matrix4) []byte {
 const pbrUniformsSize = 320
 
 // writePBRUniforms пишет viewProj, material, light, camera, light_view_proj в буфер.
-// model передаётся через instance buffer.
+// model передаётся через instance buffer; для skeletal mesh — через modelInUniform (пишется в offset 64).
 func writePBRUniforms(out []byte, viewProj render.Matrix4, baseColor []float32, metallic, roughness float32,
-	lightDir []float32, lightIntensity float32, lightColor []float32, ambient float32, camPos []float32, lightViewProj render.Matrix4) {
+	lightDir []float32, lightIntensity float32, lightColor []float32, ambient float32, camPos []float32, lightViewProj render.Matrix4, modelInUniform *render.Matrix4) {
 	if len(out) < pbrUniformsSize {
 		return
 	}
@@ -69,6 +69,9 @@ func writePBRUniforms(out []byte, viewProj render.Matrix4, baseColor []float32, 
 	}
 
 	copy(out[0:64], matrixToBytes(viewProj))
+	if modelInUniform != nil {
+		copy(out[64:128], matrixToBytes(*modelInUniform))
+	}
 
 	bc := baseColor
 	if len(bc) < 3 {
@@ -99,6 +102,77 @@ func writePBRUniforms(out []byte, viewProj render.Matrix4, baseColor []float32, 
 	putVec3(224, cp)
 
 	copy(out[256:320], matrixToBytes(lightViewProj))
+}
+
+const boneMatrixCount = 64
+const boneUniformsSize = boneMatrixCount * 64 // 64 mat4x4
+
+var identityMatrix = render.Matrix4{
+	1, 0, 0, 0,
+	0, 1, 0, 0,
+	0, 0, 1, 0,
+	0, 0, 0, 1,
+}
+
+// writeBoneMatricesIdentity пишет 64 identity matrices (bind pose). Позже заменить на Animator.
+func writeBoneMatricesIdentity(out []byte) {
+	if len(out) < boneUniformsSize {
+		return
+	}
+	identityBytes := matrixToBytes(identityMatrix)
+	for i := 0; i < boneMatrixCount; i++ {
+		copy(out[i*64:(i+1)*64], identityBytes)
+	}
+}
+
+// buildVertexDataSkinned создаёт vertex buffer для скиннинга: pos(12)+normal(12)+uv(8)+joints(16)+weights(16)=64 bytes.
+func buildVertexDataSkinned(positions, normals, uvs []float32, joints []uint16, weights []float32, indices []uint32) []byte {
+	if len(positions) == 0 || len(indices) == 0 {
+		return nil
+	}
+	vertexCount := len(indices)
+	stride := 64
+	data := make([]byte, vertexCount*stride)
+	for i := 0; i < vertexCount; i++ {
+		idx := int(indices[i])
+		off := i * stride
+		if idx*3+2 < len(positions) {
+			binary.LittleEndian.PutUint32(data[off:], math.Float32bits(positions[idx*3]))
+			binary.LittleEndian.PutUint32(data[off+4:], math.Float32bits(positions[idx*3+1]))
+			binary.LittleEndian.PutUint32(data[off+8:], math.Float32bits(positions[idx*3+2]))
+		}
+		if len(normals) > 0 && idx*3+2 < len(normals) {
+			binary.LittleEndian.PutUint32(data[off+12:], math.Float32bits(normals[idx*3]))
+			binary.LittleEndian.PutUint32(data[off+16:], math.Float32bits(normals[idx*3+1]))
+			binary.LittleEndian.PutUint32(data[off+20:], math.Float32bits(normals[idx*3+2]))
+		} else {
+			binary.LittleEndian.PutUint32(data[off+12:], math.Float32bits(0))
+			binary.LittleEndian.PutUint32(data[off+16:], math.Float32bits(1))
+			binary.LittleEndian.PutUint32(data[off+20:], math.Float32bits(0))
+		}
+		if len(uvs) > 0 && idx*2+1 < len(uvs) {
+			binary.LittleEndian.PutUint32(data[off+24:], math.Float32bits(uvs[idx*2]))
+			binary.LittleEndian.PutUint32(data[off+28:], math.Float32bits(uvs[idx*2+1]))
+		}
+		if len(joints) >= idx*4+4 && len(weights) >= idx*4+4 {
+			for j := 0; j < 4; j++ {
+				binary.LittleEndian.PutUint32(data[off+32+j*4:], math.Float32bits(float32(joints[idx*4+j])))
+			}
+			for j := 0; j < 4; j++ {
+				binary.LittleEndian.PutUint32(data[off+48+j*4:], math.Float32bits(weights[idx*4+j]))
+			}
+		} else {
+			binary.LittleEndian.PutUint32(data[off+32:], math.Float32bits(0))
+			binary.LittleEndian.PutUint32(data[off+36:], math.Float32bits(0))
+			binary.LittleEndian.PutUint32(data[off+40:], math.Float32bits(0))
+			binary.LittleEndian.PutUint32(data[off+44:], math.Float32bits(0))
+			binary.LittleEndian.PutUint32(data[off+48:], math.Float32bits(1))
+			binary.LittleEndian.PutUint32(data[off+52:], math.Float32bits(0))
+			binary.LittleEndian.PutUint32(data[off+56:], math.Float32bits(0))
+			binary.LittleEndian.PutUint32(data[off+60:], math.Float32bits(0))
+		}
+	}
+	return data
 }
 
 // buildVertexData создаёт interleaved vertex buffer: pos(12) + normal(12) + uv(8) = 32 bytes/vertex.
@@ -157,6 +231,17 @@ func meshFromResolver(resolver *asset.Resolver, meshAssetID string) (positions, 
 	return cube.Vertices, cube.Normals, cube.UVs, cube.Indices
 }
 
+// meshDataWithSkin загружает меш и данные скина (если есть).
+func meshDataWithSkin(resolver *asset.Resolver, meshAssetID string) (positions, normals, uvs []float32, joints []uint16, weights []float32, indices []uint32) {
+	if resolver != nil && meshAssetID != "" {
+		if mesh, err := resolver.ResolveMeshByAssetID(meshAssetID); err == nil {
+			return mesh.Positions, mesh.Normals, mesh.UV0, mesh.Joints, mesh.Weights, mesh.Indices
+		}
+	}
+	cube := render.CreateCube()
+	return cube.Vertices, cube.Normals, cube.UVs, nil, nil, cube.Indices
+}
+
 // cachedMesh — закэшированный vertex buffer для mesh (переиспользуется между кадрами)
 type cachedMesh struct {
 	vertexBuf   *wgpu.Buffer
@@ -182,6 +267,15 @@ type sceneState struct {
 	shadowUniform   *wgpu.Buffer
 	shadowBindGroup *wgpu.BindGroup
 	shadowSampler   *wgpu.Sampler
+
+	// Skeletal skinning
+	skinnedPipeline        *wgpu.RenderPipeline
+	skinnedUniform         *wgpu.Buffer // PBR uniforms + model at 64
+	boneUniform            *wgpu.Buffer
+	skinnedBindGroup       *wgpu.BindGroup
+	skinnedBindGroupShadow *wgpu.BindGroup
+	meshSkinnedCache       map[string]*cachedMesh // meshAssetID (skinned) -> vertex buffer
+	shadowSkinnedPipeline  *wgpu.RenderPipeline   // shadow pass для 64-byte stride
 }
 
 func (s *state) initSceneState() error {
@@ -383,8 +477,47 @@ func (s *state) initSceneState() error {
 		},
 		Fragment: nil,
 	})
+	if err != nil {
+		shadowUb.Release()
+		shadowSampler.Release()
+		shadowView.Release()
+		shadowTex.Release()
+		pipeline.Release()
+		cubeBuf.Release()
+		ub.Release()
+		bg.Release()
+		return err
+	}
+	shadowSkinnedPl, err := s.device.CreateRenderPipeline(&wgpu.RenderPipelineDescriptor{
+		Label: "Shadow Skinned Pipeline",
+		Vertex: wgpu.VertexState{
+			Module:     shadowShader,
+			EntryPoint: "vs_main",
+			Buffers: []wgpu.VertexBufferLayout{
+				{ArrayStride: 64, StepMode: wgpu.VertexStepModeVertex,
+					Attributes: []wgpu.VertexAttribute{
+						{Format: wgpu.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 0},
+						{Format: wgpu.VertexFormatFloat32x3, Offset: 12, ShaderLocation: 1},
+						{Format: wgpu.VertexFormatFloat32x2, Offset: 24, ShaderLocation: 2},
+					},
+				},
+			},
+		},
+		Primitive: wgpu.PrimitiveState{
+			Topology: wgpu.PrimitiveTopologyTriangleList,
+			FrontFace: wgpu.FrontFaceCCW,
+			CullMode:  wgpu.CullModeBack,
+		},
+		DepthStencil: &wgpu.DepthStencilState{
+			Format:            wgpu.TextureFormatDepth32Float,
+			DepthWriteEnabled: true,
+			DepthCompare:      wgpu.CompareFunctionLessEqual,
+		},
+		Fragment: nil,
+	})
 	shadowShader.Release()
 	if err != nil {
+		shadowPl.Release()
 		shadowUb.Release()
 		shadowSampler.Release()
 		shadowView.Release()
@@ -439,22 +572,182 @@ func (s *state) initSceneState() error {
 		return err
 	}
 
+	// Skinned pipeline
+	skinnedShader, err := s.device.CreateShaderModule(&wgpu.ShaderModuleDescriptor{
+		Label:          "skinned shader",
+		WGSLDescriptor: &wgpu.ShaderModuleWGSLDescriptor{Code: shaderSkinnedWGSL},
+	})
+	if err != nil {
+		shadowPl.Release()
+		shadowUb.Release()
+		shadowSampler.Release()
+		shadowView.Release()
+		shadowTex.Release()
+		pipeline.Release()
+		cubeBuf.Release()
+		ub.Release()
+		bg.Release()
+		return err
+	}
+	skinnedUb, err := s.device.CreateBuffer(&wgpu.BufferDescriptor{
+		Label: "skinned uniforms",
+		Usage: wgpu.BufferUsageUniform | wgpu.BufferUsageCopyDst,
+		Size:  pbrUniformsSize,
+	})
+	if err != nil {
+		skinnedShader.Release()
+		shadowPl.Release()
+		shadowUb.Release()
+		shadowSampler.Release()
+		shadowView.Release()
+		shadowTex.Release()
+		pipeline.Release()
+		cubeBuf.Release()
+		ub.Release()
+		bg.Release()
+		return err
+	}
+	boneUb, err := s.device.CreateBuffer(&wgpu.BufferDescriptor{
+		Label: "bone matrices",
+		Usage: wgpu.BufferUsageUniform | wgpu.BufferUsageCopyDst,
+		Size:  boneUniformsSize,
+	})
+	if err != nil {
+		skinnedUb.Release()
+		skinnedShader.Release()
+		shadowPl.Release()
+		shadowUb.Release()
+		shadowSampler.Release()
+		shadowView.Release()
+		shadowTex.Release()
+		pipeline.Release()
+		cubeBuf.Release()
+		ub.Release()
+		bg.Release()
+		return err
+	}
+	skinnedPl, err := s.device.CreateRenderPipeline(&wgpu.RenderPipelineDescriptor{
+		Label: "Skinned Pipeline",
+		Vertex: wgpu.VertexState{
+			Module:     skinnedShader,
+			EntryPoint: "vs_main",
+			Buffers: []wgpu.VertexBufferLayout{
+				{
+					ArrayStride: 64,
+					StepMode:    wgpu.VertexStepModeVertex,
+					Attributes: []wgpu.VertexAttribute{
+						{Format: wgpu.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 0},
+						{Format: wgpu.VertexFormatFloat32x3, Offset: 12, ShaderLocation: 1},
+						{Format: wgpu.VertexFormatFloat32x2, Offset: 24, ShaderLocation: 2},
+						{Format: wgpu.VertexFormatFloat32x4, Offset: 32, ShaderLocation: 3},
+						{Format: wgpu.VertexFormatFloat32x4, Offset: 48, ShaderLocation: 4},
+					},
+				},
+			},
+		},
+		Primitive: wgpu.PrimitiveState{
+			Topology:         wgpu.PrimitiveTopologyTriangleList,
+			StripIndexFormat: wgpu.IndexFormatUndefined,
+			FrontFace:        wgpu.FrontFaceCCW,
+			CullMode:         wgpu.CullModeBack,
+		},
+		Multisample: wgpu.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
+		Fragment: &wgpu.FragmentState{
+			Module:     skinnedShader,
+			EntryPoint: "fs_main",
+			Targets: []wgpu.ColorTargetState{
+				{Format: s.config.Format, Blend: &wgpu.BlendStateReplace, WriteMask: wgpu.ColorWriteMaskAll},
+			},
+		},
+	})
+	skinnedShader.Release()
+	if err != nil {
+		boneUb.Release()
+		skinnedUb.Release()
+		shadowPl.Release()
+		shadowUb.Release()
+		shadowSampler.Release()
+		shadowView.Release()
+		shadowTex.Release()
+		pipeline.Release()
+		cubeBuf.Release()
+		ub.Release()
+		bg.Release()
+		return err
+	}
+	skinnedBgl := skinnedPl.GetBindGroupLayout(0)
+	skinnedBg, err := s.device.CreateBindGroup(&wgpu.BindGroupDescriptor{
+		Layout: skinnedBgl,
+		Entries: []wgpu.BindGroupEntry{
+			{Binding: 0, Buffer: skinnedUb, Size: pbrUniformsSize},
+			{Binding: 1, Buffer: boneUb, Size: boneUniformsSize},
+		},
+	})
+	skinnedBgl.Release()
+	if err != nil {
+		skinnedPl.Release()
+		boneUb.Release()
+		skinnedUb.Release()
+		shadowPl.Release()
+		shadowUb.Release()
+		shadowSampler.Release()
+		shadowView.Release()
+		shadowTex.Release()
+		pipeline.Release()
+		cubeBuf.Release()
+		ub.Release()
+		bg.Release()
+		return err
+	}
+	skinnedBgl1 := skinnedPl.GetBindGroupLayout(1)
+	skinnedBgShadow, err := s.device.CreateBindGroup(&wgpu.BindGroupDescriptor{
+		Layout: skinnedBgl1,
+		Entries: []wgpu.BindGroupEntry{
+			{Binding: 0, TextureView: shadowView},
+			{Binding: 1, Sampler: shadowSampler},
+		},
+	})
+	skinnedBgl1.Release()
+	if err != nil {
+		skinnedBg.Release()
+		skinnedPl.Release()
+		boneUb.Release()
+		skinnedUb.Release()
+		shadowPl.Release()
+		shadowUb.Release()
+		shadowSampler.Release()
+		shadowView.Release()
+		shadowTex.Release()
+		pipeline.Release()
+		cubeBuf.Release()
+		ub.Release()
+		bg.Release()
+		return err
+	}
+
 	s.scene = &sceneState{
-		device:          s.device,
-		queue:           s.queue,
-		pipeline:        pipeline,
-		uniformBuffer:   ub,
-		bindGroup:       bg,
-		bindGroupShadow: bgShadow,
-		cubeVertexBuf:   cubeBuf,
-		cubeVertexCount: uint32(len(cubeData) / 32),
-		meshCache:       make(map[string]*cachedMesh),
-		shadowMap:       shadowTex,
-		shadowView:      shadowView,
-		shadowPipeline:  shadowPl,
-		shadowUniform:   shadowUb,
-		shadowBindGroup: sbg,
-		shadowSampler:   shadowSampler,
+		device:                 s.device,
+		queue:                  s.queue,
+		pipeline:               pipeline,
+		uniformBuffer:          ub,
+		bindGroup:              bg,
+		bindGroupShadow:        bgShadow,
+		cubeVertexBuf:          cubeBuf,
+		cubeVertexCount:        uint32(len(cubeData) / 32),
+		meshCache:              make(map[string]*cachedMesh),
+		shadowMap:              shadowTex,
+		shadowView:             shadowView,
+		shadowPipeline:         shadowPl,
+		shadowUniform:          shadowUb,
+		shadowBindGroup:        sbg,
+		shadowSampler:          shadowSampler,
+		skinnedPipeline:        skinnedPl,
+		skinnedUniform:         skinnedUb,
+		boneUniform:            boneUb,
+		skinnedBindGroup:        skinnedBg,
+		skinnedBindGroupShadow:  skinnedBgShadow,
+		meshSkinnedCache:        make(map[string]*cachedMesh),
+		shadowSkinnedPipeline:   shadowSkinnedPl,
 	}
 	return nil
 }
@@ -485,6 +778,35 @@ func (sc *sceneState) getOrCreateMeshBuffer(resolver *asset.Resolver, meshAssetI
 	}
 	vertexCount := uint32(len(vertData) / 32)
 	sc.meshCache[meshAssetID] = &cachedMesh{vertexBuf: vb, vertexCount: vertexCount}
+	return vb, vertexCount
+}
+
+// getOrCreateSkinnedMeshBuffer возвращает vertex buffer для skinned mesh (stride 64). Создаёт при первом обращении.
+func (sc *sceneState) getOrCreateSkinnedMeshBuffer(resolver *asset.Resolver, meshAssetID string) (*wgpu.Buffer, uint32) {
+	if meshAssetID == "" || sc.meshSkinnedCache == nil {
+		return nil, 0
+	}
+	if c, ok := sc.meshSkinnedCache[meshAssetID]; ok && c != nil {
+		return c.vertexBuf, c.vertexCount
+	}
+	positions, normals, uvs, joints, weights, indices := meshDataWithSkin(resolver, meshAssetID)
+	if len(positions) == 0 || len(indices) == 0 {
+		return nil, 0
+	}
+	vertData := buildVertexDataSkinned(positions, normals, uvs, joints, weights, indices)
+	if len(vertData) == 0 {
+		return nil, 0
+	}
+	vb, err := sc.device.CreateBufferInit(&wgpu.BufferInitDescriptor{
+		Label:    "skinned mesh " + meshAssetID,
+		Contents: vertData,
+		Usage:    wgpu.BufferUsageVertex,
+	})
+	if err != nil {
+		return nil, 0
+	}
+	vertexCount := uint32(len(vertData) / 64)
+	sc.meshSkinnedCache[meshAssetID] = &cachedMesh{vertexBuf: vb, vertexCount: vertexCount}
 	return vb, vertexCount
 }
 
@@ -615,13 +937,37 @@ type instanceBatch struct {
 	roughness     float32
 }
 
-// buildInstanceBatches группирует entities по (mesh, material) для instancing.
+// skinnedDraw — один skinned entity (отдельный draw, свой bone matrices).
+type skinnedDraw struct {
+	meshAssetID string
+	transform   ecs.Transform
+	baseColor   []float32
+	metallic    float32
+	roughness   float32
+}
+
+// isMeshSkinned возвращает true, если mesh имеет skeletal skinning.
+func isMeshSkinned(resolver *asset.Resolver, meshAssetID string) bool {
+	if resolver == nil || meshAssetID == "" {
+		return false
+	}
+	mesh, err := resolver.ResolveMeshByAssetID(meshAssetID)
+	if err != nil || mesh == nil {
+		return false
+	}
+	return mesh.SkinID != "" && len(mesh.Joints) > 0 && len(mesh.Weights) > 0
+}
+
+// buildInstanceBatches группирует entities по (mesh, material) для instancing. Skinned meshes исключаются.
 func buildInstanceBatches(world *ecs.World, frustum *render.Frustum, resolver *asset.Resolver) []instanceBatch {
 	group := make(map[string]*instanceBatch)
 
 	for _, id := range world.Entities() {
 		mr, hasMR := world.GetMeshRenderer(id)
 		if !hasMR {
+			continue
+		}
+		if isMeshSkinned(resolver, mr.MeshAssetID) {
 			continue
 		}
 		tr, hasTr := world.GetTransform(id)
@@ -664,6 +1010,44 @@ func buildInstanceBatches(world *ecs.World, frustum *render.Frustum, resolver *a
 		}
 	}
 	return batches
+}
+
+// buildSkinnedDraws возвращает список skinned entities для отрисовки.
+func buildSkinnedDraws(world *ecs.World, frustum *render.Frustum, resolver *asset.Resolver) []skinnedDraw {
+	var out []skinnedDraw
+	for _, id := range world.Entities() {
+		mr, hasMR := world.GetMeshRenderer(id)
+		if !hasMR || !isMeshSkinned(resolver, mr.MeshAssetID) {
+			continue
+		}
+		tr, hasTr := world.GetTransform(id)
+		if !hasTr {
+			tr = ecs.Transform{Scale: emath.Vec3{X: 1, Y: 1, Z: 1}}
+		}
+		sx, sy, sz := tr.Scale.X, tr.Scale.Y, tr.Scale.Z
+		if sx < 0.01 {
+			sx = 1
+		}
+		if sy < 0.01 {
+			sy = 1
+		}
+		if sz < 0.01 {
+			sz = 1
+		}
+		radius := float32(math.Sqrt(float64(sx*sx + sy*sy + sz*sz)))
+		if frustum != nil && !frustum.SphereInFrustum(tr.Position, radius) {
+			continue
+		}
+		bc, metallic, roughness := getMeshMaterial(mr, resolver)
+		out = append(out, skinnedDraw{
+			meshAssetID: mr.MeshAssetID,
+			transform:   tr,
+			baseColor:   bc,
+			metallic:    metallic,
+			roughness:   roughness,
+		})
+	}
+	return out
 }
 
 // buildInstanceBuffer создаёт GPU buffer с model matrices для N instances.

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -16,12 +17,17 @@ import (
 
 	"goenginekenga/engine/api"
 	"goenginekenga/engine/asset"
+	"goenginekenga/engine/animation"
+	"goenginekenga/engine/ecs"
+	"goenginekenga/engine/input"
 	"goenginekenga/engine/render"
 	"goenginekenga/engine/render/ebiten"
 	"goenginekenga/engine/render/headless"
+	"goenginekenga/engine/project"
 	"goenginekenga/engine/render/webgpu"
 	"goenginekenga/engine/runtime"
 	"goenginekenga/engine/scene"
+	"goenginekenga/engine/gameplay"
 	"goenginekenga/engine/script"
 )
 
@@ -37,7 +43,9 @@ func newRunCommand() *cobra.Command {
 		Use:   "run",
 		Short: "Run a project (runtime window)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Абсолютный путь проекта — для resolver и asset loading
+			// Нормализация пути: в Git Bash D:\CyberNinja приходит как D:CyberNinja (слэш съедается),
+			// и Go на Windows трактует это как относительный путь к текущей папке на диске D:
+			projectDir = normalizeProjectPath(projectDir)
 			absProject, err := filepath.Abs(projectDir)
 			if err != nil {
 				absProject = projectDir
@@ -46,14 +54,30 @@ func newRunCommand() *cobra.Command {
 
 			var s *scene.Scene
 			if scenePath == "" {
-				s = scene.DefaultScene()
-			} else {
+				// Первая сцена из project.kenga.json или дефолт
+				if p, err := project.Load(projectDir); err == nil && len(p.Scenes) > 0 {
+					scenePath = p.Scenes[0]
+				} else {
+					scenePath = "scenes/main.scene.json"
+				}
+			}
+			if scenePath != "" {
 				sp := filepath.Join(projectDir, scenePath)
 				loaded, err := scene.Load(sp)
 				if err != nil {
-					return err
+					fmt.Fprintf(os.Stderr, "kenga: load scene %s: %v (using default scene)\n", sp, err)
+					s = scene.DefaultScene()
+				} else {
+					s = loaded
+					if s != nil && len(s.Entities) > 0 {
+						fmt.Fprintf(os.Stderr, "kenga: scene %q from %s (%d entities)\n", s.Name, sp, len(s.Entities))
+					}
 				}
-				s = loaded
+			} else {
+				s = scene.DefaultScene()
+			}
+			if s == nil {
+				s = scene.DefaultScene()
 			}
 
 			rt := runtime.NewFromScene(s)
@@ -101,9 +125,34 @@ func newRunCommand() *cobra.Command {
 			}
 
 			scenePathAbs := filepath.Join(projectDir, sceneRelPath)
+			// Create game logic system
+			gameLogicSystem := gameplay.NewGameLogicSystem()
+
+			// Create animation system
+			animationSystem := animation.NewAnimationSystem()
+
+			clearColor := color.RGBA{R: 15, G: 18, B: 24, A: 255}
+			if gameplay.HasKart(w) {
+				clearColor = color.RGBA{R: 28, G: 78, B: 38, A: 255} // трава
+			}
+
+			// Единый шаг игровых систем (ввод → анимация → геймплей).
+			// Используется и оконным OnUpdate, и headless-бэкендом для паритета поведения.
+			systemsUpdate := func(aw *ecs.World, is *input.State, dt float64) {
+				if gameplay.HasKart(aw) {
+					gameplay.KartSystem(aw, is, float32(dt))
+				} else {
+					runtime.ApplyPlayerInput(aw, is, float32(dt))
+				}
+				animationSystem.Update(aw)
+				if !gameplay.HasKart(aw) {
+					gameLogicSystem.Update(aw, is)
+				}
+			}
+
 			var frame *render.Frame
 			frame = &render.Frame{
-				ClearColor: color.RGBA{R: 15, G: 18, B: 24, A: 255},
+				ClearColor: clearColor,
 				World:      w,
 				ProjectDir: projectDir,
 				Resolver:   resolver,
@@ -158,6 +207,13 @@ func newRunCommand() *cobra.Command {
 						defer p.EndFrame(start)
 						p.UpdateMemoryUsage()
 					}
+					if aw, err := rt.ActiveWorld(); err == nil {
+						if inputState, ok := frame.InputState.(*input.State); ok {
+							systemsUpdate(aw, inputState, dt)
+						} else {
+							systemsUpdate(aw, &input.State{}, dt)
+						}
+					}
 					delta := rt.Step()
 					if aw, err := rt.ActiveWorld(); err == nil {
 						runtime.SpinSystem(aw, delta)
@@ -172,6 +228,11 @@ func newRunCommand() *cobra.Command {
 			var b render.Backend
 			if headlessMode {
 				hb := headless.New(apiManager, rt, projectDir, sh)
+				hb.SetOnTick(func(dt float64) {
+					if aw, err := rt.ActiveWorld(); err == nil {
+						systemsUpdate(aw, &input.State{}, dt)
+					}
+				})
 				if watcher != nil {
 					hb.SetWatcher(watcher)
 					hb.SetScenePath(scenePathAbs)
@@ -181,6 +242,25 @@ func newRunCommand() *cobra.Command {
 				switch backend {
 				case "", "ebiten":
 					b = ebiten.New("GoEngineKenga Runtime", 1280, 720)
+
+					// Проверяем, есть ли в сцене спрайты, и включаем 2D рендеринг если есть
+					hasSprites := false
+					for _, id := range w.Entities() {
+						if _, ok := w.GetSpriteRenderer(id); ok {
+							hasSprites = true
+							break
+						}
+					}
+					if hasSprites {
+						if ebitenBackend, ok := b.(*ebiten.Backend); ok {
+							ebitenBackend.Enable2DSprites(true)
+							ebitenBackend.Enable3D(false)
+							ebitenBackend.EnableOrbitCamera(false)
+							if gameplay.HasKart(w) {
+								ebitenBackend.SetSpriteRenderer(ebiten.NewSpriteRenderSystem(projectDir))
+							}
+						}
+					}
 				case "webgpu":
 					b = webgpu.New("GoEngineKenga Runtime (WebGPU)", 1280, 720)
 				default:
@@ -200,4 +280,34 @@ func newRunCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&headlessMode, "headless", false, "Run without window (WebSocket only, for KengaCAD)")
 
 	return cmd
+}
+
+// normalizeProjectPath исправляет путь на Windows, когда из Git Bash приходит D:CyberNinja
+// (слэш после двоеточия съедается) — иначе filepath.Abs трактует это как относительный путь.
+func normalizeProjectPath(path string) string {
+	if path == "" || path == "." {
+		return path
+	}
+	// Явная проверка: буква диска + ":" + путь без слэша в начале (D:CyberNinja, D:foo/bar)
+	if len(path) >= 2 && path[1] == ':' {
+		letter := path[0]
+		if (letter >= 'A' && letter <= 'Z') || (letter >= 'a' && letter <= 'z') {
+			rest := path[2:]
+			if len(rest) > 0 && rest[0] != '/' && rest[0] != filepath.Separator {
+				return string(letter) + ":" + string(filepath.Separator) + rest
+			}
+		}
+	}
+	vol := filepath.VolumeName(path)
+	if vol == "" || len(path) <= len(vol) {
+		return path
+	}
+	rest := path[len(vol):]
+	if rest == "" {
+		return path
+	}
+	if rest[0] == filepath.Separator || rest[0] == '/' {
+		return path
+	}
+	return vol + string(filepath.Separator) + rest
 }

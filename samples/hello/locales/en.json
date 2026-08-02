@@ -1,0 +1,6 @@
+{
+  "menu.start": "Start",
+  "menu.quit": "Quit",
+  "score": "Score: %d",
+  "game.over": "Game Over"
+}

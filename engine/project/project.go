@@ -11,6 +11,8 @@ type Project struct {
 	Scenes     []string `json:"scenes"`
 	AssetsDir  string   `json:"assetsDir"`
 	DerivedDir string   `json:"derivedDir"`
+	// Locale — язык по умолчанию (en, ru, de, ...). Для i18n.
+	Locale string `json:"locale,omitempty"`
 }
 
 func Load(dir string) (*Project, error) {

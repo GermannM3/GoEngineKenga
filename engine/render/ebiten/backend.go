@@ -13,6 +13,7 @@ import (
 
 	"goenginekenga/engine/asset"
 	"goenginekenga/engine/ecs"
+	"goenginekenga/engine/gameplay"
 	"goenginekenga/engine/input"
 	emath "goenginekenga/engine/math"
 	"goenginekenga/engine/render"
@@ -49,6 +50,10 @@ type Backend struct {
 	renderer3D  *Renderer3D
 	use3DRender bool
 
+	// 2D Renderer
+	spriteRenderer *SpriteRenderSystem
+	use2DSprites   bool
+
 	// Orbit camera (ПКМ rotate, СКМ pan, scroll zoom)
 	orbitState   render.OrbitState
 	orbitEnabled bool
@@ -57,21 +62,52 @@ type Backend struct {
 
 func New(title string, width, height int) *Backend {
 	return &Backend{
-		title:        title,
-		width:        width,
-		height:       height,
-		InputState:   input.NewState(),
-		UIContext:    ui.NewUIRenderContext(),
-		renderer3D:   NewRenderer3D(width, height),
-		use3DRender:  true,
-		orbitState:   render.DefaultOrbitState(),
-		orbitEnabled: true,
+		title:          title,
+		width:          width,
+		height:         height,
+		InputState:     input.NewState(),
+		UIContext:      ui.NewUIRenderContext(),
+		renderer3D:     NewRenderer3D(width, height),
+		use3DRender:    true,
+		spriteRenderer: nil, // Будет инициализирована при первом использовании
+		use2DSprites:   false,
+		orbitState:     render.DefaultOrbitState(),
+		orbitEnabled:   true,
 	}
 }
 
 // Enable3D enables or disables 3D rendering
 func (b *Backend) Enable3D(enabled bool) {
 	b.use3DRender = enabled
+}
+
+// Enable2DSprites enables or disables 2D sprite rendering
+func (b *Backend) Enable2DSprites(enabled bool) {
+	b.use2DSprites = enabled
+}
+
+// HasSpriteRenderer проверяет, есть ли в сцене хотя бы один SpriteRenderer
+func (b *Backend) HasSpriteRenderer(world *ecs.World) bool {
+	if world == nil {
+		return false
+	}
+
+	for _, id := range world.Entities() {
+		if _, hasSprite := world.GetSpriteRenderer(id); hasSprite {
+			return true
+		}
+	}
+	return false
+}
+
+// GetSpriteRenderer возвращает систему отрисовки спрайтов
+func (b *Backend) GetSpriteRenderer() *SpriteRenderSystem {
+	return b.spriteRenderer
+}
+
+// SetSpriteRenderer устанавливает систему отрисовки спрайтов
+func (b *Backend) SetSpriteRenderer(renderer *SpriteRenderSystem) {
+	b.spriteRenderer = renderer
 }
 
 // EnableOrbitCamera включает/выключает orbit camera (ПКМ, СКМ, scroll)
@@ -104,6 +140,11 @@ func (b *Backend) SetFrame(initial *render.Frame) {
 			b.splashImage = ebiten.NewImageFromImage(img)
 		}
 	}
+
+	// Initialize sprite renderer if we have a project directory and need 2D sprites
+	if initial != nil && initial.ProjectDir != "" && b.use2DSprites && b.spriteRenderer == nil {
+		b.spriteRenderer = NewSpriteRenderSystem(initial.ProjectDir)
+	}
 }
 
 func (b *Backend) RunLoop(initial *render.Frame) error {
@@ -124,6 +165,11 @@ func (b *Backend) Update() error {
 
 	// Poll input
 	b.pollInput()
+
+	// Пробрасываем ввод в Frame для систем (например, управление игроком)
+	if b.frame != nil {
+		b.frame.InputState = b.InputState
+	}
 
 	// Orbit camera: ПКМ orbit, СКМ pan, scroll zoom
 	if b.orbitEnabled && b.use3DRender && b.frame != nil && b.frame.World != nil {
@@ -190,6 +236,12 @@ func (b *Backend) updateOrbitCamera() {
 	tr.Position = pos
 	tr.Rotation = emath.Vec3{X: b.orbitState.Pitch, Y: b.orbitState.Yaw, Z: tr.Rotation.Z}
 	w.SetTransform(camID, tr)
+
+	// Напрямую ставим Camera3D — минуя roundtrip через entity/updateCameraFromWorld
+	cam := b.renderer3D.GetCamera()
+	cam.SetPosition(pos)
+	cam.SetTarget(b.orbitState.Target)
+	b.renderer3D.CameraSetExternally = true
 }
 
 // pollInput reads current input state from Ebiten
@@ -231,13 +283,39 @@ func (b *Backend) Draw(screen *ebiten.Image) {
 		cc = b.frame.ClearColor
 	}
 
+	// Check if we have sprites in the scene and auto-switch to 2D mode if needed
+	if b.frame != nil && b.frame.World != nil {
+		hasSprites := b.HasSpriteRenderer(b.frame.World)
+		if hasSprites && !b.use3DRender {
+			b.use2DSprites = true
+		}
+	}
+
 	// Use 3D renderer if enabled
-	if b.use3DRender && b.renderer3D != nil {
+	if b.use3DRender && b.renderer3D != nil && !b.use2DSprites {
 		var world *ecs.World
 		if b.frame != nil {
 			world = b.frame.World
 		}
 		b.renderer3D.DrawToScreen(screen, world, b.resolver, cc)
+	} else if b.use2DSprites {
+		screen.Fill(cc)
+		var world *ecs.World
+		if b.frame != nil {
+			world = b.frame.World
+		}
+		if world != nil {
+			if b.spriteRenderer == nil && b.frame != nil && b.frame.ProjectDir != "" {
+				b.spriteRenderer = NewSpriteRenderSystem(b.frame.ProjectDir)
+			}
+			// Процедурный овал-трек под спрайтами
+			if gameplay.HasKart(world) {
+				b.drawKartTrack(screen, world)
+			}
+			if b.spriteRenderer != nil {
+				b.spriteRenderer.Render(screen, world)
+			}
+		}
 	} else {
 		// Fallback to 2D wireframe rendering
 		screen.Fill(cc)
@@ -257,17 +335,20 @@ func (b *Backend) Draw(screen *ebiten.Image) {
 		}
 	}
 
-	// Debug overlay
+	// Debug / game HUD
 	if b.frame != nil && b.frame.World != nil {
+		w := b.frame.World
 		mode := "3D"
 		if !b.use3DRender {
 			mode = "2D"
 		}
 		fps := ebiten.ActualFPS()
-		tps := ebiten.ActualTPS()
-		msg := "GoEngineKenga [" + mode + "] Entities: " + itoa(len(b.frame.World.Entities()))
+		msg := "GoEngineKenga [" + mode + "] Entities: " + itoa(len(w.Entities()))
 		if fps > 0 {
-			msg += " | FPS: " + itoa(int(fps)) + " TPS: " + itoa(int(tps))
+			msg += " | FPS: " + itoa(int(fps))
+		}
+		if gameplay.HasKart(w) {
+			msg += "\n" + b.kartHUD(w)
 		}
 		msg += "\n"
 		ebitenutil.DebugPrint(screen, msg)
@@ -363,6 +444,141 @@ func itoa(v int) string {
 
 func (b *Backend) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
 	return outsideWidth, outsideHeight
+}
+
+// drawKartTrack рисует овал трассы в экранных координатах (камера следует за игроком)
+func (b *Backend) drawKartTrack(screen *ebiten.Image, world *ecs.World) {
+	cx, cy, rx, ry := gameplay.TrackGeometry()
+	camX, camY := cx, cy
+	for _, id := range world.Entities() {
+		if world.Name(id) == "Player" {
+			if tr, ok := world.GetTransform(id); ok {
+				camX, camY = tr.Position.X, tr.Position.Y
+			}
+			break
+		}
+	}
+	sw := float64(screen.Bounds().Dx())
+	sh := float64(screen.Bounds().Dy())
+	scx, scy := sw/2, sh/2
+
+	toScreen := func(wx, wy float32) (float64, float64) {
+		return scx + float64(wx-camX), scy + float64(wy-camY)
+	}
+
+	// Асфальт: плотные концентрические эллипсы
+	asphalt := color.RGBA{R: 55, G: 58, B: 65, A: 255}
+	edge := color.RGBA{R: 220, G: 220, B: 230, A: 255}
+	line := color.RGBA{R: 240, G: 200, B: 40, A: 255}
+	finish := color.RGBA{R: 255, G: 255, B: 255, A: 255}
+
+	const segs = 96
+	for t := 0; t <= 40; t++ {
+		rScale := 0.55 + float32(t)*(1.0-0.55)/40
+		col := asphalt
+		for i := 0; i < segs; i++ {
+			a0 := float64(i) * 2 * math.Pi / segs
+			a1 := float64(i+1) * 2 * math.Pi / segs
+			x0 := cx + rx*rScale*float32(math.Cos(a0))
+			y0 := cy + ry*rScale*float32(math.Sin(a0))
+			x1 := cx + rx*rScale*float32(math.Cos(a1))
+			y1 := cy + ry*rScale*float32(math.Sin(a1))
+			sx0, sy0 := toScreen(x0, y0)
+			sx1, sy1 := toScreen(x1, y1)
+			ebitenutil.DrawLine(screen, sx0, sy0, sx1, sy1, col)
+		}
+	}
+
+	// Кромки и пунктир
+	for i := 0; i < segs; i++ {
+		a0 := float64(i) * 2 * math.Pi / segs
+		a1 := float64(i+1) * 2 * math.Pi / segs
+		for _, rScale := range []float32{1.0, 0.55} {
+			x0 := cx + rx*rScale*float32(math.Cos(a0))
+			y0 := cy + ry*rScale*float32(math.Sin(a0))
+			x1 := cx + rx*rScale*float32(math.Cos(a1))
+			y1 := cy + ry*rScale*float32(math.Sin(a1))
+			sx0, sy0 := toScreen(x0, y0)
+			sx1, sy1 := toScreen(x1, y1)
+			ebitenutil.DrawLine(screen, sx0, sy0, sx1, sy1, edge)
+		}
+		if i%2 == 0 {
+			rm := float32(0.78)
+			x0 := cx + rx*rm*float32(math.Cos(a0))
+			y0 := cy + ry*rm*float32(math.Sin(a0))
+			x1 := cx + rx*rm*float32(math.Cos(a1))
+			y1 := cy + ry*rm*float32(math.Sin(a1))
+			sx0, sy0 := toScreen(x0, y0)
+			sx1, sy1 := toScreen(x1, y1)
+			ebitenutil.DrawLine(screen, sx0, sy0, sx1, sy1, line)
+		}
+	}
+
+	// Финишная черта (низ овала)
+	wps := gameplay.WaypointsForDraw()
+	if len(wps) >= 2 {
+		a := wps[0]
+		// перпендикуляр к направлению на wp1
+		bpt := wps[1]
+		dx, dy := bpt.X-a.X, bpt.Y-a.Y
+		lenv := float32(math.Sqrt(float64(dx*dx + dy*dy)))
+		if lenv > 0.001 {
+			px, py := -dy/lenv, dx/lenv
+			x0, y0 := a.X+px*40, a.Y+py*40
+			x1, y1 := a.X-px*40, a.Y-py*40
+			sx0, sy0 := toScreen(x0, y0)
+			sx1, sy1 := toScreen(x1, y1)
+			ebitenutil.DrawLine(screen, sx0, sy0, sx1, sy1, finish)
+			ebitenutil.DrawLine(screen, sx0+1, sy0, sx1+1, sy1, finish)
+		}
+	}
+}
+
+func (b *Backend) kartHUD(w *ecs.World) string {
+	rs := gameplay.GetRaceState()
+	phase, msg, sel, _ := rs.Snapshot()
+
+	switch phase {
+	case gameplay.PhaseMenu:
+		return "ATOM & MOSKVICH RACING\nCar: " + sel + "  (1/2/3)\nENTER — start race"
+	case gameplay.PhaseCountdown:
+		return msg
+	case gameplay.PhaseFinished:
+		return msg
+	}
+
+	var player ecs.Kart
+	var rb ecs.Rigidbody
+	found := false
+	pos := 1
+	for _, id := range w.Entities() {
+		if w.Name(id) != "Player" {
+			continue
+		}
+		player, _ = w.GetKart(id)
+		rb, _ = w.GetRigidbody(id)
+		pos = player.RacePosition
+		found = true
+		break
+	}
+	if !found {
+		return msg
+	}
+	speed := int(math.Sqrt(float64(rb.Velocity.X*rb.Velocity.X+rb.Velocity.Y*rb.Velocity.Y)) * 3.6)
+	pu := player.PowerUp
+	if pu == "" {
+		pu = "-"
+	} else if player.PowerUpTimer <= 0 {
+		pu = pu + " [SPACE]"
+	}
+	out := "Lap " + itoa(player.CurrentLap+1) + "/" + itoa(gameplay.LapsToWin)
+	out += "  Pos " + itoa(pos) + "  " + itoa(speed) + " km/h"
+	out += "\nPower: " + pu
+	out += "\nW/S gas  A/D steer  Shift drift  Space use"
+	if msg == "GO!" {
+		out = "GO!\n" + out
+	}
+	return out
 }
 
 // SetUIManager sets the UI manager for this backend
