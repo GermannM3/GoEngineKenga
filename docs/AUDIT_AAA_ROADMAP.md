@@ -35,33 +35,33 @@
 
 **Разрыв:** Software rasterizer ограничен. WebGPU требует CGO. Для AAA нужен больший масштаб.
 
-### 2.2 Skeletal animation
+### 2.2 Skeletal animation ✅
 
 **Текущее:** API (Clip, Animator, blend) есть. Импорт skin/animation из glTF — реализован (Skin, JOINTS_0, WEIGHTS_0, inverse bind matrices, Animation channels → Clip).
 
-**Осталось:** Связь с рендерером (skinning в vertex shader), привязка к ECS.
+**Сделано:** Связь с рендерером (skinning в vertex shader WebGPU, шейдер shader_skinned.wgsl), ECS-компонент Animator + SkeletalAnimationSystem, bone matrices из Animator в uniform, skinned-проход в shadow map.
 
 ### 2.3 IBL, отражения
 
 **Текущее:** Нет baked environment, отражений.
 
-**Требуется:** Опционально для PBR-качества.
+**Требуется:** Опционально для PBR-качества. **Backlog.**
 
 ### 2.4 Occlusion culling
 
 **Текущее:** Нет.
 
-**Требуется:** Portal, PVS или Hi-Z для больших сцен.
+**Требуется:** Portal, PVS или Hi-Z для больших сцен. **Backlog.**
 
 ---
 
 ## 3. Важные пробелы (снижают конкурентоспособность)
 
-- **Point/spot shadows:** Только directional shadow map
-- **DOF, motion blur:** Нет
+- **Point/spot shadows:** Только directional shadow map; point light в WebGPU есть (без теней), теневые cubemap — **backlog**
+- **DOF, motion blur:** Нет (**backlog**)
 - **Shader Graph:** Нет, только фиксированные шейдеры
 - ~~**Mesh cache invalidation**~~ — реализовано
-- **WebGPU orbit camera:** Orbit только в Ebiten
+- ~~**WebGPU orbit camera**~~ — реализовано (ПКМ rotate, СКМ pan, scroll zoom)
 
 ---
 
@@ -76,11 +76,14 @@
 - [x] 1.4 Рендер всех MeshRenderer из World
 - [x] 1.5 Камера из ECS Camera
 - [x] 1.6 Текстуры через asset.Resolver (MaterialID в mesh, BaseColorTex в material)
+- [x] 1.7 Skeletal animation: ECS Animator → bone matrices, skinned shader + skinned shadow pass
 
 ### Блок 2: PBR материалы (приоритет 2) ✅
 - [x] 2.1 PBR shader: albedo, metallic, roughness
 - [x] 2.2 Normal mapping (TBN, sample perturbed normal в software rasterizer)
 - [x] 2.3 Directional lights в PBR (из ECS)
+- [x] 2.4 Текстуры в WebGPU: albedo/normal/metallic-roughness/emissive bind groups + fallback, AlphaMode (Opaque/Mask), per-material bind group cache
+- [x] 2.5 Point light в WebGPU (позиция, диапазон, attenuation, PBR BRDF; без собственных теней)
 
 ### Блок 3: Тени и постобработка (приоритет 3) ✅
 - [x] 3.1 Shadow map (directional light)
@@ -102,6 +105,7 @@
 - [x] 6.2 Drag-and-drop ассетов (glTF на окно → assets → import)
 - [x] 6.3 Asset/Scene hot-reload (fsnotify: glTF, сцены, index → автообновление viewport)
 - [x] 6.4 Orbit camera: ПКМ rotate, СКМ pan, scroll zoom (Ebiten)
+- [x] 6.5 Orbit camera WebGPU: ПКМ rotate, СКМ pan, scroll zoom (GLFW → render.OrbitState)
 
 ### Блок 7: Платформы (приоритет 7)
 - [x] 7.1 WebAssembly (Ebiten на WASM)

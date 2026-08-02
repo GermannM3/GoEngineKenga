@@ -287,7 +287,8 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 		writePBRUniforms(ubBytes, pbrData.viewProj, mat.baseColor, mat.metallic, mat.roughness,
 			pbrData.lightDir, pbrData.lightIntensity, pbrData.lightColor,
 			pbrData.ambient, pbrData.camPos, lightViewProj, nil,
-			mat.emissiveColor, mat.emissiveStrength, mat.normalScale, mat.alphaCutoff, mat.flags)
+			mat.emissiveColor, mat.emissiveStrength, mat.normalScale, mat.alphaCutoff, mat.flags,
+			pbrData.pointLightPos, pbrData.pointLightIntensity, pbrData.pointLightColor, pbrData.pointLightRange)
 		s.queue.WriteBuffer(sc.uniformBuffer, 0, ubBytes)
 
 		mg := sc.getMaterialBindGroup(resolver, mat)
@@ -329,7 +330,8 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 			writePBRUniforms(ubBytes, pbrData.viewProj, mat.baseColor, mat.metallic, mat.roughness,
 				pbrData.lightDir, pbrData.lightIntensity, pbrData.lightColor,
 				pbrData.ambient, pbrData.camPos, lightViewProj, &model,
-				mat.emissiveColor, mat.emissiveStrength, mat.normalScale, mat.alphaCutoff, mat.flags)
+				mat.emissiveColor, mat.emissiveStrength, mat.normalScale, mat.alphaCutoff, mat.flags,
+				pbrData.pointLightPos, pbrData.pointLightIntensity, pbrData.pointLightColor, pbrData.pointLightRange)
 			s.queue.WriteBuffer(sc.skinnedUniform, 0, ubBytes)
 			// Bone matrices сущности (без Animator — bind pose)
 			var matrices []float32
@@ -365,7 +367,8 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 			writePBRUniforms(ubBytes, pbrData.viewProj, []float32{0.75, 0.75, 0.78}, 0.0, 0.5,
 				pbrData.lightDir, pbrData.lightIntensity, pbrData.lightColor,
 				pbrData.ambient, pbrData.camPos, lightViewProj, nil,
-				[]float32{0, 0, 0}, 1.0, 1.0, 0.5, 0)
+				[]float32{0, 0, 0}, 1.0, 1.0, 0.5, 0,
+				pbrData.pointLightPos, pbrData.pointLightIntensity, pbrData.pointLightColor, pbrData.pointLightRange)
 			s.queue.WriteBuffer(sc.uniformBuffer, 0, ubBytes)
 			mg := sc.getMaterialBindGroup(resolver, nil)
 			if mg != nil {

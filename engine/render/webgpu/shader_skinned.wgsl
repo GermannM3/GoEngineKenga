@@ -35,6 +35,10 @@ struct Uniforms {
   normal_scale: f32,
   alpha_cutoff: f32,
   flags: u32,
+  point_light_pos: vec3<f32>,
+  point_light_intensity: f32,
+  point_light_color: vec3<f32>,
+  point_light_range: f32,
 }
 
 struct BoneUniforms {
@@ -177,6 +181,24 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
   let radiance = uniforms.light_color * uniforms.light_intensity;
   var lo = (kd * diffuse_term + specular * radiance) * ndotl * shadow;
+
+  // Point light: distance-based attenuation, без собственных теней (cubemap shadows — в backlog).
+  if uniforms.point_light_intensity > 0.0 {
+    let pl_dir = uniforms.point_light_pos - in.world_pos;
+    let pl_dist = length(pl_dir);
+    let pl_l = pl_dir / max(pl_dist, 0.0001);
+    let pl_norm = pl_dist / max(uniforms.point_light_range, 0.0001);
+    let attenuation = 1.0 / (1.0 + pl_norm * pl_norm);
+    let pl_h = normalize(v + pl_l);
+    let pl_ndotl = max(dot(n, pl_l), 0.0);
+    let pl_d = distribution_ggx(n, pl_h, max(roughness, 0.04));
+    let pl_f = fresnel_schlick(max(dot(pl_h, v), 0.0), f0);
+    let pl_kd = (1.0 - pl_f) * (1.0 - metallic);
+    let pl_specular = pl_f * pl_d * 0.25;
+    let pl_radiance = uniforms.point_light_color * uniforms.point_light_intensity * attenuation;
+    lo += (pl_kd * diffuse * pl_ndotl + pl_specular * pl_radiance) * pl_ndotl;
+  }
+
   lo += albedo * uniforms.ambient;
 
   // Emissive (fallback-чёрная текстура даёт 0)

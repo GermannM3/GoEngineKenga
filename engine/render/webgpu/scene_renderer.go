@@ -53,17 +53,19 @@ func matrixToBytes(m render.Matrix4) []byte {
 }
 
 // pbrUniformsSize — размер uniform buffer для PBR + light_view_proj + emissive/texture params.
-const pbrUniformsSize = 352
+const pbrUniformsSize = 384
 
 // writePBRUniforms пишет viewProj, material, light, camera, light_view_proj в буфер.
 // model передаётся через instance buffer; для skeletal mesh — через modelInUniform (пишется в offset 64).
 // Офсеты (bytes): 0 view_proj, 64 model, 128 base_color, 144 metallic, 148 roughness,
 // 160 light_dir, 176 light_intensity, 192 light_color, 208 ambient, 224 cam_pos,
 // 256 light_view_proj, 320 emissive_color, 336 emissive_strength, 340 normal_scale,
-// 344 alpha_cutoff, 348 flags (bit0: есть metallicRoughness текстура).
+// 344 alpha_cutoff, 348 flags (bit0: есть metallicRoughness текстура),
+// 352 point_light_pos + intensity, 368 point_light_color + range (intensity <= 0 = выключен).
 func writePBRUniforms(out []byte, viewProj render.Matrix4, baseColor []float32, metallic, roughness float32,
 	lightDir []float32, lightIntensity float32, lightColor []float32, ambient float32, camPos []float32, lightViewProj render.Matrix4, modelInUniform *render.Matrix4,
-	emissiveColor []float32, emissiveStrength, normalScale, alphaCutoff float32, flags uint32) {
+	emissiveColor []float32, emissiveStrength, normalScale, alphaCutoff float32, flags uint32,
+	pointLightPos []float32, pointLightIntensity float32, pointLightColor []float32, pointLightRange float32) {
 	if len(out) < pbrUniformsSize {
 		return
 	}
@@ -120,6 +122,20 @@ func writePBRUniforms(out []byte, viewProj render.Matrix4, baseColor []float32, 
 	putF32(340, normalScale)
 	putF32(344, alphaCutoff)
 	binary.LittleEndian.PutUint32(out[348:], flags)
+
+	// Point light (offset 352): pos.xyz + intensity; интенсивность <= 0 отключает свет в шейдере.
+	plp := pointLightPos
+	if len(plp) < 3 {
+		plp = []float32{0, 5, 0}
+	}
+	putVec3(352, plp)
+	putF32(364, pointLightIntensity)
+	plc := pointLightColor
+	if len(plc) < 3 {
+		plc = []float32{1.0, 1.0, 1.0}
+	}
+	putVec3(368, plc)
+	putF32(380, pointLightRange)
 }
 
 const boneMatrixCount = 64
@@ -1130,6 +1146,12 @@ type pbrSceneData struct {
 	metallic       float32
 	roughness      float32
 	ambient        float32
+
+	// Point light (первый в сцене; интенсивность <= 0 — выключен)
+	pointLightPos       []float32
+	pointLightColor     []float32
+	pointLightIntensity float32
+	pointLightRange     float32
 }
 
 // buildLightViewProj строит orthographic view-projection для directional light.
@@ -1226,6 +1248,31 @@ func getPBRSceneData(world *ecs.World, width, height int) (data pbrSceneData, ok
 		data.lightDir = []float32{0.5, 1.0, 0.3}
 		data.lightColor = []float32{1.0, 1.0, 1.0}
 		data.lightIntensity = 1.0
+	}
+
+	// Первый point light (без теней — cubemap shadows в backlog роадмапа)
+	for _, id := range world.Entities() {
+		light, hasLight := world.GetLight(id)
+		if !hasLight || light.Kind != "point" {
+			continue
+		}
+		tr, hasTr := world.GetTransform(id)
+		pos := emath.Vec3{X: 0, Y: 5, Z: 0}
+		if hasTr {
+			pos = tr.Position
+		}
+		data.pointLightPos = []float32{pos.X, pos.Y, pos.Z}
+		r, g, b := float32(light.ColorR)/255, float32(light.ColorG)/255, float32(light.ColorB)/255
+		if r == 0 && g == 0 && b == 0 {
+			r, g, b = light.ColorRGB.X, light.ColorRGB.Y, light.ColorRGB.Z
+		}
+		data.pointLightColor = []float32{r, g, b}
+		data.pointLightIntensity = light.Intensity
+		data.pointLightRange = light.Range
+		if data.pointLightRange <= 0 {
+			data.pointLightRange = 10.0
+		}
+		break
 	}
 
 	data.ambient = 0.15
