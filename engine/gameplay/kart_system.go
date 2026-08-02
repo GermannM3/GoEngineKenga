@@ -218,7 +218,7 @@ func updateMenu(w *ecs.World, st *input.State) {
 		}
 	}
 	rs.mu.Lock()
-	rs.Message = "ATOM & MOSKVICH RACING\n1 Atom  2 M70  3 M90\nENTER — start"
+	rs.Message = Tr("race.menu", rs.SelectedCar)
 	rs.mu.Unlock()
 }
 
@@ -233,10 +233,10 @@ func updateCountdown(w *ecs.World, dt float32) {
 	}
 	if rs.Countdown <= 0 {
 		rs.Phase = PhaseRacing
-		rs.Message = "GO!"
+		rs.Message = Tr("race.go")
 		rs.Countdown = 0
 	} else if n <= 0 {
-		rs.Message = "GO!"
+		rs.Message = Tr("race.go")
 	} else {
 		rs.Message = itoa(n)
 	}
@@ -532,7 +532,7 @@ func checkFinish(w *ecs.World, rs *RaceState) {
 			if rs.WinnerName == "" {
 				rs.WinnerName = "Player"
 			}
-			rs.Message = "FINISH! Pos " + itoa(kart.RacePosition) + "\nENTER — menu"
+			rs.Message = Tr("race.finish", itoa(kart.RacePosition))
 			rs.mu.Unlock()
 			return
 		}
@@ -547,7 +547,7 @@ func checkFinish(w *ecs.World, rs *RaceState) {
 			rs.mu.Lock()
 			rs.Phase = PhaseFinished
 			rs.WinnerName = w.Name(id)
-			rs.Message = w.Name(id) + " wins!\nENTER — menu"
+			rs.Message = Tr("race.win", w.Name(id))
 			rs.mu.Unlock()
 			return
 		}

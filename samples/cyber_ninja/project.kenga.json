@@ -1,1 +1,9 @@
-{"name":"CyberNinja","scenes":["scenes/main.scene.json"],"assetsDir":"assets","derivedDir":".kenga/derived"}
+{
+  "name": "CyberNinja",
+  "scenes": [
+    "scenes/main.scene.json"
+  ],
+  "assetsDir": "assets",
+  "derivedDir": ".kenga/derived",
+  "locale": "ru"
+}

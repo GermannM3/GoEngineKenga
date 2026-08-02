@@ -1,0 +1,8 @@
+{
+  "hud.health": "Health: %d",
+  "hud.score": "Score: %d",
+  "hud.level": "Level %d",
+  "hud.victory": "VICTORY!",
+  "hud.defeat": "GAME OVER",
+  "hud.restart": "R — restart"
+}

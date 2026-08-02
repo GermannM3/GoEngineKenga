@@ -347,6 +347,9 @@ func (b *Backend) Draw(screen *ebiten.Image) {
 		if fps > 0 {
 			msg += " | FPS: " + itoa(int(fps))
 		}
+		if loc := gameplay.Locale(); loc != "" {
+			msg += " | Loc: " + loc
+		}
 		if gameplay.HasKart(w) {
 			msg += "\n" + b.kartHUD(w)
 		}
@@ -536,14 +539,10 @@ func (b *Backend) drawKartTrack(screen *ebiten.Image, world *ecs.World) {
 
 func (b *Backend) kartHUD(w *ecs.World) string {
 	rs := gameplay.GetRaceState()
-	phase, msg, sel, _ := rs.Snapshot()
+	phase, msg, _, _ := rs.Snapshot()
 
 	switch phase {
-	case gameplay.PhaseMenu:
-		return "ATOM & MOSKVICH RACING\nCar: " + sel + "  (1/2/3)\nENTER — start race"
-	case gameplay.PhaseCountdown:
-		return msg
-	case gameplay.PhaseFinished:
+	case gameplay.PhaseMenu, gameplay.PhaseCountdown, gameplay.PhaseFinished:
 		return msg
 	}
 
@@ -571,12 +570,12 @@ func (b *Backend) kartHUD(w *ecs.World) string {
 	} else if player.PowerUpTimer <= 0 {
 		pu = pu + " [SPACE]"
 	}
-	out := "Lap " + itoa(player.CurrentLap+1) + "/" + itoa(gameplay.LapsToWin)
-	out += "  Pos " + itoa(pos) + "  " + itoa(speed) + " km/h"
-	out += "\nPower: " + pu
-	out += "\nW/S gas  A/D steer  Shift drift  Space use"
-	if msg == "GO!" {
-		out = "GO!\n" + out
+	out := gameplay.Tr("race.lap", itoa(player.CurrentLap+1), itoa(gameplay.LapsToWin))
+	out += "  " + gameplay.Tr("race.pos", itoa(pos)) + "  " + itoa(speed) + " " + gameplay.Tr("race.kmh")
+	out += "\n" + gameplay.Tr("race.power", pu)
+	out += "\n" + gameplay.Tr("race.controls")
+	if msg != "" {
+		out = msg + "\n" + out
 	}
 	return out
 }

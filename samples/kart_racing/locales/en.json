@@ -1,0 +1,11 @@
+{
+  "race.menu": "ATOM & MOSKVICH RACING\nCar: %s  (1/2/3)\nENTER — start",
+  "race.go": "GO!",
+  "race.lap": "Lap %s/%s",
+  "race.pos": "Pos %s",
+  "race.kmh": "km/h",
+  "race.power": "Power: %s",
+  "race.controls": "W/S gas  A/D steer  Shift drift  Space use",
+  "race.finish": "FINISH! Pos %s\nENTER — menu",
+  "race.win": "%s wins!\nENTER — menu"
+}

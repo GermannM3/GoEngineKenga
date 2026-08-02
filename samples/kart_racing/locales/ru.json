@@ -1,0 +1,11 @@
+{
+  "race.menu": "ГОНКИ ATOM & MOSKVICH\nМашина: %s  (1/2/3)\nENTER — старт",
+  "race.go": "СТАРТ!",
+  "race.lap": "Круг %s/%s",
+  "race.pos": "Поз. %s",
+  "race.kmh": "км/ч",
+  "race.power": "Бонус: %s",
+  "race.controls": "W/S газ  A/D руль  Shift дрифт  Space бонус",
+  "race.finish": "ФИНИШ! Место %s\nENTER — меню",
+  "race.win": "%s победил!\nENTER — меню"
+}

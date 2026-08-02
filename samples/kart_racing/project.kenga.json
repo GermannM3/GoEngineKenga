@@ -1,6 +1,9 @@
 {
   "name": "Atom & Moskvich Racing",
-  "scenes": ["scenes/race.scene.json"],
+  "scenes": [
+    "scenes/race.scene.json"
+  ],
   "assetsDir": "assets",
-  "derivedDir": ".kenga/derived"
+  "derivedDir": ".kenga/derived",
+  "locale": "ru"
 }

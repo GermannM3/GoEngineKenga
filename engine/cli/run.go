@@ -129,6 +129,18 @@ func newRunCommand() *cobra.Command {
 			// Create game logic system
 			gameLogicSystem := gameplay.NewGameLogicSystem()
 
+			// Локализация: project.Locale + locales/*.json (en.json, ru.json, ...).
+			// Тексты HUD и игровых систем форматируются через gameplay.Tr().
+			loc := gameplay.NewLocalization("en", "en")
+			if p, err := project.Load(projectDir); err == nil && p.Locale != "" {
+				loc.SetLocale(p.Locale)
+			}
+			if err := loc.LoadDir(filepath.Join(projectDir, "locales")); err != nil {
+				// Нет папки locales — фолбэк на ключи/английский, это не ошибка запуска.
+				loc.SetLocale("en")
+			}
+			gameplay.SetDefaultLocalization(loc)
+
 			// Аудио: AudioSource из ECS → движок звука (клипы по asset ID через резолвер)
 			audioSystem := audio.NewAudioSystem(resolver)
 			if gameLogicSystem != nil {

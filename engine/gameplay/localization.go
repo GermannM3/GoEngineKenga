@@ -153,3 +153,32 @@ func (l *Localization) AvailableLocales() []string {
 	}
 	return out
 }
+
+// Пакетный локализатор по умолчанию: run.go создаёт его из project.Locale
+// и locales/*.json, после чего HUD и игровые системы форматируют строки
+// через Tr() без прокидывания экземпляра в каждый вызов.
+var defaultLoc *Localization
+
+// SetDefaultLocalization задаёт локализатор для пакетного Tr().
+// Вызывается один раз при старте проекта (engine/cli/run.go).
+func SetDefaultLocalization(l *Localization) {
+	defaultLoc = l
+}
+
+// Tr форматирует строку через пакетный локализатор:
+// Tr("race.lap", "1", "3") → "Lap 1/3" (или "Круг 1/3" для ru).
+// Если локализация не настроена — возвращает key как есть.
+func Tr(key string, args ...any) string {
+	if defaultLoc == nil {
+		return key
+	}
+	return defaultLoc.Tr(key, args...)
+}
+
+// Locale возвращает активную локаль пакетного локализатора ("" — не настроена).
+func Locale() string {
+	if defaultLoc == nil {
+		return ""
+	}
+	return defaultLoc.Locale()
+}
