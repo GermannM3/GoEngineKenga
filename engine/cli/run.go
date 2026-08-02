@@ -15,19 +15,20 @@ import (
 	ebitenimg "github.com/hajimehoshi/ebiten/v2"
 	"github.com/spf13/cobra"
 
+	"goenginekenga/engine/animation"
 	"goenginekenga/engine/api"
 	"goenginekenga/engine/asset"
-	"goenginekenga/engine/animation"
+	"goenginekenga/engine/audio"
 	"goenginekenga/engine/ecs"
+	"goenginekenga/engine/gameplay"
 	"goenginekenga/engine/input"
+	"goenginekenga/engine/project"
 	"goenginekenga/engine/render"
 	"goenginekenga/engine/render/ebiten"
 	"goenginekenga/engine/render/headless"
-	"goenginekenga/engine/project"
 	"goenginekenga/engine/render/webgpu"
 	"goenginekenga/engine/runtime"
 	"goenginekenga/engine/scene"
-	"goenginekenga/engine/gameplay"
 	"goenginekenga/engine/script"
 )
 
@@ -128,6 +129,12 @@ func newRunCommand() *cobra.Command {
 			// Create game logic system
 			gameLogicSystem := gameplay.NewGameLogicSystem()
 
+			// Аудио: AudioSource из ECS → движок звука (клипы по asset ID через резолвер)
+			audioSystem := audio.NewAudioSystem(resolver)
+			if gameLogicSystem != nil {
+				gameLogicSystem.Sound = audioSystem
+			}
+
 			// Create animation system
 			animationSystem := animation.NewAnimationSystem()
 			// 3D skeletal-анимации (glTF skins): пишет bone matrices в ecs.Animator
@@ -151,6 +158,7 @@ func newRunCommand() *cobra.Command {
 				if !gameplay.HasKart(aw) {
 					gameLogicSystem.Update(aw, is)
 				}
+				audioSystem.Update(aw, time.Duration(dt*float64(time.Second)))
 			}
 
 			var frame *render.Frame

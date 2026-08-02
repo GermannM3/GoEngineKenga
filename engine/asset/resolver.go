@@ -2,9 +2,11 @@ package asset
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
+	"goenginekenga/engine/audio"
 	"goenginekenga/engine/render"
 )
 
@@ -106,4 +108,25 @@ func (r *Resolver) ResolveSkeletonByPath(relPath string) (*Skeleton, error) {
 	}
 	abs := filepath.Join(r.projectDir, filepath.FromSlash(relPath))
 	return LoadSkeleton(abs)
+}
+
+// ResolveAudioClip загружает аудиоклип по asset ID (wav/mp3/ogg).
+func (r *Resolver) ResolveAudioClip(assetID string) (*audio.AudioClip, error) {
+	rec, ok := r.byID[assetID]
+	if !ok {
+		return nil, fmt.Errorf("asset id not found: %s", assetID)
+	}
+	if rec.Type != TypeAudio || rec.SourcePath == "" {
+		return nil, fmt.Errorf("asset %s is not audio", assetID)
+	}
+	abs := filepath.Join(r.projectDir, filepath.FromSlash(rec.SourcePath))
+	data, err := os.ReadFile(abs)
+	if err != nil {
+		return nil, err
+	}
+	format := strings.TrimPrefix(strings.ToLower(filepath.Ext(abs)), ".")
+	if format != "wav" && format != "mp3" && format != "ogg" {
+		format = "wav"
+	}
+	return audio.LoadAudioClip(rec.SourcePath, data, format), nil
 }

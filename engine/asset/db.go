@@ -97,6 +97,14 @@ func (db *Database) ImportAll() (*Index, error) {
 			if rec != nil {
 				records = append(records, *rec)
 			}
+		case ".wav", ".mp3", ".ogg":
+			rec, err := db.importAudio(path)
+			if err != nil {
+				return err
+			}
+			if rec != nil {
+				records = append(records, *rec)
+			}
 		default:
 			// v0: игнорируем остальные типы
 		}
@@ -139,6 +147,26 @@ func (db *Database) importInventor(sourceAbs string) (*Record, error) {
 		rec.SourcePath = filepath.ToSlash(rel)
 	}
 	return rec, nil
+}
+
+// importAudio регистрирует аудиофайл (wav/mp3/ogg) как ассет. Исходный файл
+// и есть ассет: производных файлов нет, SourcePath указывает на оригинал.
+func (db *Database) importAudio(sourceAbs string) (*Record, error) {
+	meta, err := LoadOrCreateMeta(sourceAbs, TypeAudio)
+	if err != nil {
+		return nil, err
+	}
+	meta.ImportedAt = time.Now()
+	if err := SaveMeta(sourceAbs, meta); err != nil {
+		return nil, err
+	}
+	rel, _ := filepath.Rel(db.ProjectDir, sourceAbs)
+	return &Record{
+		ID:         meta.ID,
+		Type:       meta.Type,
+		SourcePath: filepath.ToSlash(rel),
+		ImportedAt: meta.ImportedAt,
+	}, nil
 }
 
 func (db *Database) importGLTF(sourceAbs string) (*Record, error) {

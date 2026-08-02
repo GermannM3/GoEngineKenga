@@ -1,21 +1,27 @@
 package gameplay
 
 import (
+	"goenginekenga/engine/audio"
 	"goenginekenga/engine/ecs"
 	"goenginekenga/engine/input"
+	emath "goenginekenga/engine/math"
 )
 
 // GameLogicSystem handles the core gameplay mechanics for 2D platformer
 type GameLogicSystem struct {
-	playerID     ecs.EntityID
-	groundIDs    []ecs.EntityID
-	enemyIDs     []ecs.EntityID
-	itemIDs      []ecs.EntityID
-	npcIDs       []ecs.EntityID
+	playerID      ecs.EntityID
+	groundIDs     []ecs.EntityID
+	enemyIDs      []ecs.EntityID
+	itemIDs       []ecs.EntityID
+	npcIDs        []ecs.EntityID
 	lastJumpPress bool
-	onGround     bool
-	moveSpeed    float32
-	jumpForce    float32
+	onGround      bool
+	moveSpeed     float32
+	jumpForce     float32
+
+	// Sound — аудиосистема для звуков действий. Клипы берутся из AudioSource
+	// компонентов сущностей: player (прыжок), предметы (подбор) — как в Unity.
+	Sound *audio.AudioSystem
 }
 
 // NewGameLogicSystem creates a new instance of the game logic system
@@ -107,6 +113,17 @@ func (gls *GameLogicSystem) processPlayerInput(world *ecs.World, inputState *inp
 		rb.Velocity.Y = gls.jumpForce
 		gls.onGround = false
 
+		// Звук прыжка — из AudioSource игрока
+		if gls.Sound != nil {
+			if clip := gls.clipOf(world, gls.playerID); clip != "" {
+				pos := emath.V3(0, 0, 0)
+				if tr, ok := world.GetTransform(gls.playerID); ok {
+					pos = tr.Position
+				}
+				gls.Sound.PlayOneShot(clip, pos, 0.5)
+			}
+		}
+
 		// Switch to jump animation
 		if hasAnimCtrl {
 			animCtrl.CurrentClip = "jump"
@@ -116,12 +133,12 @@ func (gls *GameLogicSystem) processPlayerInput(world *ecs.World, inputState *inp
 			animState, hasAnimState := world.GetAnimationState(gls.playerID)
 			if !hasAnimState {
 				animState = ecs.AnimationState{
-					CurrentClip: "jump",
+					CurrentClip:  "jump",
 					CurrentFrame: 0,
-					ElapsedTime: 0,
-					IsPlaying: true,
-					Loop: false,
-					Speed: 1.0,
+					ElapsedTime:  0,
+					IsPlaying:    true,
+					Loop:         false,
+					Speed:        1.0,
 				}
 			} else {
 				animState.CurrentClip = "jump"
@@ -158,17 +175,17 @@ func (gls *GameLogicSystem) processPlayerInput(world *ecs.World, inputState *inp
 			animState, hasAnimState := world.GetAnimationState(gls.playerID)
 			if !hasAnimState {
 				animState = ecs.AnimationState{
-					CurrentClip: targetAnimation,
+					CurrentClip:  targetAnimation,
 					CurrentFrame: 0,
-					ElapsedTime: 0,
-					IsPlaying: true,
-					Loop: targetAnimation != "jump", // Jump shouldn't loop
-					Speed: 1.0,
+					ElapsedTime:  0,
+					IsPlaying:    true,
+					Loop:         targetAnimation != "jump", // Jump shouldn't loop
+					Speed:        1.0,
 				}
 			} else {
 				animState.CurrentClip = targetAnimation
-				animState.CurrentFrame = 0  // Reset frame when changing animation
-				animState.ElapsedTime = 0   // Reset timing when changing animation
+				animState.CurrentFrame = 0 // Reset frame when changing animation
+				animState.ElapsedTime = 0  // Reset timing when changing animation
 				animState.IsPlaying = true
 				animState.Loop = targetAnimation != "jump" // Jump shouldn't loop
 			}
@@ -188,7 +205,7 @@ func (gls *GameLogicSystem) checkPlayerOnGround(world *ecs.World) bool {
 
 	playerTr, hasPlayerTr := world.GetTransform(gls.playerID)
 	playerCol, hasPlayerCol := world.GetCollider(gls.playerID)
-	
+
 	if !hasPlayerTr || !hasPlayerCol {
 		return false
 	}
@@ -198,17 +215,17 @@ func (gls *GameLogicSystem) checkPlayerOnGround(world *ecs.World) bool {
 	for _, groundID := range gls.groundIDs {
 		groundTr, hasGroundTr := world.GetTransform(groundID)
 		groundCol, hasGroundCol := world.GetCollider(groundID)
-		
+
 		if hasGroundTr && hasGroundCol {
 			groundTopY := groundTr.Position.Y + groundCol.Size.Y/2
-			
+
 			// Check if player is close to the ground surface
 			if playerBottomY >= groundTopY && playerBottomY <= groundTopY+5 {
 				return true
 			}
 		}
 	}
-	
+
 	return false
 }
 
@@ -231,18 +248,18 @@ func (gls *GameLogicSystem) checkItemPickups(world *ecs.World) {
 	if !hasPlayerTr {
 		return
 	}
-	
+
 	for _, itemID := range gls.itemIDs {
 		itemTr, hasItemTr := world.GetTransform(itemID)
 		itemCol, hasItemCol := world.GetCollider(itemID)
-		
+
 		if hasItemTr && hasItemCol && itemCol.IsTrigger {
 			// Simple distance check for pickup
 			dx := playerTr.Position.X - itemTr.Position.X
 			dy := playerTr.Position.Y - itemTr.Position.Y
 			distanceSquared := dx*dx + dy*dy
 			pickupDistance := float32(50.0) // Adjust as needed
-			
+
 			if distanceSquared < pickupDistance*pickupDistance {
 				// Mark item for removal or trigger pickup event
 				// For now, just hide the item
@@ -251,9 +268,27 @@ func (gls *GameLogicSystem) checkItemPickups(world *ecs.World) {
 					sprite.Visible = false
 					world.SetSpriteRenderer(itemID, sprite)
 				}
+				// Звук подбора (по позиции предмета) — из AudioSource предмета
+				if gls.Sound != nil {
+					if clip := gls.clipOf(world, itemID); clip != "" {
+						gls.Sound.PlayOneShot(clip, itemTr.Position, 0.6)
+					}
+				}
 			}
 		}
 	}
+}
+
+// clipOf возвращает asset ID клипа из AudioSource сущности ("" — нет звука).
+func (gls *GameLogicSystem) clipOf(world *ecs.World, id ecs.EntityID) string {
+	if id == 0 {
+		return ""
+	}
+	src, ok := world.GetAudioSource(id)
+	if !ok {
+		return ""
+	}
+	return src.Clip
 }
 
 // updateGameStatus updates any game state

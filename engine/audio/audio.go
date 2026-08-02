@@ -1,6 +1,7 @@
 package audio
 
 import (
+	"fmt"
 	"time"
 
 	emath "goenginekenga/engine/math"
@@ -58,6 +59,9 @@ type AudioEngine struct {
 	listener     *AudioListener
 	masterVolume float32
 	backend      *EbitenAudioBackend
+
+	oneShotCounter int
+	oneShotKeys    []string
 }
 
 // NewAudioEngine создает новый audio engine
@@ -143,6 +147,17 @@ func (ae *AudioEngine) Update(deltaTime time.Duration) {
 	// Update backend (handles looping)
 	ae.backend.Update()
 
+	// Очищаем завершившиеся one-shot источники
+	kept := ae.oneShotKeys[:0]
+	for _, key := range ae.oneShotKeys {
+		if _, playing := ae.playerIDs[key]; playing {
+			kept = append(kept, key)
+			continue
+		}
+		ae.RemoveSource(key)
+	}
+	ae.oneShotKeys = kept
+
 	// Обновляем 3D позиционирование
 	for entityID, source := range ae.sources {
 		if source.Spatial && source.isPlaying {
@@ -200,4 +215,21 @@ func (ae *AudioEngine) SetMasterVolume(volume float32) {
 		volume = 1
 	}
 	ae.masterVolume = volume
+}
+
+// PlayOneShot воспроизводит клип один раз в позиции (с учётом spatial, если задан).
+// Не требует сущности: источник создаётся и удаляется автоматически после завершения.
+func (ae *AudioEngine) PlayOneShot(clipAssetID string, position emath.Vec3, volume float32) {
+	if clipAssetID == "" {
+		return
+	}
+	ae.oneShotCounter++
+	key := fmt.Sprintf("oneshot_%d", ae.oneShotCounter)
+	src := DefaultAudioSource()
+	src.Clip = clipAssetID
+	src.Position = position
+	src.Volume = volume
+	ae.AddSource(key, src)
+	ae.Play(key)
+	ae.oneShotKeys = append(ae.oneShotKeys, key)
 }
