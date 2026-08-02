@@ -1,8 +1,9 @@
 {
   "hud.health": "Health: %d",
-  "hud.score": "Score: %d",
+  "hud.items": "Orbs: %d/%d",
   "hud.level": "Level %d",
   "hud.victory": "VICTORY!",
+  "hud.next": "ENTER — next level",
   "hud.defeat": "GAME OVER",
   "hud.restart": "R — restart"
 }

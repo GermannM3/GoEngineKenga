@@ -1,7 +1,8 @@
 {
   "name": "CyberNinja",
   "scenes": [
-    "scenes/main.scene.json"
+    "scenes/main.scene.json",
+    "scenes/level2.scene.json"
   ],
   "assetsDir": "assets",
   "derivedDir": ".kenga/derived",

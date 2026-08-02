@@ -45,6 +45,12 @@ type Light struct {
 type Rigidbody = physics.Rigidbody
 type Collider = physics.Collider
 
+// Health — здоровье сущности (как в Unity). Current <= 0 считается гибелью.
+type Health struct {
+	Current float32 `json:"current"`
+	Max     float32 `json:"max"`
+}
+
 type AudioSource struct {
 	Clip        string  `json:"clip"`   // asset ID аудиоклипа
 	Volume      float32 `json:"volume"` // 0.0 - 1.0
@@ -202,6 +208,7 @@ type World struct {
 	lights        map[EntityID]Light
 	rigidbodies   map[EntityID]Rigidbody
 	colliders     map[EntityID]Collider
+	healths       map[EntityID]Health
 	audioSources  map[EntityID]AudioSource
 	uiCanvases    map[EntityID]UICanvas
 
@@ -232,6 +239,7 @@ func NewWorld() *World {
 		lights:        map[EntityID]Light{},
 		rigidbodies:   map[EntityID]Rigidbody{},
 		colliders:     map[EntityID]Collider{},
+		healths:       map[EntityID]Health{},
 		audioSources:  map[EntityID]AudioSource{},
 		uiCanvases:    map[EntityID]UICanvas{},
 		dispensers:    map[EntityID]Dispenser{},
@@ -358,6 +366,19 @@ func (w *World) GetCollider(id EntityID) (Collider, bool) {
 	defer w.mu.RUnlock()
 	c, ok := w.colliders[id]
 	return c, ok
+}
+
+func (w *World) SetHealth(id EntityID, h Health) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.healths[id] = h
+}
+
+func (w *World) GetHealth(id EntityID) (Health, bool) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	h, ok := w.healths[id]
+	return h, ok
 }
 
 func (w *World) SetAudioSource(id EntityID, as AudioSource) {
@@ -564,6 +585,9 @@ func (w *World) Clone() *World {
 	}
 	for k, v := range w.colliders {
 		nw.colliders[k] = v
+	}
+	for k, v := range w.healths {
+		nw.healths[k] = v
 	}
 	for k, v := range w.audioSources {
 		nw.audioSources[k] = v

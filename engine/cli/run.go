@@ -81,6 +81,17 @@ func newRunCommand() *cobra.Command {
 				s = scene.DefaultScene()
 			}
 
+			// Список сцен проекта = уровни игры: проходятся последовательно при победе.
+			// Если сцена задана явно (--scene), играем только её.
+			scenes := []string{scenePath}
+			if scenePath != "" {
+				if p, err := project.Load(projectDir); err == nil && len(p.Scenes) > 0 && p.Scenes[0] == scenePath {
+					// Первая сцена пришла из project.kenga.json — играем все уровни по порядку
+					scenes = p.Scenes
+				}
+			}
+			sceneIdx := 0
+
 			rt := runtime.NewFromScene(s)
 			rt.StartPlay()
 
@@ -127,7 +138,8 @@ func newRunCommand() *cobra.Command {
 
 			scenePathAbs := filepath.Join(projectDir, sceneRelPath)
 			// Create game logic system
-			gameLogicSystem := gameplay.NewGameLogicSystem()
+				gameLogicSystem := gameplay.NewGameLogicSystem()
+				gameplay.SetGameLogicSystem(gameLogicSystem)
 
 			// Локализация: project.Locale + locales/*.json (en.json, ru.json, ...).
 			// Тексты HUD и игровых систем форматируются через gameplay.Tr().
@@ -165,12 +177,12 @@ func newRunCommand() *cobra.Command {
 				} else {
 					runtime.ApplyPlayerInput(aw, is, float32(dt))
 				}
-				animationSystem.Update(aw)
-				skeletalSystem.Update(aw, float32(dt))
-				if !gameplay.HasKart(aw) {
-					gameLogicSystem.Update(aw, is)
-				}
-				audioSystem.Update(aw, time.Duration(dt*float64(time.Second)))
+					animationSystem.Update(aw)
+					skeletalSystem.Update(aw, float32(dt))
+					if !gameplay.HasKart(aw) {
+						gameLogicSystem.Update(aw, is, float32(dt))
+					}
+					audioSystem.Update(aw, time.Duration(dt*float64(time.Second)))
 			}
 
 			var frame *render.Frame
@@ -247,6 +259,34 @@ func newRunCommand() *cobra.Command {
 					_ = sh.HotReloadIfChanged(ctx)
 					_ = sh.Update(ctx, dtDur)
 				},
+			}
+
+			// Перезапуск уровня (R) и переход на следующий уровень (победа, ENTER).
+			// Сцены из project.kenga.json проходятся по порядку; мир пересоздаётся
+			// через rt.ReplaceFromScene, как при hot-reload сцены.
+			loadScene := func(idx int) error {
+				if idx < 0 || idx >= len(scenes) {
+					return nil
+				}
+				reloaded, err := scene.Load(filepath.Join(projectDir, scenes[idx]))
+				if err != nil {
+					return err
+				}
+				rt.ReplaceFromScene(reloaded)
+				gameLogicSystem.SetLevel(idx + 1)
+				frame.OrbitResetRequested = true
+				return nil
+			}
+			gameLogicSystem.Restart = func() {
+				_ = loadScene(sceneIdx)
+			}
+			gameLogicSystem.NextLevel = func() {
+				if sceneIdx+1 < len(scenes) {
+					sceneIdx++
+					if err := loadScene(sceneIdx); err != nil {
+						sceneIdx-- // не удалось загрузить следующий уровень — остаёмся
+					}
+				}
 			}
 
 			// Headless: нет окна, только WebSocket API

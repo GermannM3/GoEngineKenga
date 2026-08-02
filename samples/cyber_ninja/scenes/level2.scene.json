@@ -1,5 +1,5 @@
 {
- "name": "CyberNinja",
+ "name": "CyberNinja2",
  "entities": [
   {
    "name": "MainCamera",
@@ -230,6 +230,43 @@
    }
   },
   {
+   "name": "Platform3",
+   "transform": {
+    "position": {
+     "x": 0,
+     "y": 1.8,
+     "z": -2
+    },
+    "rotation": {
+     "x": 0,
+     "y": 0,
+     "z": 0
+    },
+    "scale": {
+     "x": 2,
+     "y": 0.4,
+     "z": 2
+    }
+   },
+   "meshRenderer": {
+    "meshAssetId": "6352bde6-0454-4ff7-b968-fc5001977f0a"
+   },
+   "collider": {
+    "type": "box",
+    "center": {
+     "x": 0,
+     "y": 0,
+     "z": 0
+    },
+    "size": {
+     "x": 2,
+     "y": 0.4,
+     "z": 2
+    },
+    "isTrigger": false
+   }
+  },
+  {
    "name": "Enemy",
    "transform": {
     "position": {
@@ -284,6 +321,54 @@
      "x": -4,
      "y": 1.5,
      "z": 1.5
+    },
+    "rotation": {
+     "x": 0,
+     "y": 0,
+     "z": 0
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   },
+   "meshRenderer": {
+    "meshAssetId": "6352bde6-0454-4ff7-b968-fc5001977f0a"
+   },
+   "rigidbody": {
+    "mass": 1,
+    "velocity": {
+     "x": 0,
+     "y": 0,
+     "z": 0
+    },
+    "drag": 0,
+    "useGravity": false,
+    "isKinematic": false
+   },
+   "collider": {
+    "type": "box",
+    "center": {
+     "x": 0,
+     "y": 0.5,
+     "z": 0
+    },
+    "size": {
+     "x": 0.8,
+     "y": 1,
+     "z": 0.8
+    },
+    "isTrigger": false
+   }
+  },
+  {
+   "name": "Enemy3",
+   "transform": {
+    "position": {
+     "x": 0,
+     "y": 2.4,
+     "z": -2
     },
     "rotation": {
      "x": 0,
@@ -408,6 +493,44 @@
      "x": 7,
      "y": 0.6,
      "z": 1
+    },
+    "rotation": {
+     "x": 0,
+     "y": 0,
+     "z": 0
+    },
+    "scale": {
+     "x": 0.5,
+     "y": 0.5,
+     "z": 0.5
+    }
+   },
+   "meshRenderer": {
+    "meshAssetId": "6352bde6-0454-4ff7-b968-fc5001977f0a"
+   },
+   "collider": {
+    "type": "sphere",
+    "center": {
+     "x": 0,
+     "y": 0,
+     "z": 0
+    },
+    "radius": 0.5,
+    "isTrigger": true
+   },
+   "audioSource": {
+    "clip": "d78b6bbf-0269-46e7-8010-4263e4c78ee0",
+    "volume": 0.6,
+    "playOnStart": false
+   }
+  },
+  {
+   "name": "Item4",
+   "transform": {
+    "position": {
+     "x": 0,
+     "y": 2.5,
+     "z": -2
     },
     "rotation": {
      "x": 0,

@@ -26,6 +26,7 @@ type SceneEntity struct {
 	Light         *ecs.Light         `json:"light,omitempty"`
 	Rigidbody     *ecs.Rigidbody     `json:"rigidbody,omitempty"`
 	Collider      *ecs.Collider      `json:"collider,omitempty"`
+	Health        *ecs.Health        `json:"health,omitempty"`
 	Kart          *ecs.Kart          `json:"kart,omitempty"`
 	PowerUpPickup *ecs.PowerUpPickup `json:"powerUpPickup,omitempty"`
 	AudioSource   *ecs.AudioSource   `json:"audioSource,omitempty"`
@@ -142,6 +143,9 @@ func (s *Scene) ToWorld() *ecs.World {
 		}
 		if se.Collider != nil {
 			w.SetCollider(id, *se.Collider)
+		}
+		if se.Health != nil {
+			w.SetHealth(id, *se.Health)
 		}
 		if se.Kart != nil {
 			w.SetKart(id, *se.Kart)

@@ -352,6 +352,8 @@ func (b *Backend) Draw(screen *ebiten.Image) {
 		}
 		if gameplay.HasKart(w) {
 			msg += "\n" + b.kartHUD(w)
+		} else if h := gameplay.GameHUD(); h != "" {
+			msg += "\n" + h
 		}
 		msg += "\n"
 		ebitenutil.DebugPrint(screen, msg)

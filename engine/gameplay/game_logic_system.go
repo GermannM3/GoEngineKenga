@@ -7,53 +7,118 @@ import (
 	emath "goenginekenga/engine/math"
 )
 
-// GameLogicSystem handles the core gameplay mechanics for 2D platformer
+// GameStatus — состояние игрового процесса (победа/поражение/игра).
+type GameStatus int
+
+const (
+	StatusPlaying GameStatus = iota
+	StatusVictory
+	StatusDefeat
+)
+
+// enemyPatrol — состояние патруля одного врага.
+type enemyPatrol struct {
+	dir   float32 // направление движения по X: -1 или +1
+	speed float32 // скорость патруля, ед/с
+	homeX float32 // центральная точка патруля
+	span  float32 // полуширина зоны патруля от homeX
+}
+
+// GameLogicSystem handles the core gameplay mechanics: enemy patrol,
+// pickups, health/damage, win/lose and level flow. Движение игрока
+// обрабатывает runtime.ApplyPlayerInput (A/D, Space) — здесь ввод НЕ
+// перехватывается, чтобы два обработчика не дрались за rigidbody.
 type GameLogicSystem struct {
-	playerID      ecs.EntityID
-	groundIDs     []ecs.EntityID
-	enemyIDs      []ecs.EntityID
-	itemIDs       []ecs.EntityID
-	npcIDs        []ecs.EntityID
-	lastJumpPress bool
-	onGround      bool
-	moveSpeed     float32
-	jumpForce     float32
+	playerID ecs.EntityID
+	enemyIDs []ecs.EntityID
+	itemIDs  []ecs.EntityID
+	npcIDs   []ecs.EntityID
 
 	// Sound — аудиосистема для звуков действий. Клипы берутся из AudioSource
-	// компонентов сущностей: player (прыжок), предметы (подбор) — как в Unity.
+	// компонентов сущностей: player (прыжок/урон), предметы (подбор) — как в Unity.
 	Sound *audio.AudioSystem
+
+	// Игровой статус и прогресс уровня
+	status     GameStatus
+	health     float32
+	maxHealth  float32
+	score      int
+	level      int
+	invuln     float32 // секунд неуязвимости после урона
+	prevVelY   float32 // предыдущая вертикальная скорость игрока (детект прыжка)
+	collected  map[ecs.EntityID]bool
+	enemyState map[ecs.EntityID]*enemyPatrol
+	lastWorld  *ecs.World // смена мира (перезапуск/уровень) сбрасывает состояние
+
+	// Колбэки, устанавливаемые run.go: перезагрузка текущего уровня (R)
+	// и переход на следующий (победа, ENTER).
+	Restart   func()
+	NextLevel func()
 }
 
 // NewGameLogicSystem creates a new instance of the game logic system
 func NewGameLogicSystem() *GameLogicSystem {
 	return &GameLogicSystem{
-		moveSpeed: 250.0,
-		jumpForce: 300.0,
+		collected:  map[ecs.EntityID]bool{},
+		enemyState: map[ecs.EntityID]*enemyPatrol{},
 	}
 }
 
+// SetLevel задаёт номер текущего уровня (1-based) для HUD.
+func (gls *GameLogicSystem) SetLevel(n int) {
+	gls.level = n
+}
+
 // Update processes the game logic for each frame
-func (gls *GameLogicSystem) Update(world *ecs.World, inputState *input.State) {
-	// Find all relevant entities if not already cached
+func (gls *GameLogicSystem) Update(world *ecs.World, inputState *input.State, dt float32) {
+	if world == nil {
+		return
+	}
 	gls.findEntities(world)
 
-	// Process player input and movement
-	gls.processPlayerInput(world, inputState)
+	// Мир пересоздан (перезапуск уровня, переход на следующий, hot-reload сцены) —
+	// entity ID изменились, состояние системы сбрасываем.
+	if world != gls.lastWorld {
+		gls.lastWorld = world
+		gls.collected = map[ecs.EntityID]bool{}
+		gls.enemyState = map[ecs.EntityID]*enemyPatrol{}
+		gls.prevVelY = 0
+		gls.invuln = 0
+		gls.status = StatusPlaying
+		gls.score = 0
+		gls.readHealth(world)
+	}
 
-	// Update enemy AI
+	// R — перезапуск уровня в любом состоянии
+	if inputState != nil && inputState.IsKeyJustPressed(input.KeyR) {
+		gls.restartLevel()
+		return
+	}
+
+	if gls.status == StatusVictory {
+		// ENTER — следующий уровень (на последнем уровне просто остаёмся)
+		if inputState != nil && inputState.IsKeyJustPressed(input.KeyEnter) && gls.NextLevel != nil {
+			gls.NextLevel()
+		}
+		return
+	}
+	if gls.status == StatusDefeat {
+		return
+	}
+
+	if gls.invuln > 0 {
+		gls.invuln -= dt
+	}
+
+	gls.updatePlayer(world)
 	gls.updateEnemies(world)
-
-	// Check item pickups
 	gls.checkItemPickups(world)
-
-	// Update other game logic
 	gls.updateGameStatus(world)
 }
 
 // findEntities locates all relevant entities in the world
 func (gls *GameLogicSystem) findEntities(world *ecs.World) {
 	gls.playerID = 0
-	gls.groundIDs = []ecs.EntityID{}
 	gls.enemyIDs = []ecs.EntityID{}
 	gls.itemIDs = []ecs.EntityID{}
 	gls.npcIDs = []ecs.EntityID{}
@@ -62,8 +127,6 @@ func (gls *GameLogicSystem) findEntities(world *ecs.World) {
 		name := world.Name(id)
 		if name == "Player" {
 			gls.playerID = id
-		} else if name == "Ground" || containsSubstring(name, "Platform") {
-			gls.groundIDs = append(gls.groundIDs, id)
 		} else if containsSubstring(name, "Enemy") {
 			gls.enemyIDs = append(gls.enemyIDs, id)
 		} else if containsSubstring(name, "Item") {
@@ -74,205 +137,158 @@ func (gls *GameLogicSystem) findEntities(world *ecs.World) {
 	}
 }
 
-// processPlayerInput handles player movement and jumping
-func (gls *GameLogicSystem) processPlayerInput(world *ecs.World, inputState *input.State) {
+// readHealth читает здоровье игрока из компонента Health в мир (при пересоздании мира).
+func (gls *GameLogicSystem) readHealth(world *ecs.World) {
 	if gls.playerID == 0 {
 		return
 	}
+	if h, ok := world.GetHealth(gls.playerID); ok {
+		gls.health = h.Current
+		gls.maxHealth = h.Max
+	} else {
+		gls.health, gls.maxHealth = 0, 0
+	}
+}
 
-	// Get player's rigidbody component
-	rb, hasRb := world.GetRigidbody(gls.playerID)
-	if !hasRb {
+// updatePlayer: звук прыжка. Само движение игрока применяет
+// runtime.ApplyPlayerInput (velocity.Y скачком становится 9.0).
+func (gls *GameLogicSystem) updatePlayer(world *ecs.World) {
+	rb, ok := world.GetRigidbody(gls.playerID)
+	if !ok || gls.Sound == nil {
 		return
 	}
-
-	// Get player's animation controller
-	animCtrl, hasAnimCtrl := world.GetAnimationController(gls.playerID)
-
-	// Handle horizontal movement
-	moveX := float32(0)
-	isMoving := false
-	if inputState.IsKeyPressed(input.KeyA) || inputState.IsKeyPressed(input.KeyArrowLeft) {
-		moveX = -gls.moveSpeed
-		isMoving = true
-	} else if inputState.IsKeyPressed(input.KeyD) || inputState.IsKeyPressed(input.KeyArrowRight) {
-		moveX = gls.moveSpeed
-		isMoving = true
-	}
-
-	// Apply horizontal movement
-	rb.Velocity.X = moveX
-
-	// Handle jumping
-	isJumpPressed := inputState.IsKeyPressed(input.KeySpace) || inputState.IsKeyPressed(input.KeyW) || inputState.IsKeyPressed(input.KeyArrowUp)
-
-	// Check if player is on ground by checking collision with ground entities
-	gls.onGround = gls.checkPlayerOnGround(world)
-
-	if isJumpPressed && !gls.lastJumpPress && gls.onGround {
-		rb.Velocity.Y = gls.jumpForce
-		gls.onGround = false
-
-		// Звук прыжка — из AudioSource игрока
-		if gls.Sound != nil {
-			if clip := gls.clipOf(world, gls.playerID); clip != "" {
-				pos := emath.V3(0, 0, 0)
-				if tr, ok := world.GetTransform(gls.playerID); ok {
-					pos = tr.Position
-				}
-				gls.Sound.PlayOneShot(clip, pos, 0.5)
+	// Скачок вертикальной скорости = прыжок (отскок от пола после падения < 6)
+	if rb.Velocity.Y > 6 && gls.prevVelY <= 0.5 {
+		if clip := gls.clipOf(world, gls.playerID); clip != "" {
+			pos := emath.V3(0, 0, 0)
+			if tr, hasTr := world.GetTransform(gls.playerID); hasTr {
+				pos = tr.Position
 			}
-		}
-
-		// Switch to jump animation
-		if hasAnimCtrl {
-			animCtrl.CurrentClip = "jump"
-			world.SetAnimationController(gls.playerID, animCtrl)
-
-			// Also update animation state to play the animation
-			animState, hasAnimState := world.GetAnimationState(gls.playerID)
-			if !hasAnimState {
-				animState = ecs.AnimationState{
-					CurrentClip:  "jump",
-					CurrentFrame: 0,
-					ElapsedTime:  0,
-					IsPlaying:    true,
-					Loop:         false,
-					Speed:        1.0,
-				}
-			} else {
-				animState.CurrentClip = "jump"
-				animState.ElapsedTime = 0
-				animState.IsPlaying = true
-			}
-			world.SetAnimationState(gls.playerID, animState)
+			gls.Sound.PlayOneShot(clip, pos, 0.5)
 		}
 	}
-
-	gls.lastJumpPress = isJumpPressed
-
-	// Update animation based on player state
-	if hasAnimCtrl {
-		// Determine which animation to play
-		targetAnimation := "idle"
-		if isMoving && gls.onGround {
-			targetAnimation = "walk"
-		} else if !gls.onGround {
-			// Could be jumping or falling
-			if rb.Velocity.Y > 0 { // Falling
-				targetAnimation = "idle" // or create a fall animation
-			} else if animCtrl.CurrentClip != "jump" { // Not currently playing jump animation
-				targetAnimation = "idle"
-			}
-		}
-
-		// Only change animation if it's different from current one
-		if animCtrl.CurrentClip != targetAnimation {
-			animCtrl.CurrentClip = targetAnimation
-			world.SetAnimationController(gls.playerID, animCtrl)
-
-			// Update animation state to play the new animation
-			animState, hasAnimState := world.GetAnimationState(gls.playerID)
-			if !hasAnimState {
-				animState = ecs.AnimationState{
-					CurrentClip:  targetAnimation,
-					CurrentFrame: 0,
-					ElapsedTime:  0,
-					IsPlaying:    true,
-					Loop:         targetAnimation != "jump", // Jump shouldn't loop
-					Speed:        1.0,
-				}
-			} else {
-				animState.CurrentClip = targetAnimation
-				animState.CurrentFrame = 0 // Reset frame when changing animation
-				animState.ElapsedTime = 0  // Reset timing when changing animation
-				animState.IsPlaying = true
-				animState.Loop = targetAnimation != "jump" // Jump shouldn't loop
-			}
-			world.SetAnimationState(gls.playerID, animState)
-		}
-	}
-
-	// Update the rigidbody in the world
-	world.SetRigidbody(gls.playerID, rb)
+	gls.prevVelY = rb.Velocity.Y
 }
 
-// checkPlayerOnGround determines if the player is standing on ground
-func (gls *GameLogicSystem) checkPlayerOnGround(world *ecs.World) bool {
-	if gls.playerID == 0 {
-		return false
-	}
-
-	playerTr, hasPlayerTr := world.GetTransform(gls.playerID)
-	playerCol, hasPlayerCol := world.GetCollider(gls.playerID)
-
-	if !hasPlayerTr || !hasPlayerCol {
-		return false
-	}
-
-	// Simple ground check: if player's Y velocity is close to 0 and there's ground below
-	playerBottomY := playerTr.Position.Y - playerCol.Size.Y/2
-	for _, groundID := range gls.groundIDs {
-		groundTr, hasGroundTr := world.GetTransform(groundID)
-		groundCol, hasGroundCol := world.GetCollider(groundID)
-
-		if hasGroundTr && hasGroundCol {
-			groundTopY := groundTr.Position.Y + groundCol.Size.Y/2
-
-			// Check if player is close to the ground surface
-			if playerBottomY >= groundTopY && playerBottomY <= groundTopY+5 {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
-// updateEnemies handles enemy AI
+// updateEnemies handles enemy AI: patrol between homeX±span and damage
+// the player on contact (with invulnerability cooldown).
 func (gls *GameLogicSystem) updateEnemies(world *ecs.World) {
 	for _, enemyID := range gls.enemyIDs {
-		// Basic AI: patrol between two points or follow player if close
-		// For now, just ensure they have physics
+		tr, hasTr := world.GetTransform(enemyID)
 		rb, hasRb := world.GetRigidbody(enemyID)
-		if hasRb {
-			// Apply minimal movement or let physics handle it
-			world.SetRigidbody(enemyID, rb)
+		if !hasTr || !hasRb {
+			continue
+		}
+
+		st := gls.enemyState[enemyID]
+		if st == nil {
+			st = &enemyPatrol{dir: 1, speed: 2.5, homeX: tr.Position.X, span: 6}
+			gls.enemyState[enemyID] = st
+		}
+
+		// Разворот на границах зоны патруля
+		if tr.Position.X > st.homeX+st.span {
+			st.dir = -1
+		} else if tr.Position.X < st.homeX-st.span {
+			st.dir = 1
+		}
+
+		// Враги висят в воздухе: гравитации нет, движение задаётся скоростью
+		rb.Velocity = emath.V3(st.dir*st.speed, 0, 0)
+		world.SetRigidbody(enemyID, rb)
+
+		gls.checkEnemyHitsPlayer(world, tr.Position)
+	}
+}
+
+// checkEnemyHitsPlayer наносит урон при контакте с игроком (сфера вокруг дрона).
+func (gls *GameLogicSystem) checkEnemyHitsPlayer(world *ecs.World, enemyPos emath.Vec3) {
+	if gls.playerID == 0 || gls.invuln > 0 || gls.status != StatusPlaying {
+		return
+	}
+	playerTr, ok := world.GetTransform(gls.playerID)
+	if !ok {
+		return
+	}
+	dx := playerTr.Position.X - enemyPos.X
+	dy := playerTr.Position.Y - enemyPos.Y
+	dz := playerTr.Position.Z - enemyPos.Z
+	if dx*dx+dz*dz >= 1.0*1.0 || dy < -1.2 || dy > 1.2 {
+		return
+	}
+	gls.damagePlayer(world, enemyPos, 25)
+}
+
+// damagePlayer отнимает здоровье, включает неуязвимость, отбрасывает игрока.
+func (gls *GameLogicSystem) damagePlayer(world *ecs.World, from emath.Vec3, dmg float32) {
+	gls.health -= dmg
+	if gls.health < 0 {
+		gls.health = 0
+	}
+	gls.invuln = 1.0
+
+	// Пишем здоровье обратно в компонент
+	if h, ok := world.GetHealth(gls.playerID); ok {
+		h.Current = gls.health
+		world.SetHealth(gls.playerID, h)
+	}
+
+	// Отбрасывание от врага
+	if rb, ok := world.GetRigidbody(gls.playerID); ok {
+		dirX, dirZ := float32(1), float32(0)
+		if tr, hasTr := world.GetTransform(gls.playerID); hasTr {
+			dx := tr.Position.X - from.X
+			dz := tr.Position.Z - from.Z
+			if dx != 0 || dz != 0 {
+				len := emath.V3(dx, 0, dz).Len()
+				dirX, dirZ = dx/len, dz/len
+			}
+		}
+		rb.Velocity.X = dirX * 5
+		rb.Velocity.Z = dirZ * 5
+		rb.Velocity.Y = 7
+		world.SetRigidbody(gls.playerID, rb)
+	}
+
+	// Звук урона — из AudioSource игрока
+	if gls.Sound != nil {
+		if clip := gls.clipOf(world, gls.playerID); clip != "" {
+			gls.Sound.PlayOneShot(clip, from, 0.8)
 		}
 	}
 }
 
-// checkItemPickups handles collecting items
+// checkItemPickups handles collecting items (3D: дистанция в метрах)
 func (gls *GameLogicSystem) checkItemPickups(world *ecs.World) {
+	if gls.playerID == 0 {
+		return
+	}
 	playerTr, hasPlayerTr := world.GetTransform(gls.playerID)
 	if !hasPlayerTr {
 		return
 	}
 
 	for _, itemID := range gls.itemIDs {
+		if gls.collected[itemID] {
+			continue
+		}
 		itemTr, hasItemTr := world.GetTransform(itemID)
-		itemCol, hasItemCol := world.GetCollider(itemID)
-
-		if hasItemTr && hasItemCol && itemCol.IsTrigger {
-			// Simple distance check for pickup
-			dx := playerTr.Position.X - itemTr.Position.X
-			dy := playerTr.Position.Y - itemTr.Position.Y
-			distanceSquared := dx*dx + dy*dy
-			pickupDistance := float32(50.0) // Adjust as needed
-
-			if distanceSquared < pickupDistance*pickupDistance {
-				// Mark item for removal or trigger pickup event
-				// For now, just hide the item
-				sprite, hasSprite := world.GetSpriteRenderer(itemID)
-				if hasSprite {
-					sprite.Visible = false
-					world.SetSpriteRenderer(itemID, sprite)
-				}
-				// Звук подбора (по позиции предмета) — из AudioSource предмета
-				if gls.Sound != nil {
-					if clip := gls.clipOf(world, itemID); clip != "" {
-						gls.Sound.PlayOneShot(clip, itemTr.Position, 0.6)
-					}
+		if !hasItemTr {
+			continue
+		}
+		dx := playerTr.Position.X - itemTr.Position.X
+		dy := playerTr.Position.Y - itemTr.Position.Y
+		dz := playerTr.Position.Z - itemTr.Position.Z
+		if dx*dx+dy*dy+dz*dz < 1.3*1.3 {
+			gls.collected[itemID] = true
+			gls.score++
+			// Убираем предмет с карты (вниз под пол)
+			itemTr.Position.Y = -100
+			world.SetTransform(itemID, itemTr)
+			// Звук подбора — из AudioSource предмета
+			if gls.Sound != nil {
+				if clip := gls.clipOf(world, itemID); clip != "" {
+					gls.Sound.PlayOneShot(clip, itemTr.Position, 0.6)
 				}
 			}
 		}
@@ -291,10 +307,67 @@ func (gls *GameLogicSystem) clipOf(world *ecs.World, id ecs.EntityID) string {
 	return src.Clip
 }
 
-// updateGameStatus updates any game state
+// updateGameStatus checks win/lose conditions
 func (gls *GameLogicSystem) updateGameStatus(world *ecs.World) {
-	// Update any game state variables here
-	// For example, check win/lose conditions
+	if gls.health <= 0 {
+		gls.status = StatusDefeat
+		return
+	}
+	if len(gls.itemIDs) > 0 && gls.score >= len(gls.itemIDs) {
+		gls.status = StatusVictory
+	}
+}
+
+// restartLevel сбрасывает прогресс и перезагружает сцену текущего уровня.
+func (gls *GameLogicSystem) restartLevel() {
+	gls.status = StatusPlaying
+	gls.score = 0
+	gls.collected = map[ecs.EntityID]bool{}
+	gls.enemyState = map[ecs.EntityID]*enemyPatrol{}
+	gls.invuln = 0
+	if gls.Restart != nil {
+		gls.Restart()
+	}
+}
+
+// Status возвращает текущий статус игры.
+func (gls *GameLogicSystem) Status() GameStatus {
+	return gls.status
+}
+
+// HUD собирает строку интерфейса уровня (здоровье, сферы, номер уровня,
+// либо экран победы/поражения). Локализуется через gameplay.Tr.
+func (gls *GameLogicSystem) HUD() string {
+	switch gls.status {
+	case StatusVictory:
+		return Tr("hud.victory") + "\n" + Tr("hud.next")
+	case StatusDefeat:
+		return Tr("hud.defeat") + "\n" + Tr("hud.restart")
+	}
+	out := Tr("hud.health", int(gls.health))
+	out += "  " + Tr("hud.items", gls.score, len(gls.itemIDs))
+	if gls.level > 0 {
+		out += "  " + Tr("hud.level", gls.level)
+	}
+	return out + "\n" + Tr("hud.restart")
+}
+
+// ---- Пакетный доступ для HUD рендера (как SetDefaultLocalization) ----
+
+var defaultGLS *GameLogicSystem
+
+// SetGameLogicSystem регистрирует активную игровую логику для HUD.
+func SetGameLogicSystem(gls *GameLogicSystem) {
+	defaultGLS = gls
+}
+
+// GameHUD возвращает HUD активной игровой логики ("" — нет игровой системы).
+// Вызывается рендер-бэкендом для нек-картовых миров.
+func GameHUD() string {
+	if defaultGLS == nil {
+		return ""
+	}
+	return defaultGLS.HUD()
 }
 
 // Helper function to check if a string contains a substring
