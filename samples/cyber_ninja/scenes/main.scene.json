@@ -287,6 +287,43 @@
     "loop": true,
     "playOnStart": true
    }
+  },
+  {
+   "name": "ScriptBot",
+   "transform": {
+    "position": {
+     "x": -5,
+     "y": 1.5,
+     "z": 2
+    },
+    "rotation": {
+     "x": 0,
+     "y": 0,
+     "z": 0
+    },
+    "scale": {
+     "x": 0.9,
+     "y": 0.9,
+     "z": 0.9
+    }
+   },
+   "meshRenderer": {
+    "meshAssetId": "6352bde6-0454-4ff7-b968-fc5001977f0a"
+   },
+   "collider": {
+    "type": "box",
+    "center": {
+     "x": 0,
+     "y": 0.5,
+     "z": 0
+    },
+    "size": {
+     "x": 0.8,
+     "y": 1,
+     "z": 0.8
+    },
+    "isTrigger": false
+   }
   }
  ]
 }

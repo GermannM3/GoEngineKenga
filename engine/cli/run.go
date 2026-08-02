@@ -220,10 +220,12 @@ func newRunCommand() *cobra.Command {
 					}
 					if aw, err := rt.ActiveWorld(); err == nil {
 						if inputState, ok := frame.InputState.(*input.State); ok {
+							sh.SetInputState(inputState)
 							systemsUpdate(aw, inputState, dt)
 						} else {
 							systemsUpdate(aw, &input.State{}, dt)
 						}
+						sh.AttachWorld(aw) // мир мог пересоздаться при hot-reload сцены
 					}
 					delta := rt.Step()
 					if aw, err := rt.ActiveWorld(); err == nil {
