@@ -61,18 +61,18 @@ Get-ChildItem dist -File | ForEach-Object {
 ## Требования
 
 ### Windows
-- Go 1.22+
+- Go 1.24+
 - PowerShell 5.1+
 - NSIS (для создания установщика)
 - 7-Zip (для создания архивов)
 
 ### Linux
-- Go 1.22+
+- Go 1.24+
 - tar, gzip
 - dpkg (для создания .deb пакетов)
 
 ### macOS
-- Go 1.22+
+- Go 1.24+
 - tar, gzip
 
 ## Структура релиза

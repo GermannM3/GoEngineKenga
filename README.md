@@ -81,7 +81,7 @@
 ## Быстрый старт
 
 ### Требования
-- Go 1.22+
+- Go 1.24+ (go.mod: `go 1.24.0`)
 - TinyGo (опционально, для WASM скриптов)
 
 ### Установка и подключение движка
@@ -123,11 +123,59 @@ go run ./cmd/kenga import --project samples/hello
 go run ./cmd/kenga run --project samples/hello --scene scenes/main.scene.json --backend ebiten
 ```
 
+### Готовые игры в репозитории
+
+Два сэмпла сделаны как настоящие игры (процедурные меши и спрайты — импорт ассетов не нужен):
+
+```bash
+# CyberNinja — 3D-платформер: патруль дронов, здоровье/урон, сбор сфер,
+# победа/поражение, переход между уровнями (2 уровня), локализация ru/en
+go run ./cmd/kenga run --project samples/cyber_ninja --backend ebiten
+
+# Atom & Moskvich Racing — 2D-гонки: 3 круга по 16 вейпоинтам, 3 машины,
+# боты-соперники, бонусы, тайминги кругов, финиш и меню
+go run ./cmd/kenga run --project samples/kart_racing --backend ebiten
+```
+
+Управление CyberNinja: **A/D** или стрелки — движение, **Space/W** — прыжок, **R** — рестарт, **Enter** — следующий уровень, ПКМ — orbit-камера.
+Управление Kart Racing: **W/S** — газ/тормоз, **A/D** — руль, **Shift** — дрифт, **Space** — бонус.
+
 Если установлен бинарник `kenga` (через релиз/установщик), его можно вызывать напрямую:
 
 ```bash
 kenga run --project samples/hello --scene scenes/main.scene.json --backend ebiten
 ```
+
+## Рендер-бэкенды
+
+### Ebiten (по умолчанию)
+
+Работает везде без CGO (software rasterizer + 2D). Выбор явно: `--backend ebiten`.
+
+### WebGPU (PBR-рендер)
+
+Сборка требует CGO и библиотеки wgpuglfw (Windows/Linux, ограничения платформы):
+
+```bash
+go build -tags webgpu -o kenga.exe ./cmd/kenga
+kenga run --project samples/hello --scene scenes/main.scene.json --backend webgpu
+```
+
+Что умеет WebGPU-бэкенд:
+
+- **PBR-материалы**: albedo, normal, metallic-roughness, emissive текстуры (+ fallback), AlphaMode Opaque/Mask
+- **Скелетная анимация**: skinning в vertex shader (`shader_skinned.wgsl`), отдельный skinned-проход в shadow map
+- **Освещение**: ambient, directional (с shadow map), point light (attenuation, PBR BRDF)
+- **Orbit-камера**: ПКМ rotate, СКМ pan, scroll zoom
+- **Производительность**: instancing одинаковых мешей, frustum culling, mesh cache (10k+ треугольников)
+
+### Headless
+
+```bash
+kenga run --project samples/hello --headless
+```
+
+Запуск игровых систем без окна — для тестов, CI и серверных сценариев.
 
 ## Структура проекта игры
 
@@ -528,7 +576,10 @@ go run ./cmd/kenga script build --project .
 | Light | Освещение (directional, point) |
 | Rigidbody | Физическое тело (масса, гравитация) |
 | Collider | Коллайдер (box, sphere, capsule) |
+| Health | Здоровье сущности (current/max, как в Unity) |
+| Animator | Скелетная анимация (клип, time, loop, crossfade) |
 | AudioSource | Источник звука (3D spatial) |
+| Sprite | 2D-спрайт для спрайтовых игр |
 | UICanvas | UI холст |
 
 ## CLI Команды
@@ -545,7 +596,7 @@ go run ./cmd/kenga script build --project .
 ```
 engine/
 ├── ecs/        # Entity-Component-System
-├── render/     # Графика (3D рендер, камера, меши)
+├── render/     # Графика (3D рендер, камера, меши, Ebiten/WebGPU бэкенды)
 ├── physics/    # Физика, коллизии, вода
 ├── audio/      # Аудио, FFT анализ
 ├── particles/  # Система частиц
@@ -558,6 +609,9 @@ engine/
 ├── scene/      # Загрузка сцен
 ├── asset/      # Asset pipeline
 ├── script/     # WASM runtime
+├── gameplay/   # Игровые системы: локализация (i18n), логика, карт-гонки
+├── runtime/    # Игровой цикл, ввод игрока, управление сущностями
+├── project/    # Конфигурация проекта (project.kenga.json)
 └── cli/        # CLI инструменты
 ```
 
@@ -565,17 +619,35 @@ engine/
 
 | Функция | Статус |
 |---------|--------|
-| 3D рендер с текстурами | ✅ |
-| Освещение | ✅ |
+| 3D рендер с текстурами (Ebiten + WebGPU PBR) | ✅ |
+| Освещение (ambient, directional + тени, point) | ✅ |
+| Скелетная анимация (skinning, кроссфейд) | ✅ |
+| Готовые игры (CyberNinja, Kart Racing) | ✅ |
+| Локализация (i18n, fallback, ru/en) | ✅ |
+| Аудио в игровом цикле (3D spatial) | ✅ |
 | Физика воды | ✅ |
 | Система частиц | ✅ |
-| Анимация моделей | ✅ |
 | Динамическая карта | ✅ |
 | AI для NPC | ✅ |
 | Пользовательские шейдеры | ✅ |
 | Деформация пространства | ✅ |
 | Процедурная генерация | ✅ |
 | Аудио-реактивные эффекты | ✅ |
+| Юнит-тесты (physics, animation, gameplay, i18n) | ✅ |
+
+## English
+
+GoEngineKenga is a self-contained game engine written in Go — no paid services, no external runtime. Core features:
+
+- **ECS + JSON scenes**: Transform, Camera, MeshRenderer, Rigidbody, Collider, Health, Animator, AudioSource, Sprite, UICanvas
+- **Two render backends**: Ebiten (software, no CGO) and WebGPU (`-tags webgpu`, CGO required) with PBR materials, textures, skeletal animation in the vertex shader, directional shadow maps and point lights
+- **Physics**: gravity, AABB/sphere/capsule colliders, raycasts, joints, buoyancy
+- **Games included**: CyberNinja (3D platformer with health, patrol drones, 2 levels) and Atom & Moskvich Racing (2D kart racing with bots and lap timing)
+- **WASM scripting** (TinyGo), audio with FFT analysis, particles, procedural generation, AI, localization (ru/en), headless mode for CI/tests
+
+Build: `go build -o kenga ./cmd/kenga` (Go 1.24+). Run a game: `kenga run --project samples/cyber_ninja`. Unit tests: `go test ./...` (20 tests across engine/physics, engine/animation, engine/gameplay).
+
+Main documentation is in Russian; see also [docs/DEVELOPER.md](docs/DEVELOPER.md), [docs/RELEASE.md](docs/RELEASE.md), [docs/ОЦЕНКА_ДВИЖКОВ.md](docs/ОЦЕНКА_ДВИЖКОВ.md).
 
 ## Честная оценка движков
 

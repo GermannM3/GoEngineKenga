@@ -60,6 +60,22 @@ go build -tags webgpu -o kenga.exe ./cmd/kenga
 ./scripts/build-wasm.ps1
 ```
 
+## Тесты и сэмплы-игры
+
+```bash
+# Юнит-тесты (физика, анимация, геймплей, локализация)
+go test ./...
+
+# Готовые игры (процедурные, импорт ассетов не нужен)
+go run ./cmd/kenga run --project samples/cyber_ninja --backend ebiten
+go run ./cmd/kenga run --project samples/kart_racing --backend ebiten
+```
+
+Тесты игровых систем (`engine/gameplay/*_test.go`) запускают реальные сцены из
+`samples/` — это одновременно и smoke-тесты загрузки сцен, и проверка геймплей-логики.
+Тесты, требующие окна/GPU, не используются: физика и анимация тестируются на чистом
+Go, WebGPU-бэкенд проверяется CI-сборкой (на машине без CGO запуск невозможен).
+
 ## Расширение рендерера
 
 - **Ebiten** — `engine/render/ebiten/renderer3d.go`, `rasterizer.go`
