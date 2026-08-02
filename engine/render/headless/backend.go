@@ -25,7 +25,7 @@ type Backend struct {
 	projectDir string
 	scenePath  string
 	sh         *script.Host
-	watcher   *asset.Watcher
+	watcher    *asset.Watcher
 	tickRate   time.Duration
 	// onTick — игровые системы (ввод/анимация/логика), вызываются до шага физики.
 	// Нужен для паритета с оконным режимом: headless выполняет ту же логику игры.

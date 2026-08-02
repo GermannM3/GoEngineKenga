@@ -58,7 +58,7 @@ type setCameraCommand struct {
 type trajectoryPoint [3]float32
 
 type setTrajectoryCommand struct {
-	EntityID string           `json:"entity_id"`
+	EntityID string            `json:"entity_id"`
 	Points   []trajectoryPoint `json:"points"`
 
 	ColorRGBA [4]uint8 `json:"color_rgba,omitempty"`
@@ -94,15 +94,15 @@ type getJointResponse struct {
 }
 
 type dispenserCommand struct {
-	EntityID string     `json:"entity_id"`
-	FlowRate float32    `json:"flow_rate,omitempty"`
-	Radius   float32    `json:"radius,omitempty"`
-	Color    [4]uint8   `json:"color_rgba,omitempty"`
-	Active   bool       `json:"-"`
+	EntityID string   `json:"entity_id"`
+	FlowRate float32  `json:"flow_rate,omitempty"`
+	Radius   float32  `json:"radius,omitempty"`
+	Color    [4]uint8 `json:"color_rgba,omitempty"`
+	Active   bool     `json:"-"`
 }
 
 type simulateStepCommand struct {
-	StepCount int `json:"step_count,omitempty"` // Количество шагов симуляции (по умолчанию 1)
+	StepCount int     `json:"step_count,omitempty"` // Количество шагов симуляции (по умолчанию 1)
 	DeltaTime float32 `json:"delta_time,omitempty"` // Время шага (по умолчанию 1/60 секунды)
 }
 
@@ -111,8 +111,8 @@ type queryCollisionsCommand struct {
 }
 
 type CollisionInfo struct {
-	EntityA string `json:"entity_a"`
-	EntityB string `json:"entity_b"`
+	EntityA string     `json:"entity_a"`
+	EntityB string     `json:"entity_b"`
 	Point   [3]float32 `json:"point"`
 	Normal  [3]float32 `json:"normal"`
 }
@@ -730,4 +730,3 @@ func (m *Manager) findEntityByName(w *ecs.World, name string) (ecs.EntityID, boo
 	}
 	return 0, false
 }
-

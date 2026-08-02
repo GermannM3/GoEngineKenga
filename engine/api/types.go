@@ -29,4 +29,3 @@ type ResponseEnvelope struct {
 	Event string          `json:"event,omitempty"`
 	Data  json.RawMessage `json:"data,omitempty"`
 }
-

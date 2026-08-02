@@ -10,13 +10,13 @@ type AnimationClip struct {
 
 // AnimationTrack — трек анимации (узёл/кость + ключевые кадры).
 type AnimationTrack struct {
-	NodeName  string      `json:"nodeName"`
-	Keyframes []Keyframe  `json:"keyframes"`
+	NodeName  string     `json:"nodeName"`
+	Keyframes []Keyframe `json:"keyframes"`
 }
 
 // Keyframe — ключевой кадр анимации.
 type Keyframe struct {
-	Time     float32  `json:"time"`
+	Time     float32    `json:"time"`
 	Position [3]float32 `json:"position"`
 	Rotation [4]float32 `json:"rotation"` // quaternion xyzw
 	Scale    [3]float32 `json:"scale"`

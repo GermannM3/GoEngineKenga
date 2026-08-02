@@ -16,21 +16,21 @@ type Scene struct {
 type SceneEntity struct {
 	Name string `json:"name"`
 
-	Transform     *ecs.Transform     `json:"transform,omitempty"`
-	Camera        *ecs.Camera        `json:"camera,omitempty"`
-	MeshRenderer  *ecs.MeshRenderer  `json:"meshRenderer,omitempty"`
-	SpriteRenderer *ecs.SpriteRenderer `json:"spriteRenderer,omitempty"`
-	Camera2D      *ecs.Camera2D      `json:"camera2D,omitempty"`
+	Transform           *ecs.Transform           `json:"transform,omitempty"`
+	Camera              *ecs.Camera              `json:"camera,omitempty"`
+	MeshRenderer        *ecs.MeshRenderer        `json:"meshRenderer,omitempty"`
+	SpriteRenderer      *ecs.SpriteRenderer      `json:"spriteRenderer,omitempty"`
+	Camera2D            *ecs.Camera2D            `json:"camera2D,omitempty"`
 	AnimationController *ecs.AnimationController `json:"animationController,omitempty"`
 	Animator            *ecs.Animator            `json:"animator,omitempty"`
-	Light         *ecs.Light         `json:"light,omitempty"`
-	Rigidbody     *ecs.Rigidbody     `json:"rigidbody,omitempty"`
-	Collider      *ecs.Collider      `json:"collider,omitempty"`
-	Health        *ecs.Health        `json:"health,omitempty"`
-	Kart          *ecs.Kart          `json:"kart,omitempty"`
-	PowerUpPickup *ecs.PowerUpPickup `json:"powerUpPickup,omitempty"`
-	AudioSource   *ecs.AudioSource   `json:"audioSource,omitempty"`
-	UICanvas      *ecs.UICanvas      `json:"uiCanvas,omitempty"`
+	Light               *ecs.Light               `json:"light,omitempty"`
+	Rigidbody           *ecs.Rigidbody           `json:"rigidbody,omitempty"`
+	Collider            *ecs.Collider            `json:"collider,omitempty"`
+	Health              *ecs.Health              `json:"health,omitempty"`
+	Kart                *ecs.Kart                `json:"kart,omitempty"`
+	PowerUpPickup       *ecs.PowerUpPickup       `json:"powerUpPickup,omitempty"`
+	AudioSource         *ecs.AudioSource         `json:"audioSource,omitempty"`
+	UICanvas            *ecs.UICanvas            `json:"uiCanvas,omitempty"`
 
 	// Для префабов
 	PrefabID  string                 `json:"prefabId,omitempty"`  // ID префаба, если это инстанс

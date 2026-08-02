@@ -25,7 +25,7 @@ type Manager struct {
 
 	// viewportSubscribers — подписчики на стрим viewport frames
 	viewportSubscribersMu sync.RWMutex
-	viewportSubscribers  map[string]bool
+	viewportSubscribers   map[string]bool
 
 	// TODO: в следующей итерации сюда можно добавить буфер
 	// событий коллизий/selection, чтобы отправлять их по WebSocket.
@@ -150,5 +150,3 @@ func (m *Manager) SendResponse(requestID, cmd string, data json.RawMessage, ok b
 		_ = conn.WriteJSON(resp)
 	}
 }
-
-

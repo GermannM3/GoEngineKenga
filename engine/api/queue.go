@@ -7,9 +7,9 @@ import (
 // commandQueue — простая потокобезопасная очередь команд.
 // В неё пишут WebSocket-горутины, а читает игровой тред в Update().
 type commandQueue struct {
-	mu   sync.Mutex
-	buf  []CommandEnvelope
-	cap  int
+	mu  sync.Mutex
+	buf []CommandEnvelope
+	cap int
 }
 
 func newCommandQueue(capacity int) *commandQueue {
@@ -52,4 +52,3 @@ func (q *commandQueue) Drain() []CommandEnvelope {
 	q.buf = q.buf[:0]
 	return out
 }
-

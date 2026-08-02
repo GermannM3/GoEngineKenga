@@ -8,12 +8,12 @@ import (
 
 // RaycastHit содержит результат raycast
 type RaycastHit struct {
-	EntityID     EntityID
-	Point        emath.Vec3
-	Normal       emath.Vec3
-	Distance     float32
-	Collider     *Collider
-	ColliderPos  emath.Vec3
+	EntityID    EntityID
+	Point       emath.Vec3
+	Normal      emath.Vec3
+	Distance    float32
+	Collider    *Collider
+	ColliderPos emath.Vec3
 }
 
 // Raycast проверяет пересечение луча с коллайдерами. Возвращает ближайшее попадание или nil.

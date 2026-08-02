@@ -138,8 +138,8 @@ func newRunCommand() *cobra.Command {
 
 			scenePathAbs := filepath.Join(projectDir, sceneRelPath)
 			// Create game logic system
-				gameLogicSystem := gameplay.NewGameLogicSystem()
-				gameplay.SetGameLogicSystem(gameLogicSystem)
+			gameLogicSystem := gameplay.NewGameLogicSystem()
+			gameplay.SetGameLogicSystem(gameLogicSystem)
 
 			// Локализация: project.Locale + locales/*.json (en.json, ru.json, ...).
 			// Тексты HUD и игровых систем форматируются через gameplay.Tr().
@@ -177,12 +177,12 @@ func newRunCommand() *cobra.Command {
 				} else {
 					runtime.ApplyPlayerInput(aw, is, float32(dt))
 				}
-					animationSystem.Update(aw)
-					skeletalSystem.Update(aw, float32(dt))
-					if !gameplay.HasKart(aw) {
-						gameLogicSystem.Update(aw, is, float32(dt))
-					}
-					audioSystem.Update(aw, time.Duration(dt*float64(time.Second)))
+				animationSystem.Update(aw)
+				skeletalSystem.Update(aw, float32(dt))
+				if !gameplay.HasKart(aw) {
+					gameLogicSystem.Update(aw, is, float32(dt))
+				}
+				audioSystem.Update(aw, time.Duration(dt*float64(time.Second)))
 			}
 
 			var frame *render.Frame

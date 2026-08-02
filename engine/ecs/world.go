@@ -88,44 +88,44 @@ type SpriteRenderer struct {
 
 // Camera2D компонент для 2D-камеры
 type Camera2D struct {
-	Zoom     float32  `json:"zoom"`      // 1.0 = 100%
-	FollowID EntityID `json:"followId"`  // entity to follow (0 = static)
+	Zoom     float32  `json:"zoom"`     // 1.0 = 100%
+	FollowID EntityID `json:"followId"` // entity to follow (0 = static)
 }
 
 // AnimationState определяет текущее состояние анимации
 type AnimationState struct {
-	CurrentClip     string  `json:"currentClip"`     // название текущей анимации
-	CurrentFrame    int     `json:"currentFrame"`    // текущий кадр
-	FrameTime       float32 `json:"frameTime"`       // время на кадр
-	ElapsedTime     float32 `json:"elapsedTime"`     // прошедшее время с начала анимации
-	IsPlaying       bool    `json:"isPlaying"`       // воспроизводится ли анимация
-	Loop            bool    `json:"loop"`            // зациклена ли анимация
-	Speed           float32 `json:"speed"`           // скорость воспроизведения
+	CurrentClip  string  `json:"currentClip"`  // название текущей анимации
+	CurrentFrame int     `json:"currentFrame"` // текущий кадр
+	FrameTime    float32 `json:"frameTime"`    // время на кадр
+	ElapsedTime  float32 `json:"elapsedTime"`  // прошедшее время с начала анимации
+	IsPlaying    bool    `json:"isPlaying"`    // воспроизводится ли анимация
+	Loop         bool    `json:"loop"`         // зациклена ли анимация
+	Speed        float32 `json:"speed"`        // скорость воспроизведения
 }
 
 // AnimationClip определяет клип анимации
 type AnimationClip struct {
-	Name           string  `json:"name"`           // название анимации
-	Frames         []int   `json:"frames"`         // индексы кадров в спрайт-листе
-	Duration       float32 `json:"duration"`       // длительность в секундах
-	FrameDuration  float32 `json:"frameDuration"`  // длительность одного кадра
-	Loop           bool    `json:"loop"`           // зациклена ли анимация
-	Layout         string  `json:"layout"`         // способ организации кадров: "horizontal", "vertical", "grid"
-	StartX         int     `json:"startX"`         // начальная позиция X для первого кадра
-	StartY         int     `json:"startY"`         // начальная позиция Y для первого кадра
-	StepX          int     `json:"stepX"`         // шаг по X между кадрами
-	StepY          int     `json:"stepY"`         // шаг по Y между кадрами
-	FrameWidth     int     `json:"frameWidth"`     // ширина одного кадра
-	FrameHeight    int     `json:"frameHeight"`    // высота одного кадра
+	Name          string  `json:"name"`          // название анимации
+	Frames        []int   `json:"frames"`        // индексы кадров в спрайт-листе
+	Duration      float32 `json:"duration"`      // длительность в секундах
+	FrameDuration float32 `json:"frameDuration"` // длительность одного кадра
+	Loop          bool    `json:"loop"`          // зациклена ли анимация
+	Layout        string  `json:"layout"`        // способ организации кадров: "horizontal", "vertical", "grid"
+	StartX        int     `json:"startX"`        // начальная позиция X для первого кадра
+	StartY        int     `json:"startY"`        // начальная позиция Y для первого кадра
+	StepX         int     `json:"stepX"`         // шаг по X между кадрами
+	StepY         int     `json:"stepY"`         // шаг по Y между кадрами
+	FrameWidth    int     `json:"frameWidth"`    // ширина одного кадра
+	FrameHeight   int     `json:"frameHeight"`   // высота одного кадра
 }
 
 // AnimationController управляет анимациями спрайта
 type AnimationController struct {
-	Clips          []AnimationClip `json:"clips"`           // доступные анимации
-	DefaultClip    string          `json:"defaultClip"`     // анимация по умолчанию
-	CurrentClip    string          `json:"currentClip"`     // текущая анимация
-	PlaybackSpeed  float32         `json:"playbackSpeed"`   // общая скорость воспроизведения
-	AutoPlay       bool            `json:"autoPlay"`        // автовоспроизведение
+	Clips         []AnimationClip `json:"clips"`         // доступные анимации
+	DefaultClip   string          `json:"defaultClip"`   // анимация по умолчанию
+	CurrentClip   string          `json:"currentClip"`   // текущая анимация
+	PlaybackSpeed float32         `json:"playbackSpeed"` // общая скорость воспроизведения
+	AutoPlay      bool            `json:"autoPlay"`      // автовоспроизведение
 }
 
 // Animator — компонент 3D skeletal-анимации (glTF skins).
@@ -148,13 +148,13 @@ type Animator struct {
 // CarID: "atom" | "moskvich_m70" | "moskvich_m90"
 // Скорость и позиция — в Rigidbody и Transform.
 type Kart struct {
-	CarID         string  `json:"carId"`
-	CurrentLap    int     `json:"currentLap"`
-	LastCheckpoint int    `json:"lastCheckpoint"` // индекс чекпоинта для детекции круга
-	PowerUp       string  `json:"powerUp"`        // nitro, shield, rocket, oil, electric_boost, ""
-	PowerUpTimer  float32 `json:"powerUpTimer"`   // время действия бонуса
-	IsBot         bool    `json:"isBot"`
-	RacePosition  int     `json:"racePosition"` // 1-based на основе прогресса
+	CarID          string  `json:"carId"`
+	CurrentLap     int     `json:"currentLap"`
+	LastCheckpoint int     `json:"lastCheckpoint"` // индекс чекпоинта для детекции круга
+	PowerUp        string  `json:"powerUp"`        // nitro, shield, rocket, oil, electric_boost, ""
+	PowerUpTimer   float32 `json:"powerUpTimer"`   // время действия бонуса
+	IsBot          bool    `json:"isBot"`
+	RacePosition   int     `json:"racePosition"` // 1-based на основе прогресса
 
 	// Тайминги кругов (секунды, относительно RaceState.RaceTime)
 	LapStartTime float32 `json:"lapStartTime"` // время старта текущего круга
@@ -167,7 +167,7 @@ type Kart struct {
 type PowerUpPickup struct {
 	Type       string  `json:"type"`
 	RespawnSec float32 `json:"respawnSec"` // 0 = не респавнится
-	Cooldown   float32 `json:"-"`         // оставшееся время до появления
+	Cooldown   float32 `json:"-"`          // оставшееся время до появления
 }
 
 // Trajectory описывает набор 3D-точек для визуализации траектории движения.
@@ -182,7 +182,7 @@ type Trajectory struct {
 // Joint описывает простой сустав робота, привязанный к сущности.
 // В v0 это лишь вспомогательные данные поверх Transform.
 type Joint struct {
-	Name  string      `json:"name"`
+	Name  string     `json:"name"`
 	Axis  emath.Vec3 `json:"axis"`
 	Angle float32    `json:"angle"`
 }
@@ -205,28 +205,28 @@ type World struct {
 
 	order []EntityID
 
-	transforms    map[EntityID]Transform
-	cameras       map[EntityID]Camera
-	meshRenderers map[EntityID]MeshRenderer
+	transforms      map[EntityID]Transform
+	cameras         map[EntityID]Camera
+	meshRenderers   map[EntityID]MeshRenderer
 	spriteRenderers map[EntityID]SpriteRenderer
-	camera2Ds     map[EntityID]Camera2D
-	lights        map[EntityID]Light
-	rigidbodies   map[EntityID]Rigidbody
-	colliders     map[EntityID]Collider
-	healths       map[EntityID]Health
-	audioSources  map[EntityID]AudioSource
-	uiCanvases    map[EntityID]UICanvas
+	camera2Ds       map[EntityID]Camera2D
+	lights          map[EntityID]Light
+	rigidbodies     map[EntityID]Rigidbody
+	colliders       map[EntityID]Collider
+	healths         map[EntityID]Health
+	audioSources    map[EntityID]AudioSource
+	uiCanvases      map[EntityID]UICanvas
 
 	dispensers map[EntityID]Dispenser
-	joints map[EntityID]Joint
+	joints     map[EntityID]Joint
 
 	trajectories map[EntityID]Trajectory
 
-	animationStates map[EntityID]AnimationState
+	animationStates      map[EntityID]AnimationState
 	animationControllers map[EntityID]AnimationController
-	animators     map[EntityID]Animator
+	animators            map[EntityID]Animator
 
-	karts        map[EntityID]Kart
+	karts          map[EntityID]Kart
 	powerUpPickups map[EntityID]PowerUpPickup
 
 	names map[EntityID]string
@@ -234,28 +234,28 @@ type World struct {
 
 func NewWorld() *World {
 	return &World{
-		nextID:        1,
-		order:         nil,
-		transforms:    map[EntityID]Transform{},
-		cameras:       map[EntityID]Camera{},
-		meshRenderers: map[EntityID]MeshRenderer{},
-		spriteRenderers: map[EntityID]SpriteRenderer{},
-		camera2Ds:     map[EntityID]Camera2D{},
-		lights:        map[EntityID]Light{},
-		rigidbodies:   map[EntityID]Rigidbody{},
-		colliders:     map[EntityID]Collider{},
-		healths:       map[EntityID]Health{},
-		audioSources:  map[EntityID]AudioSource{},
-		uiCanvases:    map[EntityID]UICanvas{},
-		dispensers:    map[EntityID]Dispenser{},
-		joints:        map[EntityID]Joint{},
-		trajectories:  map[EntityID]Trajectory{},
-		animationStates: map[EntityID]AnimationState{},
+		nextID:               1,
+		order:                nil,
+		transforms:           map[EntityID]Transform{},
+		cameras:              map[EntityID]Camera{},
+		meshRenderers:        map[EntityID]MeshRenderer{},
+		spriteRenderers:      map[EntityID]SpriteRenderer{},
+		camera2Ds:            map[EntityID]Camera2D{},
+		lights:               map[EntityID]Light{},
+		rigidbodies:          map[EntityID]Rigidbody{},
+		colliders:            map[EntityID]Collider{},
+		healths:              map[EntityID]Health{},
+		audioSources:         map[EntityID]AudioSource{},
+		uiCanvases:           map[EntityID]UICanvas{},
+		dispensers:           map[EntityID]Dispenser{},
+		joints:               map[EntityID]Joint{},
+		trajectories:         map[EntityID]Trajectory{},
+		animationStates:      map[EntityID]AnimationState{},
 		animationControllers: map[EntityID]AnimationController{},
-		animators:     map[EntityID]Animator{},
-		karts:         map[EntityID]Kart{},
-		powerUpPickups: map[EntityID]PowerUpPickup{},
-		names:         map[EntityID]string{},
+		animators:            map[EntityID]Animator{},
+		karts:                map[EntityID]Kart{},
+		powerUpPickups:       map[EntityID]PowerUpPickup{},
+		names:                map[EntityID]string{},
 	}
 }
 

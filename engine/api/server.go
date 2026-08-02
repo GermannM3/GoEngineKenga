@@ -192,4 +192,3 @@ func (s *Server) handleVersion(w http.ResponseWriter, _ *http.Request) {
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"version": v})
 }
-

@@ -84,9 +84,9 @@ func writeTestAssets(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	sk := asset.Skeleton{
-		Name:               "test",
-		JointNames:         []string{"root", "child"},
-		ParentIndices:      []int{-1, 0},
+		Name:          "test",
+		JointNames:    []string{"root", "child"},
+		ParentIndices: []int{-1, 0},
 		InverseBindMatrices: [][16]float32{
 			{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1},
 			{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1},

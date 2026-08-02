@@ -548,8 +548,8 @@ func (r *Renderer3D) renderGridAndAxes() {
 		from, to emath.Vec3
 		col      color.RGBA
 	}{
-		{origin, emath.V3(axisLen, 0, 0), color.RGBA{R: 220, G: 80, B: 80, A: 255}},   // X — красный
-		{origin, emath.V3(0, axisLen, 0), color.RGBA{R: 80, G: 220, B: 80, A: 255}},   // Y — зелёный
+		{origin, emath.V3(axisLen, 0, 0), color.RGBA{R: 220, G: 80, B: 80, A: 255}},  // X — красный
+		{origin, emath.V3(0, axisLen, 0), color.RGBA{R: 80, G: 220, B: 80, A: 255}},  // Y — зелёный
 		{origin, emath.V3(0, 0, axisLen), color.RGBA{R: 80, G: 160, B: 240, A: 255}}, // Z — синий
 	}
 

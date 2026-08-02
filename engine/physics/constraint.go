@@ -16,7 +16,7 @@ type Constraint interface {
 type DistanceConstraint struct {
 	EntityA    EntityID
 	EntityB    EntityID
-	RestLength float32   // целевое расстояние (0 = вычислить из начальных позиций)
+	RestLength float32    // целевое расстояние (0 = вычислить из начальных позиций)
 	AnchorA    emath.Vec3 // локальная точка на A (пока используем центр)
 	AnchorB    emath.Vec3 // локальная точка на B
 }

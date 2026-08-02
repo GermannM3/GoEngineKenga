@@ -21,7 +21,7 @@ type Watcher struct {
 	scenePath  string
 
 	watcher *fsnotify.Watcher
-	mu     sync.Mutex
+	mu      sync.Mutex
 
 	// Флаги для главного потока (не thread-safe для записи иначе)
 	assetsDirty bool // нужно переимпортировать assets
@@ -48,7 +48,7 @@ func NewWatcher(projectDir, scenePath string) (*Watcher, error) {
 		assetsDir:  p.assetsDir,
 		indexPath:  p.indexPath,
 		scenePath:  scenePath,
-		watcher:   w,
+		watcher:    w,
 	}
 
 	// Добавляем директории в watch (best-effort)

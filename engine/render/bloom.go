@@ -171,4 +171,3 @@ func boxBlur(src, dst []float32, w, h, radius int) {
 		}
 	}
 }
-

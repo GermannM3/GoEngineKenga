@@ -16,10 +16,10 @@ import (
 const defaultJobTimeout = 15 * time.Minute
 
 const (
-	forgeAuthURL     = "https://developer.api.autodesk.com/authentication/v2/token"
-	forgeOSSBase     = "https://developer.api.autodesk.com/oss/v2"
-	forgeMDBase      = "https://developer.api.autodesk.com/modelderivative/v2"
-	forgeBucketFmt   = "kenga-%x"
+	forgeAuthURL   = "https://developer.api.autodesk.com/authentication/v2/token"
+	forgeOSSBase   = "https://developer.api.autodesk.com/oss/v2"
+	forgeMDBase    = "https://developer.api.autodesk.com/modelderivative/v2"
+	forgeBucketFmt = "kenga-%x"
 )
 
 // ForgeClient — клиент Autodesk Forge API для конвертации IPT/IAM в glTF.

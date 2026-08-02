@@ -36,12 +36,12 @@ func (as *AnimationSystem) Update(world *ecs.World) {
 		// Если у сущности нет состояния анимации, создаем его
 		if !hasState {
 			initialState := ecs.AnimationState{
-				CurrentClip: controller.DefaultClip,
+				CurrentClip:  controller.DefaultClip,
 				CurrentFrame: 0,
-				ElapsedTime: 0,
-				IsPlaying: controller.AutoPlay,
-				Loop: true,
-				Speed: 1.0,
+				ElapsedTime:  0,
+				IsPlaying:    controller.AutoPlay,
+				Loop:         true,
+				Speed:        1.0,
 			}
 			world.SetAnimationState(id, initialState)
 			continue // Переходим к следующей сущности, чтобы избежать повторной обработки
@@ -85,7 +85,7 @@ func (as *AnimationSystem) Update(world *ecs.World) {
 		}
 
 		// Рассчитать номер кадра
-		frameIndex := int(state.ElapsedTime / frameDuration) % totalFrames
+		frameIndex := int(state.ElapsedTime/frameDuration) % totalFrames
 
 		// Если анимация не зациклена и мы достигли последнего кадра
 		if !clip.Loop && frameIndex == totalFrames-1 {
@@ -128,28 +128,28 @@ func (as *AnimationSystem) Update(world *ecs.World) {
 			// Используем layout для определения позиции кадра
 			if clip.Layout == "vertical" {
 				// Кадры организованы вертикально
-				srcX = clip.StartX + frameIdx * clip.StepX
-				srcY = clip.StartY + frameIdx * clip.StepY
+				srcX = clip.StartX + frameIdx*clip.StepX
+				srcY = clip.StartY + frameIdx*clip.StepY
 			} else if clip.Layout == "grid" {
 				// Кадры организованы в сетке
 				cols := 10 // используем значение по умолчанию, если не задано иначе
 				if clip.StepX > 0 {
 					cols = clip.StepX
 				}
-				srcX = clip.StartX + (frameIdx % cols) * clip.StepX
-				srcY = clip.StartY + (frameIdx / cols) * clip.StepY
+				srcX = clip.StartX + (frameIdx%cols)*clip.StepX
+				srcY = clip.StartY + (frameIdx/cols)*clip.StepY
 			} else {
 				// По умолчанию - горизонтальный спрайт-лист
-				srcX = clip.StartX + frameIdx * clip.StepX
+				srcX = clip.StartX + frameIdx*clip.StepX
 				srcY = clip.StartY
 			}
 
 			// Если шаги не заданы, используем размеры кадра
 			if clip.StepX == 0 && clip.Layout != "grid" {
-				srcX = clip.StartX + frameIdx * frameWidth
+				srcX = clip.StartX + frameIdx*frameWidth
 			}
 			if clip.StepY == 0 && clip.Layout == "vertical" {
-				srcY = clip.StartY + frameIdx * frameHeight
+				srcY = clip.StartY + frameIdx*frameHeight
 			}
 
 			// Обновляем параметры спрайта
