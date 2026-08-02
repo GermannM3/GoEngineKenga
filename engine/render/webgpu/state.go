@@ -199,6 +199,7 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 		shadowPass.SetPipeline(sc.shadowPipeline)
 		copy(shadowUbBytes[0:64], matrixToBytes(lightViewProj))
 		shadowPass.SetBindGroup(0, sc.shadowBindGroup, nil)
+		skinnedShadowSet := false
 
 		for _, id := range frame.World.Entities() {
 			mr, hasMR := frame.World.GetMeshRenderer(id)
@@ -230,17 +231,36 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 				vb, vc = sc.getOrCreateSkinnedMeshBuffer(resolver, mr.MeshAssetID)
 				if sc.shadowSkinnedPipeline != nil {
 					shadowPass.SetPipeline(sc.shadowSkinnedPipeline)
+					if !skinnedShadowSet {
+						shadowPass.SetBindGroup(0, sc.shadowSkinnedBindGroup, nil)
+						skinnedShadowSet = true
+					}
+					// Per-entity bone matrices (если анимируется — из Animator, иначе bind pose)
+					if anim, ok := frame.World.GetAnimator(id); ok {
+						writeBoneMatrices(boneBytes, anim.BoneMatrices)
+					} else {
+						writeBoneMatrices(boneBytes, nil)
+					}
+					s.queue.WriteBuffer(sc.boneUniform, 0, boneBytes)
 				}
 			} else {
 				vb, vc = sc.getOrCreateMeshBuffer(resolver, mr.MeshAssetID)
 				shadowPass.SetPipeline(sc.shadowPipeline)
+				if skinnedShadowSet {
+					shadowPass.SetBindGroup(0, sc.shadowBindGroup, nil)
+					skinnedShadowSet = false
+				}
 			}
 			if vb == nil {
 				continue
 			}
 			model := buildModelMatrix(&tr)
 			copy(shadowUbBytes[64:128], matrixToBytes(model))
-			s.queue.WriteBuffer(sc.shadowUniform, 0, shadowUbBytes)
+			if skinned && sc.shadowSkinnedUniform != nil {
+				s.queue.WriteBuffer(sc.shadowSkinnedUniform, 0, shadowUbBytes)
+			} else {
+				s.queue.WriteBuffer(sc.shadowUniform, 0, shadowUbBytes)
+			}
 			shadowPass.SetVertexBuffer(0, vb, 0, wgpu.WholeSize)
 			shadowPass.Draw(vc, 1, 0, 0)
 		}
@@ -279,11 +299,12 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 		instanceBuf.Release()
 	}
 
-	// Skinned mesh pass (bone matrices in vertex shader)
+	// Skinned mesh pass (bone matrices в vertex shader)
 	skinnedDraws := buildSkinnedDraws(frame.World, &frustum, resolver)
-	writeBoneMatricesIdentity(boneBytes)
 	if len(skinnedDraws) > 0 && sc.skinnedPipeline != nil {
-		s.queue.WriteBuffer(sc.boneUniform, 0, boneBytes)
+		renderPass.SetPipeline(sc.skinnedPipeline)
+		renderPass.SetBindGroup(0, sc.skinnedBindGroup, nil)
+		renderPass.SetBindGroup(1, sc.skinnedBindGroupShadow, nil)
 		for _, d := range skinnedDraws {
 			vb, vc := sc.getOrCreateSkinnedMeshBuffer(resolver, d.meshAssetID)
 			if vb == nil {
@@ -294,9 +315,13 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 				pbrData.lightDir, pbrData.lightIntensity, pbrData.lightColor,
 				pbrData.ambient, pbrData.camPos, lightViewProj, &model)
 			s.queue.WriteBuffer(sc.skinnedUniform, 0, ubBytes)
-			renderPass.SetPipeline(sc.skinnedPipeline)
-			renderPass.SetBindGroup(0, sc.skinnedBindGroup, nil)
-			renderPass.SetBindGroup(1, sc.skinnedBindGroupShadow, nil)
+			// Bone matrices сущности (без Animator — bind pose)
+			var matrices []float32
+			if anim, ok := frame.World.GetAnimator(d.entityID); ok {
+				matrices = anim.BoneMatrices
+			}
+			writeBoneMatrices(boneBytes, matrices)
+			s.queue.WriteBuffer(sc.boneUniform, 0, boneBytes)
 			renderPass.SetVertexBuffer(0, vb, 0, wgpu.WholeSize)
 			renderPass.Draw(vc, 1, 0, 0)
 		}
@@ -360,6 +385,12 @@ func (s *state) Destroy() {
 		s.scene.meshSkinnedCache = nil
 		if s.scene.shadowSkinnedPipeline != nil {
 			s.scene.shadowSkinnedPipeline.Release()
+		}
+		if s.scene.shadowSkinnedBindGroup != nil {
+			s.scene.shadowSkinnedBindGroup.Release()
+		}
+		if s.scene.shadowSkinnedUniform != nil {
+			s.scene.shadowSkinnedUniform.Release()
 		}
 		if s.scene.skinnedBindGroupShadow != nil {
 			s.scene.skinnedBindGroupShadow.Release()

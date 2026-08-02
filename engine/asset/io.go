@@ -46,6 +46,19 @@ func LoadSkeleton(path string) (*Skeleton, error) {
 	return &s, nil
 }
 
+// LoadAnimationClip загружает клип анимации из .clip.json
+func LoadAnimationClip(path string) (*AnimationClip, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var c AnimationClip
+	if err := json.Unmarshal(b, &c); err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
 func LoadMaterial(path string) (*render.Material, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {

@@ -69,9 +69,15 @@ type SpriteRenderer struct {
 	FlipY       bool   `json:"flipY"`
 	Visible     bool   `json:"visible"`
 	// Source rect для спрайт-листов (item_set.png)
-	SrcX, SrcY, SrcW, SrcH int `json:"srcX,omitempty"` // 0 = весь спрайт
+	SrcX int `json:"srcX,omitempty"` // 0 = весь спрайт
+	SrcY int `json:"srcY,omitempty"`
+	SrcW int `json:"srcW,omitempty"`
+	SrcH int `json:"srcH,omitempty"`
 	// Tint color
-	ColorR, ColorG, ColorB, ColorA uint8 `json:"colorR,omitempty"`
+	ColorR uint8 `json:"colorR,omitempty"`
+	ColorG uint8 `json:"colorG,omitempty"`
+	ColorB uint8 `json:"colorB,omitempty"`
+	ColorA uint8 `json:"colorA,omitempty"`
 }
 
 // Camera2D компонент для 2D-камеры
@@ -114,6 +120,22 @@ type AnimationController struct {
 	CurrentClip    string          `json:"currentClip"`     // текущая анимация
 	PlaybackSpeed  float32         `json:"playbackSpeed"`   // общая скорость воспроизведения
 	AutoPlay       bool            `json:"autoPlay"`        // автовоспроизведение
+}
+
+// Animator — компонент 3D skeletal-анимации (glTF skins).
+// SkeletonPath — путь к .skeleton.json, ClipPaths — пути к .clip.json (относительно проекта).
+// Клипы импортируются из glTF (Animation), скелет — из Skin.
+type Animator struct {
+	SkeletonPath string   `json:"skeletonPath,omitempty"` // путь к .skeleton.json
+	ClipPaths    []string `json:"clipPaths,omitempty"`    // пути к .clip.json
+	Clip         string   `json:"clip,omitempty"`         // имя текущего клипа
+	Speed        float32  `json:"speed"`                  // 1.0 = нормальная скорость
+	Loop         bool     `json:"loop"`
+	AutoPlay     bool     `json:"autoPlay"`
+
+	// Runtime (не сериализуется): финальные bone matrices для GPU (16 floats на кость,
+	// column-major, до 64 костей). Заполняет SkeletalAnimationSystem.
+	BoneMatrices []float32 `json:"-"`
 }
 
 // Kart — аркадный картинг: машина (Atom, Moskvich M70, M90), лапы, бонус.
@@ -190,6 +212,7 @@ type World struct {
 
 	animationStates map[EntityID]AnimationState
 	animationControllers map[EntityID]AnimationController
+	animators     map[EntityID]Animator
 
 	karts        map[EntityID]Kart
 	powerUpPickups map[EntityID]PowerUpPickup
@@ -216,6 +239,7 @@ func NewWorld() *World {
 		trajectories:  map[EntityID]Trajectory{},
 		animationStates: map[EntityID]AnimationState{},
 		animationControllers: map[EntityID]AnimationController{},
+		animators:     map[EntityID]Animator{},
 		karts:         map[EntityID]Kart{},
 		powerUpPickups: map[EntityID]PowerUpPickup{},
 		names:         map[EntityID]string{},
@@ -440,6 +464,19 @@ func (w *World) GetAnimationController(id EntityID) (AnimationController, bool) 
 	return animCtrl, ok
 }
 
+func (w *World) SetAnimator(id EntityID, a Animator) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.animators[id] = a
+}
+
+func (w *World) GetAnimator(id EntityID) (Animator, bool) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	a, ok := w.animators[id]
+	return a, ok
+}
+
 // SetTrajectory задаёт или обновляет траекторию для сущности.
 func (w *World) SetTrajectory(id EntityID, t Trajectory) {
 	w.mu.Lock()
@@ -512,6 +549,12 @@ func (w *World) Clone() *World {
 	}
 	for k, v := range w.animationControllers {
 		nw.animationControllers[k] = v
+	}
+	for k, v := range w.animators {
+		if v.BoneMatrices != nil {
+			v.BoneMatrices = append([]float32(nil), v.BoneMatrices...)
+		}
+		nw.animators[k] = v
 	}
 	for k, v := range w.lights {
 		nw.lights[k] = v

@@ -130,6 +130,8 @@ func newRunCommand() *cobra.Command {
 
 			// Create animation system
 			animationSystem := animation.NewAnimationSystem()
+			// 3D skeletal-анимации (glTF skins): пишет bone matrices в ecs.Animator
+			skeletalSystem := animation.NewSkeletalAnimationSystem(projectDir)
 
 			clearColor := color.RGBA{R: 15, G: 18, B: 24, A: 255}
 			if gameplay.HasKart(w) {
@@ -145,6 +147,7 @@ func newRunCommand() *cobra.Command {
 					runtime.ApplyPlayerInput(aw, is, float32(dt))
 				}
 				animationSystem.Update(aw)
+				skeletalSystem.Update(aw, float32(dt))
 				if !gameplay.HasKart(aw) {
 					gameLogicSystem.Update(aw, is)
 				}

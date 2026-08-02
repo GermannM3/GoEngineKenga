@@ -18,6 +18,9 @@ import (
 //go:embed shadow.wgsl
 var shadowWGSL string
 
+//go:embed shadow_skinned.wgsl
+var shadowSkinnedWGSL string
+
 // buildModelMatrix строит матрицу модели из Transform (как в ebiten renderer).
 func buildModelMatrix(tr *ecs.Transform) render.Matrix4 {
 	t := render.Translate(tr.Position)
@@ -114,14 +117,22 @@ var identityMatrix = render.Matrix4{
 	0, 0, 0, 1,
 }
 
-// writeBoneMatricesIdentity пишет 64 identity matrices (bind pose). Позже заменить на Animator.
-func writeBoneMatricesIdentity(out []byte) {
+// writeBoneMatrices пишет bone matrices в uniform buffer (column-major, как в WGSL mat4x4).
+// matrices — уже готовые column-major float32 (из ecs.Animator.BoneMatrices);
+// кости сверх лимита и отсутствующие — identity (bind pose).
+func writeBoneMatrices(out []byte, matrices []float32) {
 	if len(out) < boneUniformsSize {
 		return
 	}
 	identityBytes := matrixToBytes(identityMatrix)
 	for i := 0; i < boneMatrixCount; i++ {
-		copy(out[i*64:(i+1)*64], identityBytes)
+		if i*16+16 <= len(matrices) {
+			for j := 0; j < 16; j++ {
+				binary.LittleEndian.PutUint32(out[i*64+j*4:], math.Float32bits(matrices[i*16+j]))
+			}
+		} else {
+			copy(out[i*64:(i+1)*64], identityBytes)
+		}
 	}
 }
 
@@ -275,7 +286,9 @@ type sceneState struct {
 	skinnedBindGroup       *wgpu.BindGroup
 	skinnedBindGroupShadow *wgpu.BindGroup
 	meshSkinnedCache       map[string]*cachedMesh // meshAssetID (skinned) -> vertex buffer
-	shadowSkinnedPipeline  *wgpu.RenderPipeline   // shadow pass для 64-byte stride
+	shadowSkinnedPipeline  *wgpu.RenderPipeline   // shadow pass с реальным скиннингом
+	shadowSkinnedBindGroup *wgpu.BindGroup        // shadow uniforms + bones
+	shadowSkinnedUniform   *wgpu.Buffer           // 128 bytes: light_view_proj + model
 }
 
 func (s *state) initSceneState() error {
@@ -488,10 +501,65 @@ func (s *state) initSceneState() error {
 		bg.Release()
 		return err
 	}
+	// Skinned shadow pass: отдельный шейдер, который скинит вершины (bones в vertex shader).
+	shadowSkinnedShader, err := s.device.CreateShaderModule(&wgpu.ShaderModuleDescriptor{
+		Label:          "shadow skinned shader",
+		WGSLDescriptor: &wgpu.ShaderModuleWGSLDescriptor{Code: shadowSkinnedWGSL},
+	})
+	if err != nil {
+		shadowPl.Release()
+		shadowUb.Release()
+		shadowSampler.Release()
+		shadowView.Release()
+		shadowTex.Release()
+		pipeline.Release()
+		cubeBuf.Release()
+		ub.Release()
+		bg.Release()
+		return err
+	}
+	shadowSkinnedUb, err := s.device.CreateBuffer(&wgpu.BufferDescriptor{
+		Label: "shadow skinned uniforms",
+		Usage: wgpu.BufferUsageUniform | wgpu.BufferUsageCopyDst,
+		Size:  128,
+	})
+	if err != nil {
+		shadowSkinnedShader.Release()
+		shadowPl.Release()
+		shadowUb.Release()
+		shadowSampler.Release()
+		shadowView.Release()
+		shadowTex.Release()
+		pipeline.Release()
+		cubeBuf.Release()
+		ub.Release()
+		bg.Release()
+		return err
+	}
+	// Bone matrices (общий для main skinned pass и skinned shadow pass)
+	boneUb, err := s.device.CreateBuffer(&wgpu.BufferDescriptor{
+		Label: "bone matrices",
+		Usage: wgpu.BufferUsageUniform | wgpu.BufferUsageCopyDst,
+		Size:  boneUniformsSize,
+	})
+	if err != nil {
+		shadowSkinnedShader.Release()
+		shadowSkinnedUb.Release()
+		shadowPl.Release()
+		shadowUb.Release()
+		shadowSampler.Release()
+		shadowView.Release()
+		shadowTex.Release()
+		pipeline.Release()
+		cubeBuf.Release()
+		ub.Release()
+		bg.Release()
+		return err
+	}
 	shadowSkinnedPl, err := s.device.CreateRenderPipeline(&wgpu.RenderPipelineDescriptor{
 		Label: "Shadow Skinned Pipeline",
 		Vertex: wgpu.VertexState{
-			Module:     shadowShader,
+			Module:     shadowSkinnedShader,
 			EntryPoint: "vs_main",
 			Buffers: []wgpu.VertexBufferLayout{
 				{ArrayStride: 64, StepMode: wgpu.VertexStepModeVertex,
@@ -499,6 +567,8 @@ func (s *state) initSceneState() error {
 						{Format: wgpu.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 0},
 						{Format: wgpu.VertexFormatFloat32x3, Offset: 12, ShaderLocation: 1},
 						{Format: wgpu.VertexFormatFloat32x2, Offset: 24, ShaderLocation: 2},
+						{Format: wgpu.VertexFormatFloat32x4, Offset: 32, ShaderLocation: 3},
+						{Format: wgpu.VertexFormatFloat32x4, Offset: 48, ShaderLocation: 4},
 					},
 				},
 			},
@@ -515,8 +585,10 @@ func (s *state) initSceneState() error {
 		},
 		Fragment: nil,
 	})
-	shadowShader.Release()
 	if err != nil {
+		shadowSkinnedShader.Release()
+		shadowSkinnedUb.Release()
+		boneUb.Release()
 		shadowPl.Release()
 		shadowUb.Release()
 		shadowSampler.Release()
@@ -528,6 +600,32 @@ func (s *state) initSceneState() error {
 		bg.Release()
 		return err
 	}
+	shadowSkinnedBgl := shadowSkinnedPl.GetBindGroupLayout(0)
+	shadowSkinnedBg, err := s.device.CreateBindGroup(&wgpu.BindGroupDescriptor{
+		Layout: shadowSkinnedBgl,
+		Entries: []wgpu.BindGroupEntry{
+			{Binding: 0, Buffer: shadowSkinnedUb, Size: 128},
+			{Binding: 1, Buffer: boneUb, Size: boneUniformsSize},
+		},
+	})
+	shadowSkinnedBgl.Release()
+	if err != nil {
+		shadowSkinnedPl.Release()
+		shadowSkinnedShader.Release()
+		shadowSkinnedUb.Release()
+		boneUb.Release()
+		shadowPl.Release()
+		shadowUb.Release()
+		shadowSampler.Release()
+		shadowView.Release()
+		shadowTex.Release()
+		pipeline.Release()
+		cubeBuf.Release()
+		ub.Release()
+		bg.Release()
+		return err
+	}
+	shadowSkinnedShader.Release()
 
 	sbgl := shadowPl.GetBindGroupLayout(0)
 	sbg, err := s.device.CreateBindGroup(&wgpu.BindGroupDescriptor{
@@ -595,25 +693,6 @@ func (s *state) initSceneState() error {
 		Size:  pbrUniformsSize,
 	})
 	if err != nil {
-		skinnedShader.Release()
-		shadowPl.Release()
-		shadowUb.Release()
-		shadowSampler.Release()
-		shadowView.Release()
-		shadowTex.Release()
-		pipeline.Release()
-		cubeBuf.Release()
-		ub.Release()
-		bg.Release()
-		return err
-	}
-	boneUb, err := s.device.CreateBuffer(&wgpu.BufferDescriptor{
-		Label: "bone matrices",
-		Usage: wgpu.BufferUsageUniform | wgpu.BufferUsageCopyDst,
-		Size:  boneUniformsSize,
-	})
-	if err != nil {
-		skinnedUb.Release()
 		skinnedShader.Release()
 		shadowPl.Release()
 		shadowUb.Release()
@@ -748,6 +827,8 @@ func (s *state) initSceneState() error {
 		skinnedBindGroupShadow:  skinnedBgShadow,
 		meshSkinnedCache:        make(map[string]*cachedMesh),
 		shadowSkinnedPipeline:   shadowSkinnedPl,
+		shadowSkinnedBindGroup:  shadowSkinnedBg,
+		shadowSkinnedUniform:    shadowSkinnedUb,
 	}
 	return nil
 }
@@ -937,8 +1018,9 @@ type instanceBatch struct {
 	roughness     float32
 }
 
-// skinnedDraw — один skinned entity (отдельный draw, свой bone matrices).
+// skinnedDraw — один skinned entity (отдельный draw, свои bone matrices).
 type skinnedDraw struct {
+	entityID    ecs.EntityID
 	meshAssetID string
 	transform   ecs.Transform
 	baseColor   []float32
@@ -1040,6 +1122,7 @@ func buildSkinnedDraws(world *ecs.World, frustum *render.Frustum, resolver *asse
 		}
 		bc, metallic, roughness := getMeshMaterial(mr, resolver)
 		out = append(out, skinnedDraw{
+			entityID:    id,
 			meshAssetID: mr.MeshAssetID,
 			transform:   tr,
 			baseColor:   bc,

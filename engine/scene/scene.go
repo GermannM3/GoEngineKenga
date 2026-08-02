@@ -22,6 +22,7 @@ type SceneEntity struct {
 	SpriteRenderer *ecs.SpriteRenderer `json:"spriteRenderer,omitempty"`
 	Camera2D      *ecs.Camera2D      `json:"camera2D,omitempty"`
 	AnimationController *ecs.AnimationController `json:"animationController,omitempty"`
+	Animator            *ecs.Animator            `json:"animator,omitempty"`
 	Light         *ecs.Light         `json:"light,omitempty"`
 	Rigidbody     *ecs.Rigidbody     `json:"rigidbody,omitempty"`
 	Collider      *ecs.Collider      `json:"collider,omitempty"`
@@ -129,6 +130,9 @@ func (s *Scene) ToWorld() *ecs.World {
 		}
 		if se.AnimationController != nil {
 			w.SetAnimationController(id, *se.AnimationController)
+		}
+		if se.Animator != nil {
+			w.SetAnimator(id, *se.Animator)
 		}
 		if se.Light != nil {
 			w.SetLight(id, *se.Light)
