@@ -8,6 +8,7 @@ import (
 // FrameRenderer defines the interface for renderers that can output frame data
 type FrameRenderer interface {
 	RenderToImage() *image.RGBA
+	RenderToBuffer() ([]byte, int, int, error)
 }
 
 // RenderToBuffer возвращает текущий цветовой буфер как байтовый массив в формате RGBA.
@@ -22,10 +23,10 @@ func (r *Rasterizer) RenderToBuffer() ([]byte, int, int, error) {
 	bounds := img.Bounds()
 	width := bounds.Dx()
 	height := bounds.Dy()
-	
+
 	// Создаем байтовый слайс для RGBA данных
 	buffer := make([]byte, width*height*4)
-	
+
 	// Копируем данные изображения в буфер
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
@@ -77,7 +78,7 @@ func ConvertRGBABytesToImage(data []byte, width, height int) *image.RGBA {
 	}
 
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
-	
+
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			i := (y*width + x) * 4

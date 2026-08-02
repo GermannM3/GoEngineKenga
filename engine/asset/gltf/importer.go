@@ -27,6 +27,10 @@ type ImportResult struct {
 	BaseColorTexIndex []int
 	// NormalTexIndex[i] — индекс normal map для материала i (-1 если нет)
 	NormalTexIndex []int
+	// MetallicRoughnessTexIndex[i] — индекс metallic-roughness текстуры для материала i (-1 если нет)
+	MetallicRoughnessTexIndex []int
+	// EmissiveTexIndex[i] — индекс emissive текстуры для материала i (-1 если нет)
+	EmissiveTexIndex []int
 	// Skins — скины для skeletal animation (если есть)
 	Skins []SkinData
 	// Animations — клипы анимации (узлы и/или скелет)
@@ -38,9 +42,9 @@ type ImportResult struct {
 // SkinData — данные скина из glTF (joints, inverse bind matrices)
 type SkinData struct {
 	Name                string
-	Joints              []int           // индексы узлов в doc.Nodes
-	JointNames         []string        // имена костей для animation.Track
-	ParentIndices      []int           // индекс родительской кости (-1 для root)
+	Joints              []int    // индексы узлов в doc.Nodes
+	JointNames          []string // имена костей для animation.Track
+	ParentIndices       []int    // индекс родительской кости (-1 для root)
 	InverseBindMatrices [][16]float32
 }
 
@@ -53,8 +57,8 @@ type AnimationData struct {
 
 // AnimationChannelData — канал анимации (один sampler → один node property)
 type AnimationChannelData struct {
-	NodeIndex int     // индекс узла в doc.Nodes
-	Path      string  // "translation" | "rotation" | "scale"
+	NodeIndex int    // индекс узла в doc.Nodes
+	Path      string // "translation" | "rotation" | "scale"
 	Times     []float32
 	Values    []float32 // VEC3 или VEC4 (quat для rotation)
 }
@@ -116,9 +120,13 @@ func ImportFile(path string) (*ImportResult, error) {
 	var materials []render.Material // nolint
 	var baseColorTexIndex []int
 	var normalTexIndex []int
+	var metallicRoughnessTexIndex []int
+	var emissiveTexIndex []int
 	for i, mat := range doc.Materials {
 		texIdx := -1
 		normIdx := -1
+		mrIdx := -1
+		emissiveIdx := -1
 		if mat == nil {
 			continue
 		}
@@ -161,6 +169,9 @@ func ImportFile(path string) (*ImportResult, error) {
 			if pbr.BaseColorTexture != nil && pbr.BaseColorTexture.Index >= 0 {
 				texIdx = pbr.BaseColorTexture.Index
 			}
+			if pbr.MetallicRoughnessTexture != nil && pbr.MetallicRoughnessTexture.Index >= 0 {
+				mrIdx = pbr.MetallicRoughnessTexture.Index
+			}
 		}
 
 		// Normal texture
@@ -171,8 +182,15 @@ func ImportFile(path string) (*ImportResult, error) {
 			}
 		}
 
+		// Emissive texture
+		if mat.EmissiveTexture != nil && mat.EmissiveTexture.Index >= 0 {
+			emissiveIdx = mat.EmissiveTexture.Index
+		}
+
 		baseColorTexIndex = append(baseColorTexIndex, texIdx)
 		normalTexIndex = append(normalTexIndex, normIdx)
+		metallicRoughnessTexIndex = append(metallicRoughnessTexIndex, mrIdx)
+		emissiveTexIndex = append(emissiveTexIndex, emissiveIdx)
 
 		// Emissive
 		material.EmissiveColor = emath.Vec3{
@@ -233,10 +251,10 @@ func ImportFile(path string) (*ImportResult, error) {
 			}
 		}
 		sd := SkinData{
-			Name:           skin.Name,
-			Joints:         skin.Joints,
-			JointNames:     make([]string, len(skin.Joints)),
-			ParentIndices:  parentIndices,
+			Name:          skin.Name,
+			Joints:        skin.Joints,
+			JointNames:    make([]string, len(skin.Joints)),
+			ParentIndices: parentIndices,
 		}
 		if sd.Name == "" {
 			sd.Name = fmt.Sprintf("Skin_%d", si)
@@ -432,14 +450,16 @@ func ImportFile(path string) (*ImportResult, error) {
 	}
 
 	return &ImportResult{
-		Meshes:            meshes,
-		Materials:         materials,
-		Textures:          textures,
-		BaseColorTexIndex: baseColorTexIndex,
-		NormalTexIndex:    normalTexIndex,
-		Skins:             skins,
-		Animations:        animations,
-		NodeNames:         nodeNames,
+		Meshes:                    meshes,
+		Materials:                 materials,
+		Textures:                  textures,
+		BaseColorTexIndex:         baseColorTexIndex,
+		NormalTexIndex:            normalTexIndex,
+		MetallicRoughnessTexIndex: metallicRoughnessTexIndex,
+		EmissiveTexIndex:          emissiveTexIndex,
+		Skins:                     skins,
+		Animations:                animations,
+		NodeNames:                 nodeNames,
 	}, nil
 }
 

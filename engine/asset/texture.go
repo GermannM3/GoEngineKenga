@@ -68,4 +68,3 @@ func (t *Texture) ToRGBA() *image.RGBA {
 	copy(rgba.Pix, t.Data)
 	return rgba
 }
-

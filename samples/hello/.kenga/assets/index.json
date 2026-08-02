@@ -1,6 +1,19 @@
 {
   "assets": [
     {
+      "id": "55e7100a-a742-4167-9722-0de3b1b31812",
+      "type": "gltf",
+      "sourcePath": "assets/AnimatedCube/AnimatedCube.gltf",
+      "derived": [
+        ".kenga/derived/55e7100a-a742-4167-9722-0de3b1b31812_anim_0.clip.json",
+        ".kenga/derived/55e7100a-a742-4167-9722-0de3b1b31812_0.mesh.json",
+        ".kenga/derived/55e7100a-a742-4167-9722-0de3b1b31812_0.material.json",
+        ".kenga/derived/55e7100a-a742-4167-9722-0de3b1b31812_0.texture.json",
+        ".kenga/derived/55e7100a-a742-4167-9722-0de3b1b31812_1.texture.json"
+      ],
+      "importedAt": "2026-08-02T22:28:35.7817525+03:00"
+    },
+    {
       "id": "b518865e-e445-490b-82e0-6c593e6ca063",
       "type": "gltf",
       "sourcePath": "assets/helmet/DamagedHelmet.gltf",
@@ -13,7 +26,7 @@
         ".kenga/derived/b518865e-e445-490b-82e0-6c593e6ca063_3.texture.json",
         ".kenga/derived/b518865e-e445-490b-82e0-6c593e6ca063_4.texture.json"
       ],
-      "importedAt": "2026-02-08T02:50:20.4639615+03:00"
+      "importedAt": "2026-08-02T22:28:37.8298633+03:00"
     },
     {
       "id": "4b436105-771d-4695-af73-d9802948b361",
@@ -23,7 +36,7 @@
         ".kenga/derived/4b436105-771d-4695-af73-d9802948b361_0.mesh.json",
         ".kenga/derived/4b436105-771d-4695-af73-d9802948b361_0.material.json"
       ],
-      "importedAt": "2026-02-08T02:50:20.5042306+03:00"
+      "importedAt": "2026-08-02T22:28:37.8329164+03:00"
     }
   ]
 }

@@ -215,7 +215,7 @@ func (db *Database) importGLTF(sourceAbs string) (*Record, error) {
 		derived = append(derived, filepath.ToSlash(filepath.Join(db.Project.DerivedDir, name)))
 	}
 
-		// Сохраняем материалы
+	// Сохраняем материалы
 	for i, mat := range res.Materials {
 		name := fmt.Sprintf("%s_%d.material.json", meta.ID, i)
 		outAbs := filepath.Join(db.derivedDirAbs(), name)
@@ -227,6 +227,14 @@ func (db *Database) importGLTF(sourceAbs string) (*Record, error) {
 		if i < len(res.NormalTexIndex) && res.NormalTexIndex[i] >= 0 && res.NormalTexIndex[i] < len(res.Textures) {
 			normRelPath := filepath.ToSlash(filepath.Join(db.Project.DerivedDir, fmt.Sprintf("%s_%d.texture.json", meta.ID, res.NormalTexIndex[i])))
 			matCopy.NormalTex = normRelPath
+		}
+		if i < len(res.MetallicRoughnessTexIndex) && res.MetallicRoughnessTexIndex[i] >= 0 && res.MetallicRoughnessTexIndex[i] < len(res.Textures) {
+			mrRelPath := filepath.ToSlash(filepath.Join(db.Project.DerivedDir, fmt.Sprintf("%s_%d.texture.json", meta.ID, res.MetallicRoughnessTexIndex[i])))
+			matCopy.MetallicRoughnessTex = mrRelPath
+		}
+		if i < len(res.EmissiveTexIndex) && res.EmissiveTexIndex[i] >= 0 && res.EmissiveTexIndex[i] < len(res.Textures) {
+			emRelPath := filepath.ToSlash(filepath.Join(db.Project.DerivedDir, fmt.Sprintf("%s_%d.texture.json", meta.ID, res.EmissiveTexIndex[i])))
+			matCopy.EmissiveTex = emRelPath
 		}
 		if err := writeJSONFile(outAbs, matCopy); err != nil {
 			return nil, err

@@ -280,10 +280,21 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 
 	batches := buildInstanceBatches(frame.World, &frustum, resolver)
 	for _, batch := range batches {
-		writePBRUniforms(ubBytes, pbrData.viewProj, batch.baseColor, batch.metallic, batch.roughness,
+		mat := batch.material
+		if mat == nil {
+			mat = getMeshMaterial(nil, nil)
+		}
+		writePBRUniforms(ubBytes, pbrData.viewProj, mat.baseColor, mat.metallic, mat.roughness,
 			pbrData.lightDir, pbrData.lightIntensity, pbrData.lightColor,
-			pbrData.ambient, pbrData.camPos, lightViewProj, nil)
+			pbrData.ambient, pbrData.camPos, lightViewProj, nil,
+			mat.emissiveColor, mat.emissiveStrength, mat.normalScale, mat.alphaCutoff, mat.flags)
 		s.queue.WriteBuffer(sc.uniformBuffer, 0, ubBytes)
+
+		mg := sc.getMaterialBindGroup(resolver, mat)
+		if mg == nil {
+			continue // ресурсы не готовы — пропуск, иначе draw упадёт по валидации
+		}
+		renderPass.SetBindGroup(2, mg, nil)
 
 		vb, vc := sc.getOrCreateMeshBuffer(resolver, batch.meshAssetID)
 		if vb == nil {
@@ -310,10 +321,15 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 			if vb == nil {
 				continue
 			}
+			mat := d.material
+			if mat == nil {
+				mat = getMeshMaterial(nil, nil)
+			}
 			model := buildModelMatrix(&d.transform)
-			writePBRUniforms(ubBytes, pbrData.viewProj, d.baseColor, d.metallic, d.roughness,
+			writePBRUniforms(ubBytes, pbrData.viewProj, mat.baseColor, mat.metallic, mat.roughness,
 				pbrData.lightDir, pbrData.lightIntensity, pbrData.lightColor,
-				pbrData.ambient, pbrData.camPos, lightViewProj, &model)
+				pbrData.ambient, pbrData.camPos, lightViewProj, &model,
+				mat.emissiveColor, mat.emissiveStrength, mat.normalScale, mat.alphaCutoff, mat.flags)
 			s.queue.WriteBuffer(sc.skinnedUniform, 0, ubBytes)
 			// Bone matrices сущности (без Animator — bind pose)
 			var matrices []float32
@@ -322,6 +338,11 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 			}
 			writeBoneMatrices(boneBytes, matrices)
 			s.queue.WriteBuffer(sc.boneUniform, 0, boneBytes)
+			mg := sc.getMaterialBindGroup(resolver, mat)
+			if mg == nil {
+				continue
+			}
+			renderPass.SetBindGroup(2, mg, nil)
 			renderPass.SetVertexBuffer(0, vb, 0, wgpu.WholeSize)
 			renderPass.Draw(vc, 1, 0, 0)
 		}
@@ -343,8 +364,13 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 			tr := ecs.Transform{Position: emath.Vec3{X: 0, Y: 0, Z: 0}, Scale: emath.Vec3{X: 1, Y: 1, Z: 1}}
 			writePBRUniforms(ubBytes, pbrData.viewProj, []float32{0.75, 0.75, 0.78}, 0.0, 0.5,
 				pbrData.lightDir, pbrData.lightIntensity, pbrData.lightColor,
-				pbrData.ambient, pbrData.camPos, lightViewProj, nil)
+				pbrData.ambient, pbrData.camPos, lightViewProj, nil,
+				[]float32{0, 0, 0}, 1.0, 1.0, 0.5, 0)
 			s.queue.WriteBuffer(sc.uniformBuffer, 0, ubBytes)
+			mg := sc.getMaterialBindGroup(resolver, nil)
+			if mg != nil {
+				renderPass.SetBindGroup(2, mg, nil)
+			}
 			instanceBuf := buildInstanceBuffer(s.device, []ecs.Transform{tr})
 			if instanceBuf != nil {
 				renderPass.SetVertexBuffer(0, sc.cubeVertexBuf, 0, wgpu.WholeSize)
@@ -439,6 +465,33 @@ func (s *state) Destroy() {
 		}
 		if s.scene.cubeVertexBuf != nil {
 			s.scene.cubeVertexBuf.Release()
+		}
+		for _, t := range s.scene.textureCache {
+			if t != nil {
+				t.Release()
+			}
+		}
+		s.scene.textureCache = nil
+		for _, bg := range s.scene.materialGroups {
+			if bg != nil {
+				bg.Release()
+			}
+		}
+		s.scene.materialGroups = nil
+		if s.scene.defaultMaterialGroup != nil {
+			s.scene.defaultMaterialGroup.Release()
+		}
+		if s.scene.textureSampler != nil {
+			s.scene.textureSampler.Release()
+		}
+		if s.scene.fallbackBlack != nil {
+			s.scene.fallbackBlack.Release()
+		}
+		if s.scene.fallbackNormal != nil {
+			s.scene.fallbackNormal.Release()
+		}
+		if s.scene.fallbackWhite != nil {
+			s.scene.fallbackWhite.Release()
 		}
 		s.scene = nil
 	}

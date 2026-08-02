@@ -11,8 +11,8 @@ import (
 
 	"goenginekenga/engine/asset"
 	"goenginekenga/engine/ecs"
-	"goenginekenga/engine/render"
 	emath "goenginekenga/engine/math"
+	"goenginekenga/engine/render"
 )
 
 //go:embed shadow.wgsl
@@ -52,13 +52,18 @@ func matrixToBytes(m render.Matrix4) []byte {
 	return out
 }
 
-// pbrUniformsSize — размер uniform buffer для PBR + light_view_proj.
-const pbrUniformsSize = 320
+// pbrUniformsSize — размер uniform buffer для PBR + light_view_proj + emissive/texture params.
+const pbrUniformsSize = 352
 
 // writePBRUniforms пишет viewProj, material, light, camera, light_view_proj в буфер.
 // model передаётся через instance buffer; для skeletal mesh — через modelInUniform (пишется в offset 64).
+// Офсеты (bytes): 0 view_proj, 64 model, 128 base_color, 144 metallic, 148 roughness,
+// 160 light_dir, 176 light_intensity, 192 light_color, 208 ambient, 224 cam_pos,
+// 256 light_view_proj, 320 emissive_color, 336 emissive_strength, 340 normal_scale,
+// 344 alpha_cutoff, 348 flags (bit0: есть metallicRoughness текстура).
 func writePBRUniforms(out []byte, viewProj render.Matrix4, baseColor []float32, metallic, roughness float32,
-	lightDir []float32, lightIntensity float32, lightColor []float32, ambient float32, camPos []float32, lightViewProj render.Matrix4, modelInUniform *render.Matrix4) {
+	lightDir []float32, lightIntensity float32, lightColor []float32, ambient float32, camPos []float32, lightViewProj render.Matrix4, modelInUniform *render.Matrix4,
+	emissiveColor []float32, emissiveStrength, normalScale, alphaCutoff float32, flags uint32) {
 	if len(out) < pbrUniformsSize {
 		return
 	}
@@ -105,6 +110,16 @@ func writePBRUniforms(out []byte, viewProj render.Matrix4, baseColor []float32, 
 	putVec3(224, cp)
 
 	copy(out[256:320], matrixToBytes(lightViewProj))
+
+	ec := emissiveColor
+	if len(ec) < 3 {
+		ec = []float32{0, 0, 0}
+	}
+	putVec3(320, ec)
+	putF32(336, emissiveStrength)
+	putF32(340, normalScale)
+	putF32(344, alphaCutoff)
+	binary.LittleEndian.PutUint32(out[348:], flags)
 }
 
 const boneMatrixCount = 64
@@ -134,6 +149,207 @@ func writeBoneMatrices(out []byte, matrices []float32) {
 			copy(out[i*64:(i+1)*64], identityBytes)
 		}
 	}
+}
+
+// ---------- Текстуры материалов ----------
+
+// createTextureRGBA создаёт GPU-текстуру из RGBA-данных.
+// Строки выравниваются до 256 байт (требование WriteTexture для bytesPerRow).
+func (sc *sceneState) createTextureRGBA(label string, w, h int, data []byte, srgb bool) (*wgpu.Texture, error) {
+	format := wgpu.TextureFormatRGBA8Unorm
+	if srgb {
+		format = wgpu.TextureFormatRGBA8UnormSrgb
+	}
+	tex, err := sc.device.CreateTexture(&wgpu.TextureDescriptor{
+		Label:         label,
+		Size:          wgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1},
+		MipLevelCount: 1,
+		SampleCount:   1,
+		Dimension:     wgpu.TextureDimension2D,
+		Format:        format,
+		Usage:         wgpu.TextureUsageTextureBinding | wgpu.TextureUsageCopyDst,
+	})
+	if err != nil {
+		return nil, err
+	}
+	rowBytes := w * 4
+	aligned := ((rowBytes + 255) / 256) * 256
+	upload := data
+	if aligned != rowBytes {
+		upload = make([]byte, aligned*h)
+		for r := 0; r < h && (r+1)*rowBytes <= len(data); r++ {
+			copy(upload[r*aligned:(r+1)*aligned], data[r*rowBytes:(r+1)*rowBytes])
+		}
+	}
+	if err := sc.queue.WriteTexture(
+		&wgpu.ImageCopyTexture{Texture: tex},
+		upload,
+		&wgpu.TextureDataLayout{Offset: 0, BytesPerRow: uint32(aligned)},
+		&wgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1},
+	); err != nil {
+		tex.Release()
+		return nil, err
+	}
+	return tex, nil
+}
+
+// ensureMaterialResources создаёт fallback-текстуры, сэмплер и default bind group (лениво).
+func (sc *sceneState) ensureMaterialResources() {
+	if sc.textureSampler != nil || sc.device == nil {
+		return
+	}
+	white, err := sc.createTextureRGBA("fallback white", 1, 1, []byte{255, 255, 255, 255}, false)
+	if err != nil {
+		return
+	}
+	flat, err := sc.createTextureRGBA("fallback flat normal", 1, 1, []byte{128, 128, 255, 255}, false)
+	if err != nil {
+		white.Release()
+		return
+	}
+	black, err := sc.createTextureRGBA("fallback black", 1, 1, []byte{0, 0, 0, 255}, false)
+	if err != nil {
+		white.Release()
+		flat.Release()
+		return
+	}
+	smp, err := sc.device.CreateSampler(&wgpu.SamplerDescriptor{
+		Label:        "material sampler",
+		AddressModeU: wgpu.AddressModeRepeat,
+		AddressModeV: wgpu.AddressModeRepeat,
+		AddressModeW: wgpu.AddressModeRepeat,
+		MagFilter:    wgpu.FilterModeLinear,
+		MinFilter:    wgpu.FilterModeLinear,
+		MipmapFilter: wgpu.MipmapFilterModeLinear,
+	})
+	if err != nil {
+		white.Release()
+		flat.Release()
+		black.Release()
+		return
+	}
+	sc.fallbackWhite = white
+	sc.fallbackNormal = flat
+	sc.fallbackBlack = black
+	sc.textureSampler = smp
+	sc.textureCache = make(map[string]*wgpu.Texture)
+	sc.materialGroups = make(map[string]*wgpu.BindGroup)
+	sc.defaultMaterialGroup = sc.makeMaterialBindGroup(nil, nil, nil, nil)
+}
+
+// getTexture возвращает GPU-текстуру для пути .texture.json (с кэшем);
+// пустой путь или ошибка загрузки — fallback-текстура.
+func (sc *sceneState) getTexture(resolver *asset.Resolver, path string, srgb bool, fallback *wgpu.Texture) *wgpu.Texture {
+	sc.ensureMaterialResources()
+	if fallback == nil {
+		fallback = sc.fallbackWhite
+	}
+	if path == "" || sc.textureCache == nil || resolver == nil {
+		return fallback
+	}
+	if t, ok := sc.textureCache[path]; ok {
+		return t
+	}
+	tex, err := resolver.ResolveTextureByPath(path)
+	if err != nil || tex == nil || len(tex.Data) < tex.Width*tex.Height*4 {
+		return fallback
+	}
+	t, err := sc.createTextureRGBA("texture "+path, tex.Width, tex.Height, tex.Data, srgb)
+	if err != nil {
+		return fallback
+	}
+	sc.textureCache[path] = t
+	return t
+}
+
+// makeMaterialBindGroup создаёт bind group (группа 2) из четырёх текстур и общего сэмплера.
+// nil-текстуры заменяются fallback-текстурами.
+func (sc *sceneState) makeMaterialBindGroup(texColor, texNormal, texMR, texEmissive *wgpu.Texture) *wgpu.BindGroup {
+	if sc.pipeline == nil || sc.textureSampler == nil || sc.device == nil {
+		return nil
+	}
+	if texColor == nil {
+		texColor = sc.fallbackWhite
+	}
+	if texNormal == nil {
+		texNormal = sc.fallbackNormal
+	}
+	if texMR == nil {
+		texMR = sc.fallbackWhite
+	}
+	if texEmissive == nil {
+		texEmissive = sc.fallbackBlack
+	}
+
+	views := make([]*wgpu.TextureView, 4)
+	ok := true
+	for i, t := range []*wgpu.Texture{texColor, texNormal, texMR, texEmissive} {
+		views[i], err := t.CreateView(nil)
+		if err != nil {
+			ok = false
+			break
+		}
+	}
+	if !ok {
+		for _, v := range views {
+			if v != nil {
+				v.Release()
+			}
+		}
+		return nil
+	}
+	defer func() {
+		for _, v := range views {
+			v.Release()
+		}
+	}()
+
+	bgl := sc.pipeline.GetBindGroupLayout(2)
+	bg, err := sc.device.CreateBindGroup(&wgpu.BindGroupDescriptor{
+		Layout: bgl,
+		Entries: []wgpu.BindGroupEntry{
+			{Binding: 0, TextureView: views[0]},
+			{Binding: 1, Sampler: sc.textureSampler},
+			{Binding: 2, TextureView: views[1]},
+			{Binding: 3, Sampler: sc.textureSampler},
+			{Binding: 4, TextureView: views[2]},
+			{Binding: 5, Sampler: sc.textureSampler},
+			{Binding: 6, TextureView: views[3]},
+			{Binding: 7, Sampler: sc.textureSampler},
+		},
+	})
+	bgl.Release()
+	if err != nil {
+		return nil
+	}
+	return bg
+}
+
+// getMaterialBindGroup возвращает (и кэширует) bind group группы 2 для materialInfo.
+// mat == nil — default bind group (все fallback-текстуры).
+func (sc *sceneState) getMaterialBindGroup(resolver *asset.Resolver, mat *materialInfo) *wgpu.BindGroup {
+	sc.ensureMaterialResources()
+	if sc.materialGroups == nil {
+		return nil
+	}
+	if mat == nil {
+		return sc.defaultMaterialGroup
+	}
+	key := mat.baseColorTex + "|" + mat.normalTex + "|" + mat.mrTex + "|" + mat.emissiveTex
+	if bg, ok := sc.materialGroups[key]; ok {
+		return bg
+	}
+	bg := sc.makeMaterialBindGroup(
+		sc.getTexture(resolver, mat.baseColorTex, true, sc.fallbackWhite),
+		sc.getTexture(resolver, mat.normalTex, false, sc.fallbackNormal),
+		sc.getTexture(resolver, mat.mrTex, false, sc.fallbackWhite),
+		sc.getTexture(resolver, mat.emissiveTex, true, sc.fallbackBlack),
+	)
+	if bg == nil {
+		return sc.defaultMaterialGroup
+	}
+	sc.materialGroups[key] = bg
+	return bg
 }
 
 // buildVertexDataSkinned создаёт vertex buffer для скиннинга: pos(12)+normal(12)+uv(8)+joints(16)+weights(16)=64 bytes.
@@ -289,6 +505,15 @@ type sceneState struct {
 	shadowSkinnedPipeline  *wgpu.RenderPipeline   // shadow pass с реальным скиннингом
 	shadowSkinnedBindGroup *wgpu.BindGroup        // shadow uniforms + bones
 	shadowSkinnedUniform   *wgpu.Buffer           // 128 bytes: light_view_proj + model
+
+	// Текстуры материалов (группа 2): кэш текстур и material bind groups, fallback-текстуры
+	textureCache         map[string]*wgpu.Texture   // путь .texture.json -> GPU texture
+	materialGroups       map[string]*wgpu.BindGroup // ключ (пути текстур) -> bind group
+	fallbackWhite        *wgpu.Texture              // 1x1 белая (color/MR по умолчанию)
+	fallbackNormal       *wgpu.Texture              // 1x1 (128,128,255) — flat normal
+	fallbackBlack        *wgpu.Texture              // 1x1 чёрная (emissive по умолчанию)
+	textureSampler       *wgpu.Sampler
+	defaultMaterialGroup *wgpu.BindGroup // материал без текстур (fallback cube и т.п.)
 }
 
 func (s *state) initSceneState() error {
@@ -363,7 +588,9 @@ func (s *state) initSceneState() error {
 			Module:     shader,
 			EntryPoint: "fs_main",
 			Targets: []wgpu.ColorTargetState{
-				{Format: s.config.Format, Blend: &wgpu.BlendStateReplace, WriteMask: wgpu.ColorWriteMaskAll},
+				// Alpha blending: OPAQUE материалы имеют alpha=1 (без видимого эффекта),
+				// BLEND-материалы получают честную прозрачность.
+				{Format: s.config.Format, Blend: &wgpu.BlendStateAlphaBlending, WriteMask: wgpu.ColorWriteMaskAll},
 			},
 		},
 	})
@@ -391,13 +618,13 @@ func (s *state) initSceneState() error {
 
 	// Shadow map: 2048x2048 depth texture
 	shadowTex, err := s.device.CreateTexture(&wgpu.TextureDescriptor{
-		Label:       "shadow map",
-		Size:        wgpu.Extent3D{Width: 2048, Height: 2048, DepthOrArrayLayers: 1},
+		Label:         "shadow map",
+		Size:          wgpu.Extent3D{Width: 2048, Height: 2048, DepthOrArrayLayers: 1},
 		MipLevelCount: 1,
-		SampleCount: 1,
-		Dimension:   wgpu.TextureDimension2D,
-		Format:      wgpu.TextureFormatDepth32Float,
-		Usage:       wgpu.TextureUsageRenderAttachment | wgpu.TextureUsageTextureBinding,
+		SampleCount:   1,
+		Dimension:     wgpu.TextureDimension2D,
+		Format:        wgpu.TextureFormatDepth32Float,
+		Usage:         wgpu.TextureUsageRenderAttachment | wgpu.TextureUsageTextureBinding,
 	})
 	if err != nil {
 		pipeline.Release()
@@ -417,7 +644,7 @@ func (s *state) initSceneState() error {
 	}
 
 	shadowSampler, err := s.device.CreateSampler(&wgpu.SamplerDescriptor{
-		Compare:     wgpu.CompareFunctionLessEqual,
+		Compare:      wgpu.CompareFunctionLessEqual,
 		AddressModeU: wgpu.AddressModeClampToEdge,
 		AddressModeV: wgpu.AddressModeClampToEdge,
 	})
@@ -479,7 +706,7 @@ func (s *state) initSceneState() error {
 			},
 		},
 		Primitive: wgpu.PrimitiveState{
-			Topology: wgpu.PrimitiveTopologyTriangleList,
+			Topology:  wgpu.PrimitiveTopologyTriangleList,
 			FrontFace: wgpu.FrontFaceCCW,
 			CullMode:  wgpu.CullModeBack,
 		},
@@ -574,7 +801,7 @@ func (s *state) initSceneState() error {
 			},
 		},
 		Primitive: wgpu.PrimitiveState{
-			Topology: wgpu.PrimitiveTopologyTriangleList,
+			Topology:  wgpu.PrimitiveTopologyTriangleList,
 			FrontFace: wgpu.FrontFaceCCW,
 			CullMode:  wgpu.CullModeBack,
 		},
@@ -735,7 +962,7 @@ func (s *state) initSceneState() error {
 			Module:     skinnedShader,
 			EntryPoint: "fs_main",
 			Targets: []wgpu.ColorTargetState{
-				{Format: s.config.Format, Blend: &wgpu.BlendStateReplace, WriteMask: wgpu.ColorWriteMaskAll},
+				{Format: s.config.Format, Blend: &wgpu.BlendStateAlphaBlending, WriteMask: wgpu.ColorWriteMaskAll},
 			},
 		},
 	})
@@ -823,12 +1050,12 @@ func (s *state) initSceneState() error {
 		skinnedPipeline:        skinnedPl,
 		skinnedUniform:         skinnedUb,
 		boneUniform:            boneUb,
-		skinnedBindGroup:        skinnedBg,
-		skinnedBindGroupShadow:  skinnedBgShadow,
-		meshSkinnedCache:        make(map[string]*cachedMesh),
-		shadowSkinnedPipeline:   shadowSkinnedPl,
-		shadowSkinnedBindGroup:  shadowSkinnedBg,
-		shadowSkinnedUniform:    shadowSkinnedUb,
+		skinnedBindGroup:       skinnedBg,
+		skinnedBindGroupShadow: skinnedBgShadow,
+		meshSkinnedCache:       make(map[string]*cachedMesh),
+		shadowSkinnedPipeline:  shadowSkinnedPl,
+		shadowSkinnedBindGroup: shadowSkinnedBg,
+		shadowSkinnedUniform:   shadowSkinnedUb,
 	}
 	return nil
 }
@@ -893,16 +1120,16 @@ func (sc *sceneState) getOrCreateSkinnedMeshBuffer(resolver *asset.Resolver, mes
 
 // pbrSceneData содержит данные для PBR рендера из World.
 type pbrSceneData struct {
-	viewProj      render.Matrix4
-	model         render.Matrix4
-	camPos        []float32
-	lightDir      []float32
-	lightColor    []float32
+	viewProj       render.Matrix4
+	model          render.Matrix4
+	camPos         []float32
+	lightDir       []float32
+	lightColor     []float32
 	lightIntensity float32
-	baseColor     []float32
-	metallic      float32
-	roughness     float32
-	ambient       float32
+	baseColor      []float32
+	metallic       float32
+	roughness      float32
+	ambient        float32
 }
 
 // buildLightViewProj строит orthographic view-projection для directional light.
@@ -1008,14 +1235,35 @@ func getPBRSceneData(world *ecs.World, width, height int) (data pbrSceneData, ok
 	return data, true
 }
 
+// materialFlags — биты в materialInfo.flags (uniform flags).
+const (
+	materialFlagsHasMR = 1 // metallicRoughness текстура задана
+)
+
+// materialInfo — параметры материала для uniform-буфера и текстуры.
+type materialInfo struct {
+	baseColor        []float32
+	metallic         float32
+	roughness        float32
+	emissiveColor    []float32
+	emissiveStrength float32
+	normalScale      float32
+	alphaCutoff      float32
+	flags            uint32
+
+	// Пути к .texture.json ("" — текстуры нет, шейдер получит fallback)
+	baseColorTex string
+	normalTex    string
+	mrTex        string
+	emissiveTex  string
+}
+
 // instanceBatch — группа entities с одинаковым mesh и material для instancing.
 type instanceBatch struct {
-	meshAssetID   string
-	materialKey   string // MaterialAssetID или "" для default
-	transforms    []ecs.Transform
-	baseColor     []float32
-	metallic      float32
-	roughness     float32
+	meshAssetID string
+	materialKey string // MaterialAssetID или "" для default
+	transforms  []ecs.Transform
+	material    *materialInfo
 }
 
 // skinnedDraw — один skinned entity (отдельный draw, свои bone matrices).
@@ -1023,9 +1271,7 @@ type skinnedDraw struct {
 	entityID    ecs.EntityID
 	meshAssetID string
 	transform   ecs.Transform
-	baseColor   []float32
-	metallic    float32
-	roughness   float32
+	material    *materialInfo
 }
 
 // isMeshSkinned возвращает true, если mesh имеет skeletal skinning.
@@ -1072,14 +1318,12 @@ func buildInstanceBatches(world *ecs.World, frustum *render.Frustum, resolver *a
 		}
 		key := mr.MeshAssetID + "|" + mr.MaterialAssetID
 		if _, ok := group[key]; !ok {
-			bc, metallic, roughness := getMeshMaterial(mr, resolver)
+			mat := getMeshMaterial(mr, resolver)
 			group[key] = &instanceBatch{
 				meshAssetID: mr.MeshAssetID,
 				materialKey: mr.MaterialAssetID,
 				transforms:  nil,
-				baseColor:   bc,
-				metallic:    metallic,
-				roughness:   roughness,
+				material:    mat,
 			}
 		}
 		group[key].transforms = append(group[key].transforms, tr)
@@ -1120,14 +1364,12 @@ func buildSkinnedDraws(world *ecs.World, frustum *render.Frustum, resolver *asse
 		if frustum != nil && !frustum.SphereInFrustum(tr.Position, radius) {
 			continue
 		}
-		bc, metallic, roughness := getMeshMaterial(mr, resolver)
+		mat := getMeshMaterial(mr, resolver)
 		out = append(out, skinnedDraw{
 			entityID:    id,
 			meshAssetID: mr.MeshAssetID,
 			transform:   tr,
-			baseColor:   bc,
-			metallic:    metallic,
-			roughness:   roughness,
+			material:    mat,
 		})
 	}
 	return out
@@ -1154,27 +1396,48 @@ func buildInstanceBuffer(device *wgpu.Device, transforms []ecs.Transform) *wgpu.
 	return buf
 }
 
-// getMeshMaterial возвращает baseColor, metallic, roughness из MeshRenderer и resolver.
-func getMeshMaterial(mr *ecs.MeshRenderer, resolver *asset.Resolver) (baseColor []float32, metallic, roughness float32) {
-	metallic = 0.0
-	roughness = 0.5
-	baseColor = []float32{0.8, 0.8, 0.8}
+// getMeshMaterial собирает параметры материала из MeshRenderer и resolver
+// (цвет тинта entity приоритетнее материала; текстуры — только из material).
+func getMeshMaterial(mr *ecs.MeshRenderer, resolver *asset.Resolver) *materialInfo {
+	mat := &materialInfo{
+		baseColor:        []float32{0.8, 0.8, 0.8},
+		metallic:         0.0,
+		roughness:        0.5,
+		emissiveColor:    []float32{0, 0, 0},
+		emissiveStrength: 1.0,
+		normalScale:      1.0,
+		alphaCutoff:      0.5,
+	}
+	if mr == nil {
+		return mat
+	}
 
 	if mr.ColorA > 0 {
-		baseColor = []float32{
+		mat.baseColor = []float32{
 			float32(mr.ColorR) / 255,
 			float32(mr.ColorG) / 255,
 			float32(mr.ColorB) / 255,
 		}
 	} else if resolver != nil && mr.MaterialAssetID != "" {
-		if mat, err := resolver.ResolveMaterialByAssetID(mr.MaterialAssetID); err == nil {
-			baseColor = []float32{mat.BaseColor.X, mat.BaseColor.Y, mat.BaseColor.Z}
-			metallic = mat.Metallic
-			roughness = mat.Roughness
+		if m, err := resolver.ResolveMaterialByAssetID(mr.MaterialAssetID); err == nil {
+			mat.baseColor = []float32{m.BaseColor.X, m.BaseColor.Y, m.BaseColor.Z}
+			mat.metallic = m.Metallic
+			mat.roughness = m.Roughness
+			mat.emissiveColor = []float32{m.EmissiveColor.X, m.EmissiveColor.Y, m.EmissiveColor.Z}
+			mat.emissiveStrength = m.EmissiveStrength
+			mat.normalScale = m.NormalScale
+			mat.alphaCutoff = m.AlphaCutoff
+			mat.baseColorTex = m.BaseColorTex
+			mat.normalTex = m.NormalTex
+			mat.mrTex = m.MetallicRoughnessTex
+			mat.emissiveTex = m.EmissiveTex
+			if m.MetallicRoughnessTex != "" {
+				mat.flags |= materialFlagsHasMR
+			}
 		}
 	}
 
-	return baseColor, metallic, roughness
+	return mat
 }
 
 // getCameraAndViewProj извлекает камеру из world и возвращает viewProj.
