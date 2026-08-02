@@ -106,29 +106,34 @@ func (a *Animator) Stop() {
 
 // Update updates the animation
 func (a *Animator) Update(dt float32) {
-	if !a.Playing || a.CurrentClip == nil {
+	if a.CurrentClip == nil {
 		return
 	}
 
-	speed := a.CurrentClip.Speed
-	if speed == 0 {
-		speed = 1
-	}
+	// Обновляем время только играющего клипа: закончившийся клип (Playing=false)
+	// замирает на последнем кадре.
+	if a.Playing {
+		speed := a.CurrentClip.Speed
+		if speed == 0 {
+			speed = 1
+		}
 
-	// Update time
-	a.Time += dt * speed
+		// Update time
+		a.Time += dt * speed
 
-	// Handle looping
-	if a.Time >= a.CurrentClip.Duration {
-		if a.CurrentClip.Loop {
-			a.Time = float32(math.Mod(float64(a.Time), float64(a.CurrentClip.Duration)))
-		} else {
-			a.Time = a.CurrentClip.Duration
-			a.Playing = false
+		// Handle looping
+		if a.Time >= a.CurrentClip.Duration {
+			if a.CurrentClip.Loop {
+				a.Time = float32(math.Mod(float64(a.Time), float64(a.CurrentClip.Duration)))
+			} else {
+				a.Time = a.CurrentClip.Duration
+				a.Playing = false
+			}
 		}
 	}
 
-	// Handle crossfade
+	// Handle crossfade — идёт даже если исходный клип уже закончился,
+	// иначе кроссфейд с не-зацикленного клипа завис бы навсегда.
 	if a.NextClip != nil {
 		a.BlendTime += dt
 		if a.BlendTime >= a.BlendDuration {
@@ -136,6 +141,7 @@ func (a *Animator) Update(dt float32) {
 			a.NextClip = nil
 			a.Time = 0
 			a.BlendTime = 0
+			a.Playing = true // новый клип начинает играть
 		}
 	}
 
