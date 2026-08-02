@@ -75,7 +75,10 @@
     }
    },
    "meshRenderer": {
-    "meshAssetId": "6352bde6-0454-4ff7-b968-fc5001977f0a"
+    "colorR": 70,
+    "colorG": 140,
+    "colorB": 230,
+    "colorA": 255
    },
    "rigidbody": {
     "mass": 1,
@@ -138,7 +141,10 @@
     }
    },
    "meshRenderer": {
-    "meshAssetId": "6352bde6-0454-4ff7-b968-fc5001977f0a"
+    "colorR": 82,
+    "colorG": 160,
+    "colorB": 92,
+    "colorA": 255
    },
    "collider": {
     "type": "box",
@@ -175,7 +181,10 @@
     }
    },
    "meshRenderer": {
-    "meshAssetId": "6352bde6-0454-4ff7-b968-fc5001977f0a"
+    "colorR": 200,
+    "colorG": 150,
+    "colorB": 96,
+    "colorA": 255
    },
    "collider": {
     "type": "box",
@@ -212,7 +221,10 @@
     }
    },
    "meshRenderer": {
-    "meshAssetId": "6352bde6-0454-4ff7-b968-fc5001977f0a"
+    "colorR": 156,
+    "colorG": 130,
+    "colorB": 86,
+    "colorA": 255
    },
    "collider": {
     "type": "box",
@@ -249,7 +261,10 @@
     }
    },
    "meshRenderer": {
-    "meshAssetId": "6352bde6-0454-4ff7-b968-fc5001977f0a"
+    "colorR": 232,
+    "colorG": 72,
+    "colorB": 72,
+    "colorA": 255
    },
    "rigidbody": {
     "mass": 1,
@@ -297,7 +312,10 @@
     }
    },
    "meshRenderer": {
-    "meshAssetId": "6352bde6-0454-4ff7-b968-fc5001977f0a"
+    "colorR": 204,
+    "colorG": 96,
+    "colorB": 224,
+    "colorA": 255
    },
    "rigidbody": {
     "mass": 1,
@@ -345,7 +363,10 @@
     }
    },
    "meshRenderer": {
-    "meshAssetId": "6352bde6-0454-4ff7-b968-fc5001977f0a"
+    "colorR": 255,
+    "colorG": 225,
+    "colorB": 96,
+    "colorA": 255
    },
    "collider": {
     "type": "sphere",
@@ -383,7 +404,10 @@
     }
    },
    "meshRenderer": {
-    "meshAssetId": "6352bde6-0454-4ff7-b968-fc5001977f0a"
+    "colorR": 130,
+    "colorG": 230,
+    "colorB": 120,
+    "colorA": 255
    },
    "collider": {
     "type": "sphere",
@@ -421,7 +445,10 @@
     }
    },
    "meshRenderer": {
-    "meshAssetId": "6352bde6-0454-4ff7-b968-fc5001977f0a"
+    "colorR": 110,
+    "colorG": 210,
+    "colorB": 235,
+    "colorA": 255
    },
    "collider": {
     "type": "sphere",
@@ -485,7 +512,10 @@
     }
    },
    "meshRenderer": {
-    "meshAssetId": "6352bde6-0454-4ff7-b968-fc5001977f0a"
+    "colorR": 150,
+    "colorG": 220,
+    "colorB": 240,
+    "colorA": 255
    },
    "collider": {
     "type": "box",

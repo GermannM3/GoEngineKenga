@@ -53,7 +53,7 @@ func NewRasterizer(width, height int) *Rasterizer {
 		Height:       height,
 		ColorBuffer:  image.NewRGBA(image.Rect(0, 0, width, height)),
 		DepthBuffer:  make([]float32, width*height),
-		ambientColor: color.RGBA{R: 30, G: 30, B: 40, A: 255},
+		ambientColor: color.RGBA{R: 42, G: 42, B: 52, A: 255},
 	}
 }
 
@@ -240,7 +240,7 @@ func (r *Rasterizer) rasterizeTriangle(v0, v1, v2 transformedVertex, texture *im
 			w2 := edgeFunction(v0.screenPos, v1.screenPos, p)
 
 			// Check if point is inside triangle
-			if w0 >= 0 && w1 >= 0 && w2 >= 0 {
+			if w0 <= 0 && w1 <= 0 && w2 <= 0 {
 				// Normalize barycentric coordinates
 				w0 /= area
 				w1 /= area
@@ -351,10 +351,29 @@ func (r *Rasterizer) sampleTexture(tex *image.RGBA, u, v float32) color.RGBA {
 }
 
 func (r *Rasterizer) calculateLighting(baseColor color.RGBA, worldPos, normal emath.Vec3) color.RGBA {
-	// Start with ambient
-	lightR := float32(r.ambientColor.R) / 255.0
-	lightG := float32(r.ambientColor.G) / 255.0
-	lightB := float32(r.ambientColor.B) / 255.0
+	// Hemisphere ambient: faces pointing up catch "sky" light, faces pointing
+	// down fall towards a darker "ground" term. This gives flat shapes a strong
+	// 3D read (bright tops, shaded bottoms).
+	skyR := float32(r.ambientColor.R) / 255.0
+	skyG := float32(r.ambientColor.G) / 255.0
+	skyB := float32(r.ambientColor.B) / 255.0
+	groundScale := float32(0.5)
+	skyMix := 0.5 + 0.5*normal.Y // +Y up faces → more sky
+	groundMix := 1.0 - skyMix
+	lightR := skyR*skyMix + skyR*groundScale*groundMix
+	lightG := skyG*skyMix + skyG*groundScale*groundMix
+	lightB := skyB*skyMix + skyB*groundScale*groundMix
+
+	// Specular accumulation (Blinn-Phong).
+	var specR, specG, specB float32
+	viewDir := emath.Vec3{}
+	if r.camera != nil {
+		viewDir = Normalize3(emath.Vec3{
+			X: r.camera.Position.X - worldPos.X,
+			Y: r.camera.Position.Y - worldPos.Y,
+			Z: r.camera.Position.Z - worldPos.Z,
+		})
+	}
 
 	// Add contribution from each light
 	for _, light := range r.lights {
@@ -391,7 +410,26 @@ func (r *Rasterizer) calculateLighting(baseColor color.RGBA, worldPos, normal em
 		lightR += intensity * float32(light.Color.R) / 255.0
 		lightG += intensity * float32(light.Color.G) / 255.0
 		lightB += intensity * float32(light.Color.B) / 255.0
+
+		// Specular (Blinn-Phong): a soft sheen along the light-camera mid vector.
+		halfDir := Normalize3(emath.Vec3{
+			X: lightDir.X + viewDir.X,
+			Y: lightDir.Y + viewDir.Y,
+			Z: lightDir.Z + viewDir.Z,
+		})
+		ndoth := Dot(normal, halfDir)
+		if ndoth > 0 {
+			powf := float32(math.Pow(float64(ndoth), 24))
+			ispec := powf * light.Intensity * attenuation * 0.6
+			specR += ispec * float32(light.Color.R) / 255.0
+			specG += ispec * float32(light.Color.G) / 255.0
+			specB += ispec * float32(light.Color.B) / 255.0
+		}
 	}
+
+	lightR += specR
+	lightG += specG
+	lightB += specB
 
 	// Clamp lighting
 	if lightR > 1 {
