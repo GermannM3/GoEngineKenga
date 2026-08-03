@@ -557,12 +557,21 @@ type sceneState struct {
 	shadowSkinnedUniform   *wgpu.Buffer           // 128 bytes: light_view_proj + model
 
 	// Текстуры материалов (группа 2): кэш текстур и material bind groups, fallback-текстуры
-	textureCache         map[string]*wgpu.Texture   // путь .texture.json -> GPU texture
-	materialGroups       map[string]*wgpu.BindGroup // ключ (пути текстур) -> bind group
-	fallbackWhite        *wgpu.Texture              // 1x1 белая (color/MR по умолчанию)
-	fallbackNormal       *wgpu.Texture              // 1x1 (128,128,255) — flat normal
-	fallbackBlack        *wgpu.Texture              // 1x1 чёрная (emissive по умолчанию)
-	textureSampler       *wgpu.Sampler
+	textureCache   map[string]*wgpu.Texture   // путь .texture.json -> GPU texture
+	materialGroups map[string]*wgpu.BindGroup // ключ (пути текстур) -> bind group
+	fallbackWhite  *wgpu.Texture              // 1x1 белая (color/MR по умолчанию)
+	fallbackNormal *wgpu.Texture              // 1x1 (128,128,255) — flat normal
+	fallbackBlack  *wgpu.Texture              // 1x1 чёрная (emissive по умолчанию)
+	textureSampler *wgpu.Sampler
+
+	// IBL (группа 3): процедурные env/irradiance кубомапы.
+	envTex       *wgpu.Texture
+	envView      *wgpu.TextureView
+	irrTex       *wgpu.Texture
+	irrView      *wgpu.TextureView
+	envSampler   *wgpu.Sampler
+	envBindGroup *wgpu.BindGroup
+
 	defaultMaterialGroup *wgpu.BindGroup // материал без текстур (fallback cube и т.п.)
 
 	// MSAA: multisample color + depth, резолв в surface view в конце main pass.
@@ -1388,6 +1397,116 @@ func (s *state) initSceneState() error {
 		return err
 	}
 
+	// IBL: процедурные env/irradiance кубомапы (группа 3) + свой sampler.
+	envTexR, envViewR, irrTexR, irrViewR, err := createEnvTextures(s.device, s.queue)
+	if err != nil {
+		skinnedBgShadow.Release()
+		skinnedBg.Release()
+		skinnedPl.Release()
+		boneUb.Release()
+		skinnedUb.Release()
+		shadowSkinnedUb.Release()
+		shadowPl.Release()
+		shadowUb.Release()
+		shadowSampler.Release()
+		shadowView.Release()
+		shadowTex.Release()
+		pointShadowBg.Release()
+		pointShadowPl.Release()
+		pointShadowUb.Release()
+		for i := 0; i < 6; i++ {
+			pointShadowFaces[i].Release()
+		}
+		pointShadowView.Release()
+		pointShadowTex.Release()
+		pipeline.Release()
+		cubeBuf.Release()
+		ub.Release()
+		bg.Release()
+		return err
+	}
+	envSmp, err := s.device.CreateSampler(&wgpu.SamplerDescriptor{
+		Label:        "env sampler",
+		AddressModeU: wgpu.AddressModeClampToEdge,
+		AddressModeV: wgpu.AddressModeClampToEdge,
+		AddressModeW: wgpu.AddressModeClampToEdge,
+		MagFilter:    wgpu.FilterModeLinear,
+		MinFilter:    wgpu.FilterModeLinear,
+		MipmapFilter: wgpu.MipmapFilterModeLinear,
+	})
+	if err != nil {
+		irrViewR.Release()
+		irrTexR.Release()
+		envViewR.Release()
+		envTexR.Release()
+		skinnedBgShadow.Release()
+		skinnedBg.Release()
+		skinnedPl.Release()
+		boneUb.Release()
+		skinnedUb.Release()
+		shadowSkinnedUb.Release()
+		shadowPl.Release()
+		shadowUb.Release()
+		shadowSampler.Release()
+		shadowView.Release()
+		shadowTex.Release()
+		pointShadowBg.Release()
+		pointShadowPl.Release()
+		pointShadowUb.Release()
+		for i := 0; i < 6; i++ {
+			pointShadowFaces[i].Release()
+		}
+		pointShadowView.Release()
+		pointShadowTex.Release()
+		pipeline.Release()
+		cubeBuf.Release()
+		ub.Release()
+		bg.Release()
+		return err
+	}
+	envBgl := skinnedPl.GetBindGroupLayout(3)
+	envBg, err := s.device.CreateBindGroup(&wgpu.BindGroupDescriptor{
+		Layout: envBgl,
+		Entries: []wgpu.BindGroupEntry{
+			{Binding: 0, TextureView: envViewR},
+			{Binding: 1, Sampler: envSmp},
+			{Binding: 2, TextureView: irrViewR},
+			{Binding: 3, Sampler: envSmp},
+		},
+	})
+	envBgl.Release()
+	if err != nil {
+		envSmp.Release()
+		irrViewR.Release()
+		irrTexR.Release()
+		envViewR.Release()
+		envTexR.Release()
+		skinnedBgShadow.Release()
+		skinnedBg.Release()
+		skinnedPl.Release()
+		boneUb.Release()
+		skinnedUb.Release()
+		shadowSkinnedUb.Release()
+		shadowPl.Release()
+		shadowUb.Release()
+		shadowSampler.Release()
+		shadowView.Release()
+		shadowTex.Release()
+		pointShadowBg.Release()
+		pointShadowPl.Release()
+		pointShadowUb.Release()
+		for i := 0; i < 6; i++ {
+			pointShadowFaces[i].Release()
+		}
+		pointShadowView.Release()
+		pointShadowTex.Release()
+		pipeline.Release()
+		cubeBuf.Release()
+		ub.Release()
+		bg.Release()
+		return err
+	}
+
 	s.scene = &sceneState{
 		device:                 s.device,
 		queue:                  s.queue,
@@ -1419,6 +1538,12 @@ func (s *state) initSceneState() error {
 		shadowSkinnedPipeline:  shadowSkinnedPl,
 		shadowSkinnedBindGroup: shadowSkinnedBg,
 		shadowSkinnedUniform:   shadowSkinnedUb,
+		envTex:                 envTexR,
+		envView:                envViewR,
+		irrTex:                 irrTexR,
+		irrView:                irrViewR,
+		envSampler:             envSmp,
+		envBindGroup:           envBg,
 	}
 	return nil
 }

@@ -350,6 +350,9 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 	renderPass.SetPipeline(sc.pipeline)
 	renderPass.SetBindGroup(0, sc.bindGroup, nil)
 	renderPass.SetBindGroup(1, sc.bindGroupShadow, nil)
+	if sc.envBindGroup != nil {
+		renderPass.SetBindGroup(3, sc.envBindGroup, nil)
+	}
 
 	batches := buildInstanceBatches(frame.World, &frustum, resolver)
 	for _, batch := range batches {
@@ -391,6 +394,9 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 		renderPass.SetPipeline(sc.skinnedPipeline)
 		renderPass.SetBindGroup(0, sc.skinnedBindGroup, nil)
 		renderPass.SetBindGroup(1, sc.skinnedBindGroupShadow, nil)
+		if sc.envBindGroup != nil {
+			renderPass.SetBindGroup(3, sc.envBindGroup, nil)
+		}
 		for _, d := range skinnedDraws {
 			vb, vc := sc.getOrCreateSkinnedMeshBuffer(resolver, d.meshAssetID)
 			if vb == nil {
@@ -426,6 +432,9 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 		renderPass.SetPipeline(sc.pipeline)
 		renderPass.SetBindGroup(0, sc.bindGroup, nil)
 		renderPass.SetBindGroup(1, sc.bindGroupShadow, nil)
+		if sc.envBindGroup != nil {
+			renderPass.SetBindGroup(3, sc.envBindGroup, nil)
+		}
 	}
 
 	// Fallback: cube if no meshes
@@ -580,6 +589,24 @@ func (s *state) Destroy() {
 		s.scene.materialGroups = nil
 		if s.scene.defaultMaterialGroup != nil {
 			s.scene.defaultMaterialGroup.Release()
+		}
+		if s.scene.envBindGroup != nil {
+			s.scene.envBindGroup.Release()
+		}
+		if s.scene.envSampler != nil {
+			s.scene.envSampler.Release()
+		}
+		if s.scene.irrView != nil {
+			s.scene.irrView.Release()
+		}
+		if s.scene.irrTex != nil {
+			s.scene.irrTex.Release()
+		}
+		if s.scene.envView != nil {
+			s.scene.envView.Release()
+		}
+		if s.scene.envTex != nil {
+			s.scene.envTex.Release()
 		}
 		if s.scene.textureSampler != nil {
 			s.scene.textureSampler.Release()

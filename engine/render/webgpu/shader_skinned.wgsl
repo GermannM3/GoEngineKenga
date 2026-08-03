@@ -84,6 +84,16 @@ var emissive_tex: texture_2d<f32>;
 @group(2) @binding(7)
 var emissive_sampler: sampler;
 
+// IBL окружение (группа 3): env-кубомапа + irradiance-кубомапа.
+@group(3) @binding(0)
+var env_tex: texture_cube<f32>;
+@group(3) @binding(1)
+var env_sampler: sampler;
+@group(3) @binding(2)
+var irr_tex: texture_cube<f32>;
+@group(3) @binding(3)
+var irr_sampler: sampler;
+
 fn fresnel_schlick(cos_theta: f32, f0: vec3<f32>) -> vec3<f32> {
   return f0 + (1.0 - f0) * pow(1.0 - cos_theta, 5.0);
 }
@@ -264,6 +274,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   }
 
   lo += albedo * uniforms.ambient;
+
+  // IBL: диффузный свет из irradiance-кубомапы + грубое отражение окружения.
+  let irr_env = textureSample(irr_tex, irr_sampler, n).rgb;
+  lo += albedo * irr_env * 0.5;
+  let r_env = reflect(-v, n);
+  let env_ref = textureSample(env_tex, env_sampler, r_env).rgb;
+  lo += env_ref * (fresnel_schlick(max(dot(n, v), 0.0), f0) * (1.0 - roughness) * 0.4);
 
   // Emissive (fallback-чёрная текстура даёт 0)
   let emissive = textureSample(emissive_tex, emissive_sampler, in.uv).rgb * uniforms.emissive_color * uniforms.emissive_strength;
