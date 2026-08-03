@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cogentcore/webgpu/wgpu"
 	"github.com/cogentcore/webgpu/wgpuglfw"
 	"github.com/go-gl/glfw/v3.3/glfw"
 

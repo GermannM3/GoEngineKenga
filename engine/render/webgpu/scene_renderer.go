@@ -299,8 +299,9 @@ func (sc *sceneState) makeMaterialBindGroup(texColor, texNormal, texMR, texEmiss
 
 	views := make([]*wgpu.TextureView, 4)
 	ok := true
+	var err error
 	for i, t := range []*wgpu.Texture{texColor, texNormal, texMR, texEmissive} {
-		views[i], err := t.CreateView(nil)
+		views[i], err = t.CreateView(nil)
 		if err != nil {
 			ok = false
 			break
@@ -1365,7 +1366,7 @@ func buildInstanceBatches(world *ecs.World, frustum *render.Frustum, resolver *a
 		}
 		key := mr.MeshAssetID + "|" + mr.MaterialAssetID
 		if _, ok := group[key]; !ok {
-			mat := getMeshMaterial(mr, resolver)
+			mat := getMeshMaterial(&mr, resolver)
 			group[key] = &instanceBatch{
 				meshAssetID: mr.MeshAssetID,
 				materialKey: mr.MaterialAssetID,
@@ -1411,7 +1412,7 @@ func buildSkinnedDraws(world *ecs.World, frustum *render.Frustum, resolver *asse
 		if frustum != nil && !frustum.SphereInFrustum(tr.Position, radius) {
 			continue
 		}
-		mat := getMeshMaterial(mr, resolver)
+		mat := getMeshMaterial(&mr, resolver)
 		out = append(out, skinnedDraw{
 			entityID:    id,
 			meshAssetID: mr.MeshAssetID,
