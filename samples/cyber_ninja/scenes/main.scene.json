@@ -551,7 +551,7 @@
     "clip": "b16df146-04a2-49bb-a1ec-6dde48573572",
     "volume": 0.35,
     "loop": true,
-    "playOnStart": true
+    "playOnStart": false
    }
   },
   {

@@ -458,7 +458,11 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 		renderPass.SetBindGroup(3, sc.envBindGroup, nil)
 	}
 
-	batches := buildInstanceBatches(frame.World, &frustum, resolver)
+	camPos := emath.Vec3{}
+	if len(pbrData.camPos) == 3 {
+		camPos = emath.Vec3{X: pbrData.camPos[0], Y: pbrData.camPos[1], Z: pbrData.camPos[2]}
+	}
+	batches := buildInstanceBatches(frame.World, &frustum, camPos, resolver)
 	for _, batch := range batches {
 		mat := batch.material
 		if mat == nil {
@@ -494,7 +498,7 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 	}
 
 	// Skinned mesh pass (bone matrices в vertex shader)
-	skinnedDraws := buildSkinnedDraws(frame.World, &frustum, resolver)
+	skinnedDraws := buildSkinnedDraws(frame.World, &frustum, camPos, resolver)
 	if len(skinnedDraws) > 0 && sc.skinnedPipeline != nil {
 		renderPass.SetPipeline(sc.skinnedPipeline)
 		renderPass.SetBindGroup(0, sc.skinnedBindGroup, nil)

@@ -498,9 +498,39 @@ func meshFromResolver(resolver *asset.Resolver, meshAssetID string) (positions, 
 		if mesh, err := resolver.ResolveMeshByAssetID(meshAssetID); err == nil {
 			return mesh.Positions, mesh.Normals, mesh.UV0, mesh.Indices
 		}
+		// LOD-меши идентифицируются путём (Mesh.LODRefs), а не assetID.
+		if mesh, err := resolver.ResolveMeshByPath(meshAssetID); err == nil {
+			return mesh.Positions, mesh.Normals, mesh.UV0, mesh.Indices
+		}
 	}
 	cube := render.CreateCube()
 	return cube.Vertices, cube.Normals, cube.UVs, cube.Indices
+}
+
+// maxDrawDistance — сущности дальше этого радиуса не рисуются (масштабируемость больших сцен).
+const maxDrawDistance = 400
+
+// selectLODMesh выбирает LOD-меш по дистанции до камеры (пороги как в renderer3d:
+// 0–12 = LOD0, 12–35 = LOD1, 35+ = LOD2). Возвращает путь LOD-меша или исходный
+// assetID, если LOD нет. Применяется только к static-мешам.
+func selectLODMesh(resolver *asset.Resolver, meshAssetID string, dist float32) string {
+	if resolver == nil || meshAssetID == "" || dist <= 12 {
+		return meshAssetID
+	}
+	mesh, err := resolver.ResolveMeshByAssetID(meshAssetID)
+	if err != nil || mesh == nil {
+		return meshAssetID
+	}
+	if len(mesh.LODRefs) >= 2 && dist > 35 {
+		if lod2, err := resolver.ResolveMeshByPath(mesh.LODRefs[1]); err == nil && lod2 != nil {
+			return mesh.LODRefs[1]
+		}
+	} else if len(mesh.LODRefs) >= 1 {
+		if lod1, err := resolver.ResolveMeshByPath(mesh.LODRefs[0]); err == nil && lod1 != nil {
+			return mesh.LODRefs[0]
+		}
+	}
+	return meshAssetID
 }
 
 // meshDataWithSkin загружает меш и данные скина (если есть).
@@ -2361,7 +2391,7 @@ func isMeshSkinned(resolver *asset.Resolver, meshAssetID string) bool {
 }
 
 // buildInstanceBatches группирует entities по (mesh, material) для instancing. Skinned meshes исключаются.
-func buildInstanceBatches(world *ecs.World, frustum *render.Frustum, resolver *asset.Resolver) []instanceBatch {
+func buildInstanceBatches(world *ecs.World, frustum *render.Frustum, camPos emath.Vec3, resolver *asset.Resolver) []instanceBatch {
 	group := make(map[string]*instanceBatch)
 
 	for _, id := range world.Entities() {
@@ -2390,11 +2420,19 @@ func buildInstanceBatches(world *ecs.World, frustum *render.Frustum, resolver *a
 		if frustum != nil && !frustum.SphereInFrustum(tr.Position, radius) {
 			continue
 		}
-		key := mr.MeshAssetID + "|" + mr.MaterialAssetID
+		// Дистанционный culling + LOD по расстоянию до камеры.
+		dist := float32(math.Sqrt(float64((tr.Position.X-camPos.X)*(tr.Position.X-camPos.X) +
+			(tr.Position.Y-camPos.Y)*(tr.Position.Y-camPos.Y) +
+			(tr.Position.Z-camPos.Z)*(tr.Position.Z-camPos.Z))))
+		if dist > maxDrawDistance {
+			continue
+		}
+		meshID := selectLODMesh(resolver, mr.MeshAssetID, dist)
+		key := meshID + "|" + mr.MaterialAssetID
 		if _, ok := group[key]; !ok {
 			mat := getMeshMaterial(&mr, resolver)
 			group[key] = &instanceBatch{
-				meshAssetID: mr.MeshAssetID,
+				meshAssetID: meshID,
 				materialKey: mr.MaterialAssetID,
 				transforms:  nil,
 				material:    mat,
@@ -2413,7 +2451,7 @@ func buildInstanceBatches(world *ecs.World, frustum *render.Frustum, resolver *a
 }
 
 // buildSkinnedDraws возвращает список skinned entities для отрисовки.
-func buildSkinnedDraws(world *ecs.World, frustum *render.Frustum, resolver *asset.Resolver) []skinnedDraw {
+func buildSkinnedDraws(world *ecs.World, frustum *render.Frustum, camPos emath.Vec3, resolver *asset.Resolver) []skinnedDraw {
 	var out []skinnedDraw
 	for _, id := range world.Entities() {
 		mr, hasMR := world.GetMeshRenderer(id)
@@ -2436,6 +2474,10 @@ func buildSkinnedDraws(world *ecs.World, frustum *render.Frustum, resolver *asse
 		}
 		radius := float32(math.Sqrt(float64(sx*sx + sy*sy + sz*sz)))
 		if frustum != nil && !frustum.SphereInFrustum(tr.Position, radius) {
+			continue
+		}
+		dx, dy, dz := tr.Position.X-camPos.X, tr.Position.Y-camPos.Y, tr.Position.Z-camPos.Z
+		if dist := float32(math.Sqrt(float64(dx*dx + dy*dy + dz*dz))); dist > maxDrawDistance {
 			continue
 		}
 		mat := getMeshMaterial(&mr, resolver)
