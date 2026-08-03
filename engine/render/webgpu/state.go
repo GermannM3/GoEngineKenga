@@ -24,6 +24,9 @@ var shaderSkinnedWGSL string
 //go:embed point_shadow.wgsl
 var pointShadowWGSL string
 
+//go:embed postprocess.wgsl
+var postprocessWGSL string
+
 type state struct {
 	instance *wgpu.Instance
 	adapter  *wgpu.Adapter
@@ -326,15 +329,19 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 	}
 
 	// Main pass (GPU instancing: batch by mesh+material)
-	// Рендер в multisample-таргет (MSAA 4×) с depth-буфером, резолв в surface view.
-	if err := sc.ensureMSAA(s.device, s.config.Format, width, height, 4); err != nil {
+	// Рендер в multisample-таргет (MSAA 4×, HDR RGBA16Float) с depth-буфером,
+	// резолв в offscreen HDR-текстуру сцены; пост-процесс — в surface.
+	if err := sc.ensureMSAA(s.device, wgpu.TextureFormatRGBA16Float, width, height, 4); err != nil {
+		return err
+	}
+	if err := sc.ensurePostTargets(s.device, width, height); err != nil {
 		return err
 	}
 	renderPass := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		ColorAttachments: []wgpu.RenderPassColorAttachment{
 			{
 				View:          sc.msaaView,
-				ResolveTarget: view,
+				ResolveTarget: sc.sceneView,
 				LoadOp:        wgpu.LoadOpClear,
 				StoreOp:       wgpu.StoreOpStore,
 				ClearValue:    cc,
@@ -472,6 +479,76 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 	renderPass.End()
 	renderPass.Release()
 
+	// --- Пост-процесс: bright -> blur (2×) -> composite в surface ---
+	if sc.compositePipeline != nil && sc.brightBG != nil && sc.blurAB != nil && sc.compositeBG != nil {
+		bw, bh := width/2, height/2
+		if bw < 1 {
+			bw = 1
+		}
+		if bh < 1 {
+			bh = 1
+		}
+		postUbBytes := make([]byte, 16)
+
+		brightPass := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
+			ColorAttachments: []wgpu.RenderPassColorAttachment{
+				{View: sc.bloomViewA, LoadOp: wgpu.LoadOpClear, StoreOp: wgpu.StoreOpStore, ClearValue: wgpu.Color{}},
+			},
+		})
+		brightPass.SetPipeline(sc.brightPipeline)
+		brightPass.SetBindGroup(0, sc.brightBG, nil)
+		brightPass.Draw(3, 1, 0, 0)
+		brightPass.End()
+		brightPass.Release()
+
+		// Горизонтальный блюр A -> B.
+		binary.LittleEndian.PutUint32(postUbBytes[0:], math.Float32bits(1.0/float32(bw)))
+		binary.LittleEndian.PutUint32(postUbBytes[4:], math.Float32bits(0))
+		s.queue.WriteBuffer(sc.postUniform, 0, postUbBytes)
+		blurH := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
+			ColorAttachments: []wgpu.RenderPassColorAttachment{
+				{View: sc.bloomViewB, LoadOp: wgpu.LoadOpClear, StoreOp: wgpu.StoreOpStore, ClearValue: wgpu.Color{}},
+			},
+		})
+		blurH.SetPipeline(sc.blurPipeline)
+		blurH.SetBindGroup(0, sc.blurAB, nil)
+		blurH.Draw(3, 1, 0, 0)
+		blurH.End()
+		blurH.Release()
+
+		// Вертикальный блюр B -> A.
+		binary.LittleEndian.PutUint32(postUbBytes[0:], math.Float32bits(0))
+		binary.LittleEndian.PutUint32(postUbBytes[4:], math.Float32bits(1.0/float32(bh)))
+		s.queue.WriteBuffer(sc.postUniform, 0, postUbBytes)
+		blurV := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
+			ColorAttachments: []wgpu.RenderPassColorAttachment{
+				{View: sc.bloomViewA, LoadOp: wgpu.LoadOpClear, StoreOp: wgpu.StoreOpStore, ClearValue: wgpu.Color{}},
+			},
+		})
+		blurV.SetPipeline(sc.blurPipeline)
+		blurV.SetBindGroup(0, sc.blurBA, nil)
+		blurV.Draw(3, 1, 0, 0)
+		blurV.End()
+		blurV.Release()
+
+		// Композит: ACES-тонмаппинг + bloom + виньетка -> swapchain.
+		binary.LittleEndian.PutUint32(postUbBytes[0:], math.Float32bits(0))
+		binary.LittleEndian.PutUint32(postUbBytes[4:], math.Float32bits(0))
+		binary.LittleEndian.PutUint32(postUbBytes[8:], math.Float32bits(1.0))   // bloom intensity
+		binary.LittleEndian.PutUint32(postUbBytes[12:], math.Float32bits(0.35)) // vignette
+		s.queue.WriteBuffer(sc.postUniform, 0, postUbBytes)
+		compositePass := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
+			ColorAttachments: []wgpu.RenderPassColorAttachment{
+				{View: view, LoadOp: wgpu.LoadOpClear, StoreOp: wgpu.StoreOpStore, ClearValue: cc},
+			},
+		})
+		compositePass.SetPipeline(sc.compositePipeline)
+		compositePass.SetBindGroup(0, sc.compositeBG, nil)
+		compositePass.Draw(3, 1, 0, 0)
+		compositePass.End()
+		compositePass.Release()
+	}
+
 	cmdBuffer, err := encoder.Finish(nil)
 	if err != nil {
 		return err
@@ -608,6 +685,27 @@ func (s *state) Destroy() {
 		if s.scene.envTex != nil {
 			s.scene.envTex.Release()
 		}
+		for _, bg := range []*wgpu.BindGroup{s.scene.compositeBG, s.scene.blurBA, s.scene.blurAB, s.scene.brightBG} {
+			if bg != nil {
+				bg.Release()
+			}
+		}
+		if s.scene.postBGL != nil {
+			s.scene.postBGL.Release()
+		}
+		if s.scene.postUniform != nil {
+			s.scene.postUniform.Release()
+		}
+		if s.scene.compositePipeline != nil {
+			s.scene.compositePipeline.Release()
+		}
+		if s.scene.blurPipeline != nil {
+			s.scene.blurPipeline.Release()
+		}
+		if s.scene.brightPipeline != nil {
+			s.scene.brightPipeline.Release()
+		}
+		s.scene.releasePost()
 		if s.scene.textureSampler != nil {
 			s.scene.textureSampler.Release()
 		}

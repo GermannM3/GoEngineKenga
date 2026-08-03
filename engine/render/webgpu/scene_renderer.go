@@ -572,6 +572,23 @@ type sceneState struct {
 	envSampler   *wgpu.Sampler
 	envBindGroup *wgpu.BindGroup
 
+	// Пост-процесс: HDR offscreen (16F) + bloom (полуразрешение) + composite в surface.
+	sceneTex          *wgpu.Texture
+	sceneView         *wgpu.TextureView
+	bloomTexA         *wgpu.Texture
+	bloomViewA        *wgpu.TextureView
+	bloomTexB         *wgpu.Texture
+	bloomViewB        *wgpu.TextureView
+	brightPipeline    *wgpu.RenderPipeline
+	blurPipeline      *wgpu.RenderPipeline
+	compositePipeline *wgpu.RenderPipeline
+	postUniform       *wgpu.Buffer // 16 bytes: direction vec2, intensity, vignette
+	postBGL           *wgpu.BindGroupLayout
+	brightBG          *wgpu.BindGroup
+	blurAB, blurBA    *wgpu.BindGroup
+	compositeBG       *wgpu.BindGroup
+	postW, postH      int
+
 	defaultMaterialGroup *wgpu.BindGroup // материал без текстур (fallback cube и т.п.)
 
 	// MSAA: multisample color + depth, резолв в surface view в конце main pass.
@@ -663,6 +680,124 @@ func (sc *sceneState) releaseMSAA() {
 	sc.msaaSamples = 0
 }
 
+// ensurePostTargets создаёт/пересоздаёт HDR-таргет сцены и bloom-текстуры
+// (полуразрешение) при первом кадре или смене размера окна.
+func (sc *sceneState) ensurePostTargets(device *wgpu.Device, width, height int) error {
+	if sc.sceneTex != nil && sc.postW == width && sc.postH == height {
+		return nil
+	}
+	sc.releasePost()
+	if width <= 0 || height <= 0 {
+		return nil
+	}
+	bw, bh := width/2, height/2
+	if bw < 1 {
+		bw = 1
+	}
+	if bh < 1 {
+		bh = 1
+	}
+	create := func(label string, w, h int, usage wgpu.TextureUsage) (*wgpu.Texture, *wgpu.TextureView, error) {
+		tex, err := device.CreateTexture(&wgpu.TextureDescriptor{
+			Label:         label,
+			Size:          wgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1},
+			MipLevelCount: 1,
+			SampleCount:   1,
+			Dimension:     wgpu.TextureDimension2D,
+			Format:        wgpu.TextureFormatRGBA16Float,
+			Usage:         usage,
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+		v, err := tex.CreateView(nil)
+		if err != nil {
+			tex.Release()
+			return nil, nil, err
+		}
+		return tex, v, nil
+	}
+	tex, v, err := create("post scene", width, height, wgpu.TextureUsageRenderAttachment|wgpu.TextureUsageTextureBinding)
+	if err != nil {
+		return err
+	}
+	sc.sceneTex, sc.sceneView = tex, v
+	ta, va, err := create("bloom a", bw, bh, wgpu.TextureUsageRenderAttachment|wgpu.TextureUsageTextureBinding)
+	if err != nil {
+		sc.releasePost()
+		return err
+	}
+	sc.bloomTexA, sc.bloomViewA = ta, va
+	tb, vb, err := create("bloom b", bw, bh, wgpu.TextureUsageRenderAttachment|wgpu.TextureUsageTextureBinding)
+	if err != nil {
+		sc.releasePost()
+		return err
+	}
+	sc.bloomTexB, sc.bloomViewB = tb, vb
+	sc.postW, sc.postH = width, height
+
+	// Bind groups пост-процесса (текстуры готовы; layout общий для всех пайплайнов).
+	mk := func(entries []wgpu.BindGroupEntry) *wgpu.BindGroup {
+		if sc.postBGL == nil {
+			return nil
+		}
+		bg, err := device.CreateBindGroup(&wgpu.BindGroupDescriptor{Layout: sc.postBGL, Entries: entries})
+		if err != nil {
+			return nil
+		}
+		return bg
+	}
+	for _, bg := range []**wgpu.BindGroup{&sc.brightBG, &sc.blurAB, &sc.blurBA, &sc.compositeBG} {
+		if *bg != nil {
+			(*bg).Release()
+			*bg = nil
+		}
+	}
+	sc.brightBG = mk([]wgpu.BindGroupEntry{
+		{Binding: 0, TextureView: sc.sceneView},
+		{Binding: 1, Sampler: sc.envSampler},
+		{Binding: 2, TextureView: sc.bloomViewA},
+		{Binding: 3, Buffer: sc.postUniform, Size: 16},
+	})
+	sc.blurAB = mk([]wgpu.BindGroupEntry{
+		{Binding: 0, TextureView: sc.bloomViewA},
+		{Binding: 1, Sampler: sc.envSampler},
+		{Binding: 2, TextureView: sc.bloomViewA},
+		{Binding: 3, Buffer: sc.postUniform, Size: 16},
+	})
+	sc.blurBA = mk([]wgpu.BindGroupEntry{
+		{Binding: 0, TextureView: sc.bloomViewB},
+		{Binding: 1, Sampler: sc.envSampler},
+		{Binding: 2, TextureView: sc.bloomViewB},
+		{Binding: 3, Buffer: sc.postUniform, Size: 16},
+	})
+	sc.compositeBG = mk([]wgpu.BindGroupEntry{
+		{Binding: 0, TextureView: sc.sceneView},
+		{Binding: 1, Sampler: sc.envSampler},
+		{Binding: 2, TextureView: sc.bloomViewA},
+		{Binding: 3, Buffer: sc.postUniform, Size: 16},
+	})
+	return nil
+}
+
+// releasePost освобождает ресурсы пост-процесса (текстуры пересоздаются
+// при необходимости; пайплайны/биндинги — только в Destroy).
+func (sc *sceneState) releasePost() {
+	for _, v := range []**wgpu.TextureView{&sc.sceneView, &sc.bloomViewA, &sc.bloomViewB} {
+		if *v != nil {
+			(*v).Release()
+			*v = nil
+		}
+	}
+	for _, t := range []**wgpu.Texture{&sc.sceneTex, &sc.bloomTexA, &sc.bloomTexB} {
+		if *t != nil {
+			(*t).Release()
+			*t = nil
+		}
+	}
+	sc.postW, sc.postH = 0, 0
+}
+
 func (s *state) initSceneState() error {
 	// Uniform buffer: PBR struct (MVP, model, material, light, camera)
 	ub, err := s.device.CreateBuffer(&wgpu.BufferDescriptor{
@@ -742,7 +877,7 @@ func (s *state) initSceneState() error {
 			Targets: []wgpu.ColorTargetState{
 				// Alpha blending: OPAQUE материалы имеют alpha=1 (без видимого эффекта),
 				// BLEND-материалы получают честную прозрачность.
-				{Format: s.config.Format, Blend: &wgpu.BlendStateAlphaBlending, WriteMask: wgpu.ColorWriteMaskAll},
+				{Format: wgpu.TextureFormatRGBA16Float, Blend: &wgpu.BlendStateAlphaBlending, WriteMask: wgpu.ColorWriteMaskAll},
 			},
 		},
 	})
@@ -1318,7 +1453,7 @@ func (s *state) initSceneState() error {
 			Module:     skinnedShader,
 			EntryPoint: "fs_main",
 			Targets: []wgpu.ColorTargetState{
-				{Format: s.config.Format, Blend: &wgpu.BlendStateAlphaBlending, WriteMask: wgpu.ColorWriteMaskAll},
+				{Format: wgpu.TextureFormatRGBA16Float, Blend: &wgpu.BlendStateAlphaBlending, WriteMask: wgpu.ColorWriteMaskAll},
 			},
 		},
 	})
@@ -1507,6 +1642,118 @@ func (s *state) initSceneState() error {
 		return err
 	}
 
+	// --- Пост-процесс: bright / blur / composite ---
+	releaseUpToEnv := func() {
+		envBg.Release()
+		envSmp.Release()
+		irrViewR.Release()
+		irrTexR.Release()
+		envViewR.Release()
+		envTexR.Release()
+		skinnedBgShadow.Release()
+		skinnedBg.Release()
+		skinnedPl.Release()
+		boneUb.Release()
+		skinnedUb.Release()
+		shadowSkinnedUb.Release()
+		shadowSkinnedBg.Release()
+		shadowSkinnedPl.Release()
+		shadowPl.Release()
+		shadowUb.Release()
+		shadowSampler.Release()
+		shadowView.Release()
+		shadowTex.Release()
+		pointShadowBg.Release()
+		pointShadowPl.Release()
+		pointShadowUb.Release()
+		for i := 0; i < 6; i++ {
+			pointShadowFaces[i].Release()
+		}
+		pointShadowView.Release()
+		pointShadowTex.Release()
+		pipeline.Release()
+		cubeBuf.Release()
+		ub.Release()
+		bg.Release()
+	}
+	postShader, err := s.device.CreateShaderModule(&wgpu.ShaderModuleDescriptor{
+		Label:          "post shader",
+		WGSLDescriptor: &wgpu.ShaderModuleWGSLDescriptor{Code: postprocessWGSL},
+	})
+	if err != nil {
+		releaseUpToEnv()
+		return err
+	}
+	postUb, err := s.device.CreateBuffer(&wgpu.BufferDescriptor{
+		Label: "post uniforms",
+		Usage: wgpu.BufferUsageUniform | wgpu.BufferUsageCopyDst,
+		Size:  16,
+	})
+	if err != nil {
+		postShader.Release()
+		releaseUpToEnv()
+		return err
+	}
+	brightPl, err := s.device.CreateRenderPipeline(&wgpu.RenderPipelineDescriptor{
+		Label:     "Bright Pipeline",
+		Vertex:    wgpu.VertexState{Module: postShader, EntryPoint: "vs_fullscreen"},
+		Primitive: wgpu.PrimitiveState{Topology: wgpu.PrimitiveTopologyTriangleList},
+		Fragment: &wgpu.FragmentState{
+			Module:     postShader,
+			EntryPoint: "fs_bright",
+			Targets: []wgpu.ColorTargetState{
+				{Format: wgpu.TextureFormatRGBA16Float, WriteMask: wgpu.ColorWriteMaskAll},
+			},
+		},
+	})
+	if err != nil {
+		postUb.Release()
+		postShader.Release()
+		releaseUpToEnv()
+		return err
+	}
+	blurPl, err := s.device.CreateRenderPipeline(&wgpu.RenderPipelineDescriptor{
+		Label:     "Blur Pipeline",
+		Vertex:    wgpu.VertexState{Module: postShader, EntryPoint: "vs_fullscreen"},
+		Primitive: wgpu.PrimitiveState{Topology: wgpu.PrimitiveTopologyTriangleList},
+		Fragment: &wgpu.FragmentState{
+			Module:     postShader,
+			EntryPoint: "fs_blur",
+			Targets: []wgpu.ColorTargetState{
+				{Format: wgpu.TextureFormatRGBA16Float, WriteMask: wgpu.ColorWriteMaskAll},
+			},
+		},
+	})
+	if err != nil {
+		brightPl.Release()
+		postUb.Release()
+		postShader.Release()
+		releaseUpToEnv()
+		return err
+	}
+	compositePl, err := s.device.CreateRenderPipeline(&wgpu.RenderPipelineDescriptor{
+		Label:     "Composite Pipeline",
+		Vertex:    wgpu.VertexState{Module: postShader, EntryPoint: "vs_fullscreen"},
+		Primitive: wgpu.PrimitiveState{Topology: wgpu.PrimitiveTopologyTriangleList},
+		Fragment: &wgpu.FragmentState{
+			Module:     postShader,
+			EntryPoint: "fs_composite",
+			Targets: []wgpu.ColorTargetState{
+				{Format: s.config.Format, WriteMask: wgpu.ColorWriteMaskAll},
+			},
+		},
+	})
+	if err != nil {
+		blurPl.Release()
+		brightPl.Release()
+		postUb.Release()
+		postShader.Release()
+		releaseUpToEnv()
+		return err
+	}
+	postShader.Release()
+	postBgl := brightPl.GetBindGroupLayout(0)
+
 	s.scene = &sceneState{
 		device:                 s.device,
 		queue:                  s.queue,
@@ -1544,6 +1791,11 @@ func (s *state) initSceneState() error {
 		irrView:                irrViewR,
 		envSampler:             envSmp,
 		envBindGroup:           envBg,
+		brightPipeline:         brightPl,
+		blurPipeline:           blurPl,
+		compositePipeline:      compositePl,
+		postUniform:            postUb,
+		postBGL:                postBgl,
 	}
 	return nil
 }

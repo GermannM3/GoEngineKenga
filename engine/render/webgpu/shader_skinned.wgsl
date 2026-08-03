@@ -98,16 +98,7 @@ fn fresnel_schlick(cos_theta: f32, f0: vec3<f32>) -> vec3<f32> {
   return f0 + (1.0 - f0) * pow(1.0 - cos_theta, 5.0);
 }
 
-// ACES filmic tonemap (Narkowicz 2015): переводит HDR-свет в LDR без
-// пережжённых бликов и «мутного» серого.
-fn aces(x: vec3<f32>) -> vec3<f32> {
-  let a = 2.51;
-  let b = 0.03;
-  let c = 2.43;
-  let d = 0.59;
-  let e = 0.14;
-  return clamp((x * (a * x + b)) / (x * (c * x + d) + e), vec3<f32>(0.0), vec3<f32>(1.0));
-}
+
 
 fn distribution_ggx(n: vec3<f32>, h: vec3<f32>, roughness: f32) -> f32 {
   let a = roughness * roughness * roughness * roughness;
@@ -286,5 +277,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   let emissive = textureSample(emissive_tex, emissive_sampler, in.uv).rgb * uniforms.emissive_color * uniforms.emissive_strength;
   lo += emissive;
 
-  return vec4<f32>(aces(lo), alpha);
+  return vec4<f32>(lo, alpha);
 }
