@@ -61,6 +61,10 @@ var<uniform> uniforms: Uniforms;
 var shadow_map: texture_depth_2d;
 @group(1) @binding(1)
 var shadow_sampler: sampler_comparison;
+@group(1) @binding(2)
+var shadow_map_point: texture_depth_2d_array;
+@group(1) @binding(3)
+var shadow_sampler_point: sampler_comparison;
 
 // Текстуры материала (группа 2): color, normal, metallic-roughness, emissive + общий sampler.
 // Пустые слоты биндятся fallback-текстурами (белая/плоская/чёрная) со стороны Go.
@@ -202,7 +206,29 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let pl_kd = (1.0 - pl_f) * (1.0 - metallic);
     let pl_specular = pl_f * pl_d * 0.25;
     let pl_radiance = uniforms.point_light_color * uniforms.point_light_intensity * attenuation;
-    lo += (pl_kd * diffuse * pl_ndotl + pl_specular * pl_radiance) * pl_ndotl;
+    // Cubemap-тени point light: 6 граней в depth_2d_array, линейная глубина (dist/range).
+    let sd = in.world_pos - uniforms.point_light_pos;
+    let sa = abs(sd);
+    let sm = max(sa.x, max(sa.y, sa.z));
+    var sl: u32 = 0u;
+    var suv = vec2<f32>(0.0);
+    if (sa.x >= sa.y && sa.x >= sa.z) {
+      if (sd.x >= 0.0) { sl = 0u; suv = vec2<f32>(-sd.z, -sd.y) / sa.x; }
+      else { sl = 1u; suv = vec2<f32>(sd.z, -sd.y) / sa.x; }
+    } else if (sa.y >= sa.x && sa.y >= sa.z) {
+      if (sd.y >= 0.0) { sl = 2u; suv = vec2<f32>(sd.x, sd.z) / sa.y; }
+      else { sl = 3u; suv = vec2<f32>(sd.x, -sd.z) / sa.y; }
+    } else {
+      if (sd.z >= 0.0) { sl = 4u; suv = vec2<f32>(sd.x, -sd.y) / sa.z; }
+      else { sl = 5u; suv = vec2<f32>(-sd.x, -sd.y) / sa.z; }
+    }
+    let pl_uv = suv * 0.5 + 0.5;
+    let pl_depth = sm / max(uniforms.point_light_range, 0.0001);
+    var pl_shadow = 1.0;
+    if pl_uv.x >= 0.0 && pl_uv.x <= 1.0 && pl_uv.y >= 0.0 && pl_uv.y <= 1.0 {
+      pl_shadow = textureSampleCompare(shadow_map_point, shadow_sampler_point, pl_uv, sl, pl_depth - 0.001);
+    }
+    lo += (pl_kd * diffuse * pl_ndotl + pl_specular * pl_radiance) * pl_ndotl * pl_shadow;
   }
 
   // Spotlight: конус (inner/outer) + затухание по расстоянию, без собственных теней (backlog).

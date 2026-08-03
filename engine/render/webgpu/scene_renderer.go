@@ -5,6 +5,7 @@ package webgpu
 import (
 	_ "embed"
 	"encoding/binary"
+	"fmt"
 	"math"
 
 	"github.com/cogentcore/webgpu/wgpu"
@@ -536,6 +537,14 @@ type sceneState struct {
 	shadowBindGroup *wgpu.BindGroup
 	shadowSampler   *wgpu.Sampler
 
+	// Point light shadows: depth-array из 6 граней (cubemap), линейная глубина через frag_depth.
+	pointShadowMap       *wgpu.Texture
+	pointShadowView      *wgpu.TextureView // view для семплирования (2d-array)
+	pointShadowFaces     [6]*wgpu.TextureView
+	pointShadowPipeline  *wgpu.RenderPipeline
+	pointShadowUniform   *wgpu.Buffer // 144 bytes: view_proj + model + light_pos + light_far
+	pointShadowBindGroup *wgpu.BindGroup
+
 	// Skeletal skinning
 	skinnedPipeline        *wgpu.RenderPipeline
 	skinnedUniform         *wgpu.Buffer // PBR uniforms + model at 64
@@ -1009,16 +1018,215 @@ func (s *state) initSceneState() error {
 		return err
 	}
 
+	// --- Point light shadows: depth-array кубомапа (6 граней), линейная глубина через frag_depth ---
+	pointShadowTex, err := s.device.CreateTexture(&wgpu.TextureDescriptor{
+		Label:         "point shadow map",
+		Size:          wgpu.Extent3D{Width: 512, Height: 512, DepthOrArrayLayers: 6},
+		MipLevelCount: 1,
+		SampleCount:   1,
+		Dimension:     wgpu.TextureDimension2D,
+		Format:        wgpu.TextureFormatDepth32Float,
+		Usage:         wgpu.TextureUsageRenderAttachment | wgpu.TextureUsageTextureBinding,
+	})
+	if err != nil {
+		shadowPl.Release()
+		shadowUb.Release()
+		shadowSampler.Release()
+		shadowView.Release()
+		shadowTex.Release()
+		pipeline.Release()
+		cubeBuf.Release()
+		ub.Release()
+		bg.Release()
+		return err
+	}
+	pointShadowView, err := pointShadowTex.CreateView(&wgpu.TextureViewDescriptor{
+		Label:           "point shadow array view",
+		Dimension:       wgpu.TextureViewDimension2DArray,
+		ArrayLayerCount: 6,
+	})
+	if err != nil {
+		pointShadowTex.Release()
+		shadowPl.Release()
+		shadowUb.Release()
+		shadowSampler.Release()
+		shadowView.Release()
+		shadowTex.Release()
+		pipeline.Release()
+		cubeBuf.Release()
+		ub.Release()
+		bg.Release()
+		return err
+	}
+	var pointShadowFaces [6]*wgpu.TextureView
+	for i := 0; i < 6; i++ {
+		fv, err := pointShadowTex.CreateView(&wgpu.TextureViewDescriptor{
+			Label:           fmt.Sprintf("point shadow face %d", i),
+			Dimension:       wgpu.TextureViewDimension2D,
+			BaseArrayLayer:  uint32(i),
+			ArrayLayerCount: 1,
+		})
+		if err != nil {
+			for j := 0; j < i; j++ {
+				pointShadowFaces[j].Release()
+			}
+			pointShadowView.Release()
+			pointShadowTex.Release()
+			shadowPl.Release()
+			shadowUb.Release()
+			shadowSampler.Release()
+			shadowView.Release()
+			shadowTex.Release()
+			pipeline.Release()
+			cubeBuf.Release()
+			ub.Release()
+			bg.Release()
+			return err
+		}
+		pointShadowFaces[i] = fv
+	}
+	pointShadowShader, err := s.device.CreateShaderModule(&wgpu.ShaderModuleDescriptor{
+		Label:          "point shadow shader",
+		WGSLDescriptor: &wgpu.ShaderModuleWGSLDescriptor{Code: pointShadowWGSL},
+	})
+	if err != nil {
+		for i := 0; i < 6; i++ {
+			pointShadowFaces[i].Release()
+		}
+		pointShadowView.Release()
+		pointShadowTex.Release()
+		shadowPl.Release()
+		shadowUb.Release()
+		shadowSampler.Release()
+		shadowView.Release()
+		shadowTex.Release()
+		pipeline.Release()
+		cubeBuf.Release()
+		ub.Release()
+		bg.Release()
+		return err
+	}
+	pointShadowUb, err := s.device.CreateBuffer(&wgpu.BufferDescriptor{
+		Label: "point shadow uniforms",
+		Usage: wgpu.BufferUsageUniform | wgpu.BufferUsageCopyDst,
+		Size:  144,
+	})
+	if err != nil {
+		pointShadowShader.Release()
+		for i := 0; i < 6; i++ {
+			pointShadowFaces[i].Release()
+		}
+		pointShadowView.Release()
+		pointShadowTex.Release()
+		shadowPl.Release()
+		shadowUb.Release()
+		shadowSampler.Release()
+		shadowView.Release()
+		shadowTex.Release()
+		pipeline.Release()
+		cubeBuf.Release()
+		ub.Release()
+		bg.Release()
+		return err
+	}
+	pointShadowPl, err := s.device.CreateRenderPipeline(&wgpu.RenderPipelineDescriptor{
+		Label: "Point Shadow Pipeline",
+		Vertex: wgpu.VertexState{
+			Module:     pointShadowShader,
+			EntryPoint: "vs_main",
+			Buffers: []wgpu.VertexBufferLayout{
+				{ArrayStride: 32, StepMode: wgpu.VertexStepModeVertex,
+					Attributes: []wgpu.VertexAttribute{
+						{Format: wgpu.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 0},
+						{Format: wgpu.VertexFormatFloat32x3, Offset: 12, ShaderLocation: 1},
+						{Format: wgpu.VertexFormatFloat32x2, Offset: 24, ShaderLocation: 2},
+					},
+				},
+			},
+		},
+		Primitive: wgpu.PrimitiveState{
+			Topology:  wgpu.PrimitiveTopologyTriangleList,
+			FrontFace: wgpu.FrontFaceCCW,
+			CullMode:  wgpu.CullModeBack,
+		},
+		DepthStencil: &wgpu.DepthStencilState{
+			Format:            wgpu.TextureFormatDepth32Float,
+			DepthWriteEnabled: true,
+			DepthCompare:      wgpu.CompareFunctionLessEqual,
+		},
+		Fragment: &wgpu.FragmentState{
+			Module:     pointShadowShader,
+			EntryPoint: "fs_main",
+			Targets:    []wgpu.ColorTargetState{},
+		},
+	})
+	pointShadowShader.Release()
+	if err != nil {
+		pointShadowUb.Release()
+		for i := 0; i < 6; i++ {
+			pointShadowFaces[i].Release()
+		}
+		pointShadowView.Release()
+		pointShadowTex.Release()
+		shadowPl.Release()
+		shadowUb.Release()
+		shadowSampler.Release()
+		shadowView.Release()
+		shadowTex.Release()
+		pipeline.Release()
+		cubeBuf.Release()
+		ub.Release()
+		bg.Release()
+		return err
+	}
+	pointShadowBgl := pointShadowPl.GetBindGroupLayout(0)
+	pointShadowBg, err := s.device.CreateBindGroup(&wgpu.BindGroupDescriptor{
+		Layout: pointShadowBgl,
+		Entries: []wgpu.BindGroupEntry{
+			{Binding: 0, Buffer: pointShadowUb, Size: 144},
+		},
+	})
+	pointShadowBgl.Release()
+	if err != nil {
+		pointShadowPl.Release()
+		pointShadowUb.Release()
+		for i := 0; i < 6; i++ {
+			pointShadowFaces[i].Release()
+		}
+		pointShadowView.Release()
+		pointShadowTex.Release()
+		shadowPl.Release()
+		shadowUb.Release()
+		shadowSampler.Release()
+		shadowView.Release()
+		shadowTex.Release()
+		pipeline.Release()
+		cubeBuf.Release()
+		ub.Release()
+		bg.Release()
+		return err
+	}
+
 	bgl1 := pipeline.GetBindGroupLayout(1)
 	bgShadow, err := s.device.CreateBindGroup(&wgpu.BindGroupDescriptor{
 		Layout: bgl1,
 		Entries: []wgpu.BindGroupEntry{
 			{Binding: 0, TextureView: shadowView},
 			{Binding: 1, Sampler: shadowSampler},
+			{Binding: 2, TextureView: pointShadowView},
+			{Binding: 3, Sampler: shadowSampler},
 		},
 	})
 	bgl1.Release()
 	if err != nil {
+		pointShadowBg.Release()
+		pointShadowPl.Release()
+		pointShadowUb.Release()
+		for i := 0; i < 6; i++ {
+			pointShadowFaces[i].Release()
+		}
+		pointShadowView.Release()
+		pointShadowTex.Release()
 		shadowPl.Release()
 		shadowUb.Release()
 		shadowSampler.Release()
@@ -1150,10 +1358,20 @@ func (s *state) initSceneState() error {
 		Entries: []wgpu.BindGroupEntry{
 			{Binding: 0, TextureView: shadowView},
 			{Binding: 1, Sampler: shadowSampler},
+			{Binding: 2, TextureView: pointShadowView},
+			{Binding: 3, Sampler: shadowSampler},
 		},
 	})
 	skinnedBgl1.Release()
 	if err != nil {
+		pointShadowBg.Release()
+		pointShadowPl.Release()
+		pointShadowUb.Release()
+		for i := 0; i < 6; i++ {
+			pointShadowFaces[i].Release()
+		}
+		pointShadowView.Release()
+		pointShadowTex.Release()
 		skinnedBg.Release()
 		skinnedPl.Release()
 		boneUb.Release()
@@ -1186,6 +1404,12 @@ func (s *state) initSceneState() error {
 		shadowUniform:          shadowUb,
 		shadowBindGroup:        sbg,
 		shadowSampler:          shadowSampler,
+		pointShadowMap:         pointShadowTex,
+		pointShadowView:        pointShadowView,
+		pointShadowFaces:       pointShadowFaces,
+		pointShadowPipeline:    pointShadowPl,
+		pointShadowUniform:     pointShadowUb,
+		pointShadowBindGroup:   pointShadowBg,
 		skinnedPipeline:        skinnedPl,
 		skinnedUniform:         skinnedUb,
 		boneUniform:            boneUb,
@@ -1301,6 +1525,30 @@ func buildLightViewProj(lightDir []float32) render.Matrix4 {
 	view := render.LookAt(eye, target, up)
 	ortho := render.Orthographic(-20, 20, -20, 20, 0.1, 60)
 	return ortho.Multiply(view)
+}
+
+// buildPointFaceViewProj возвращает view-proj для грани cubemap point light.
+// Маппинг граней согласован с шейдером (shader.wgsl): 0:+X 1:-X 2:+Y 3:-Y 4:+Z 5:-Z.
+func buildPointFaceViewProj(pos emath.Vec3, face int, far float32) render.Matrix4 {
+	var dir, up emath.Vec3
+	switch face {
+	case 0:
+		dir, up = emath.Vec3{X: 1, Y: 0, Z: 0}, emath.Vec3{X: 0, Y: -1, Z: 0} // +X
+	case 1:
+		dir, up = emath.Vec3{X: -1, Y: 0, Z: 0}, emath.Vec3{X: 0, Y: -1, Z: 0} // -X
+	case 2:
+		dir, up = emath.Vec3{X: 0, Y: 1, Z: 0}, emath.Vec3{X: 0, Y: 0, Z: 1} // +Y
+	case 3:
+		dir, up = emath.Vec3{X: 0, Y: -1, Z: 0}, emath.Vec3{X: 0, Y: 0, Z: -1} // -Y
+	case 4:
+		dir, up = emath.Vec3{X: 0, Y: 0, Z: 1}, emath.Vec3{X: 0, Y: -1, Z: 0} // +Z
+	case 5:
+		dir, up = emath.Vec3{X: 0, Y: 0, Z: -1}, emath.Vec3{X: 0, Y: -1, Z: 0} // -Z
+	}
+	eye := emath.Vec3{X: pos.X + dir.X, Y: pos.Y + dir.Y, Z: pos.Z + dir.Z}
+	view := render.LookAt(pos, eye, up)
+	proj := render.Perspective(90, 1, 0.1, far)
+	return proj.Multiply(view)
 }
 
 // getPBRSceneData извлекает камеру, свет и параметры из World.

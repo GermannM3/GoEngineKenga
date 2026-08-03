@@ -4,6 +4,7 @@ package webgpu
 
 import (
 	_ "embed"
+	"encoding/binary"
 	"math"
 
 	"github.com/cogentcore/webgpu/wgpu"
@@ -19,6 +20,9 @@ var shaderWGSL string
 
 //go:embed shader_skinned.wgsl
 var shaderSkinnedWGSL string
+
+//go:embed point_shadow.wgsl
+var pointShadowWGSL string
 
 type state struct {
 	instance *wgpu.Instance
@@ -268,6 +272,59 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 		shadowPass.Release()
 	}
 
+	// Point light shadow pass: cubemap из depth-array (6 граней), линейная глубина.
+	if sc.pointShadowPipeline != nil && len(pbrData.pointLightPos) == 3 && pbrData.pointLightIntensity > 0 {
+		lightPos := emath.Vec3{X: pbrData.pointLightPos[0], Y: pbrData.pointLightPos[1], Z: pbrData.pointLightPos[2]}
+		far := pbrData.pointLightRange
+		if far <= 0 {
+			far = 10
+		}
+		pointUbBytes := make([]byte, 144)
+		binary.LittleEndian.PutUint32(pointUbBytes[128:], math.Float32bits(lightPos.X))
+		binary.LittleEndian.PutUint32(pointUbBytes[132:], math.Float32bits(lightPos.Y))
+		binary.LittleEndian.PutUint32(pointUbBytes[136:], math.Float32bits(lightPos.Z))
+		binary.LittleEndian.PutUint32(pointUbBytes[140:], math.Float32bits(far))
+		for face := 0; face < 6; face++ {
+			faceVP := buildPointFaceViewProj(lightPos, face, far)
+			facePass := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
+				ColorAttachments: []wgpu.RenderPassColorAttachment{},
+				DepthStencilAttachment: &wgpu.RenderPassDepthStencilAttachment{
+					View:            sc.pointShadowFaces[face],
+					DepthLoadOp:     wgpu.LoadOpClear,
+					DepthStoreOp:    wgpu.StoreOpStore,
+					DepthClearValue: 1.0,
+				},
+			})
+			facePass.SetPipeline(sc.pointShadowPipeline)
+			facePass.SetBindGroup(0, sc.pointShadowBindGroup, nil)
+			copy(pointUbBytes[0:64], matrixToBytes(faceVP))
+			for _, id := range frame.World.Entities() {
+				mr, hasMR := frame.World.GetMeshRenderer(id)
+				if !hasMR || mr.MeshAssetID == "" {
+					continue
+				}
+				if isMeshSkinned(resolver, mr.MeshAssetID) {
+					continue // skinned-меши пока не бросают point-тени
+				}
+				tr, hasTr := frame.World.GetTransform(id)
+				if !hasTr {
+					tr = ecs.Transform{Scale: emath.Vec3{X: 1, Y: 1, Z: 1}}
+				}
+				vb, vc := sc.getOrCreateMeshBuffer(resolver, mr.MeshAssetID)
+				if vb == nil {
+					continue
+				}
+				model := buildModelMatrix(&tr)
+				copy(pointUbBytes[64:128], matrixToBytes(model))
+				s.queue.WriteBuffer(sc.pointShadowUniform, 0, pointUbBytes)
+				facePass.SetVertexBuffer(0, vb, 0, wgpu.WholeSize)
+				facePass.Draw(vc, 1, 0, 0)
+			}
+			facePass.End()
+			facePass.Release()
+		}
+	}
+
 	// Main pass (GPU instancing: batch by mesh+material)
 	// Рендер в multisample-таргет (MSAA 4×) с depth-буфером, резолв в surface view.
 	if err := sc.ensureMSAA(s.device, s.config.Format, width, height, 4); err != nil {
@@ -469,6 +526,26 @@ func (s *state) Destroy() {
 		}
 		if s.scene.shadowView != nil {
 			s.scene.shadowView.Release()
+		}
+		if s.scene.pointShadowBindGroup != nil {
+			s.scene.pointShadowBindGroup.Release()
+		}
+		if s.scene.pointShadowPipeline != nil {
+			s.scene.pointShadowPipeline.Release()
+		}
+		if s.scene.pointShadowUniform != nil {
+			s.scene.pointShadowUniform.Release()
+		}
+		for i := 0; i < 6; i++ {
+			if s.scene.pointShadowFaces[i] != nil {
+				s.scene.pointShadowFaces[i].Release()
+			}
+		}
+		if s.scene.pointShadowView != nil {
+			s.scene.pointShadowView.Release()
+		}
+		if s.scene.pointShadowMap != nil {
+			s.scene.pointShadowMap.Release()
 		}
 		if s.scene.shadowMap != nil {
 			s.scene.shadowMap.Release()
