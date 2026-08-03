@@ -636,6 +636,9 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 		binary.LittleEndian.PutUint32(postUbBytes[4:], math.Float32bits(0))
 		binary.LittleEndian.PutUint32(postUbBytes[8:], math.Float32bits(1.0))   // bloom intensity
 		binary.LittleEndian.PutUint32(postUbBytes[12:], math.Float32bits(0.35)) // vignette
+		binary.LittleEndian.PutUint32(postUbBytes[16:], math.Float32bits(0.6))  // dof strength
+		binary.LittleEndian.PutUint32(postUbBytes[20:], math.Float32bits(0.5))  // focus y
+		binary.LittleEndian.PutUint32(postUbBytes[24:], math.Float32bits(0.3))  // focus range
 		s.queue.WriteBuffer(sc.postUniform, 0, postUbBytes)
 		compositePass := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 			ColorAttachments: []wgpu.RenderPassColorAttachment{

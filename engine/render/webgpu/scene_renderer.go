@@ -594,7 +594,7 @@ type sceneState struct {
 	brightPipeline    *wgpu.RenderPipeline
 	blurPipeline      *wgpu.RenderPipeline
 	compositePipeline *wgpu.RenderPipeline
-	postUniform       *wgpu.Buffer // 16 bytes: direction vec2, intensity, vignette
+	postUniform       *wgpu.Buffer // 32 bytes: direction vec2, intensity, vignette, dof*
 	postBGL           *wgpu.BindGroupLayout
 	brightBG          *wgpu.BindGroup
 	blurAB, blurBA    *wgpu.BindGroup
@@ -769,25 +769,25 @@ func (sc *sceneState) ensurePostTargets(device *wgpu.Device, width, height int) 
 		{Binding: 0, TextureView: sc.sceneView},
 		{Binding: 1, Sampler: sc.envSampler},
 		{Binding: 2, TextureView: sc.bloomViewA},
-		{Binding: 3, Buffer: sc.postUniform, Size: 16},
+		{Binding: 3, Buffer: sc.postUniform, Size: 32},
 	})
 	sc.blurAB = mk([]wgpu.BindGroupEntry{
 		{Binding: 0, TextureView: sc.bloomViewA},
 		{Binding: 1, Sampler: sc.envSampler},
 		{Binding: 2, TextureView: sc.bloomViewA},
-		{Binding: 3, Buffer: sc.postUniform, Size: 16},
+		{Binding: 3, Buffer: sc.postUniform, Size: 32},
 	})
 	sc.blurBA = mk([]wgpu.BindGroupEntry{
 		{Binding: 0, TextureView: sc.bloomViewB},
 		{Binding: 1, Sampler: sc.envSampler},
 		{Binding: 2, TextureView: sc.bloomViewB},
-		{Binding: 3, Buffer: sc.postUniform, Size: 16},
+		{Binding: 3, Buffer: sc.postUniform, Size: 32},
 	})
 	sc.compositeBG = mk([]wgpu.BindGroupEntry{
 		{Binding: 0, TextureView: sc.sceneView},
 		{Binding: 1, Sampler: sc.envSampler},
 		{Binding: 2, TextureView: sc.bloomViewA},
-		{Binding: 3, Buffer: sc.postUniform, Size: 16},
+		{Binding: 3, Buffer: sc.postUniform, Size: 32},
 	})
 	return nil
 }
@@ -1894,7 +1894,7 @@ func (s *state) initSceneState() error {
 	postUb, err := s.device.CreateBuffer(&wgpu.BufferDescriptor{
 		Label: "post uniforms",
 		Usage: wgpu.BufferUsageUniform | wgpu.BufferUsageCopyDst,
-		Size:  16,
+		Size:  32,
 	})
 	if err != nil {
 		postShader.Release()

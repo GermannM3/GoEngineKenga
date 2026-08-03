@@ -6,7 +6,9 @@
 
 ### Добавлено
 
-- **Point light shadows в WebGPU**: cubemap-тени через depth-array (6 граней, 512²), линейная глубина через `frag_depth`, сравнение с bias; skinned-меши пока не бросают point-тени (TODO)
+- **Point light shadows в WebGPU**: cubemap-тени через depth-array (6 граней, 512²), линейная глубина через `frag_depth`, сравнение с bias; **skinned-меши тоже бросают point-тени** (отдельный skinned-шейдер)
+- **Spot-тени в WebGPU**: перспективная 2D-карта прожектора (1024²), sampling по `spot_light_view_proj` в spotlight-блоке
+- **DOF (tilt-shift) в пост-процессе**: переменный радиальный блюр по фокусной линии UV (без depth-буфера), параметры dof_strength/focus_y/focus_range
 - **IBL/отражения в WebGPU**: процедурные env- (64²) и irradiance- (8²) кубомапы без ассетов; диффузный IBL + грубые зеркальные отражения окружения
 - **Пост-процесс в WebGPU**: HDR-конвейер (сцена → RGBA16Float offscreen), bloom (bright-extract + separable gaussian 9-tap на полуразрешении) + ACES-тонмаппинг + виньетка в composite-проходе
 - **MSAA 4× в WebGPU**: multisample color/depth текстуры + resolve в offscreen-таргет — сглаженные края, корректная сортировка (в main pass появился depth-буфер)

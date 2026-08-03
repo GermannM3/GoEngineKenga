@@ -5,6 +5,9 @@ struct PostUniforms {
   direction: vec2<f32>, // blur: смещение в UV на 1 тексель
   intensity: f32,       // bloom intensity (composite)
   vignette: f32,        // сила виньетки (composite)
+  dof_strength: f32,    // сила DOF (0 = выключен)
+  focus_y: f32,         // фокусная линия в UV
+  focus_range: f32,     // полуширина зоны резкости
 }
 
 @group(0) @binding(0)
@@ -67,10 +70,29 @@ fn aces(x: vec3<f32>) -> vec3<f32> {
   return clamp((x * (a * x + b)) / (x * (c * x + d) + e), vec3<f32>(0.0), vec3<f32>(1.0));
 }
 
-// Финальная композиция: ACES + bloom + виньетка.
+// Финальная композиция: tilt-shift DOF + ACES + bloom + виньетка.
 @fragment
 fn fs_composite(in: VSOut) -> @location(0) vec4<f32> {
-  var c = textureSample(scene_tex, smp, in.uv).rgb;
+  // Tilt-shift DOF: радиус блюра растёт с удалением от фокусной линии (без depth).
+  let dof_amt = uniforms.dof_strength * smoothstep(0.0, 1.0, abs(in.uv.y - uniforms.focus_y) / max(uniforms.focus_range, 0.001)) * 0.02;
+  var acc = textureSample(scene_tex, smp, in.uv).rgb;
+  var weight = 1.0;
+  if dof_amt > 0.0005 {
+    // 6 направлений × 2 кольца (+ центр).
+    let dirs = array<vec2<f32>, 6>(
+      vec2<f32>(1.0, 0.0), vec2<f32>(0.5, 0.866), vec2<f32>(-0.5, 0.866),
+      vec2<f32>(-1.0, 0.0), vec2<f32>(-0.5, -0.866), vec2<f32>(0.5, -0.866));
+    for (var i = 0; i < 6; i++) {
+      let o1 = dirs[i] * dof_amt;
+      let o2 = dirs[i] * dof_amt * 2.0;
+      acc += textureSample(scene_tex, smp, in.uv + o1).rgb;
+      acc += textureSample(scene_tex, smp, in.uv - o1).rgb;
+      acc += textureSample(scene_tex, smp, in.uv + o2).rgb;
+      acc += textureSample(scene_tex, smp, in.uv - o2).rgb;
+      weight += 4.0;
+    }
+  }
+  var c = acc / weight;
   c = aces(c);
   let bloom = textureSample(bloom_tex, smp, in.uv).rgb;
   c += bloom * uniforms.intensity;
