@@ -52,8 +52,8 @@ func matrixToBytes(m render.Matrix4) []byte {
 	return out
 }
 
-// pbrUniformsSize — размер uniform buffer для PBR + light_view_proj + emissive/texture params.
-const pbrUniformsSize = 384
+// pbrUniformsSize — размер uniform buffer для PBR + light_view_proj + emissive/texture params + spot light.
+const pbrUniformsSize = 448
 
 // writePBRUniforms пишет viewProj, material, light, camera, light_view_proj в буфер.
 // model передаётся через instance buffer; для skeletal mesh — через modelInUniform (пишется в offset 64).
@@ -61,11 +61,14 @@ const pbrUniformsSize = 384
 // 160 light_dir, 176 light_intensity, 192 light_color, 208 ambient, 224 cam_pos,
 // 256 light_view_proj, 320 emissive_color, 336 emissive_strength, 340 normal_scale,
 // 344 alpha_cutoff, 348 flags (bit0: есть metallicRoughness текстура),
-// 352 point_light_pos + intensity, 368 point_light_color + range (intensity <= 0 = выключен).
+// 352 point_light_pos + intensity, 368 point_light_color + range (intensity <= 0 = выключен),
+// 384 spot_light_pos, 400 spot_light_dir, 416 spot_light_color, 432 intensity,
+// 436 range, 440 inner_cos, 444 outer_cos (intensity <= 0 = выключен).
 func writePBRUniforms(out []byte, viewProj render.Matrix4, baseColor []float32, metallic, roughness float32,
 	lightDir []float32, lightIntensity float32, lightColor []float32, ambient float32, camPos []float32, lightViewProj render.Matrix4, modelInUniform *render.Matrix4,
 	emissiveColor []float32, emissiveStrength, normalScale, alphaCutoff float32, flags uint32,
-	pointLightPos []float32, pointLightIntensity float32, pointLightColor []float32, pointLightRange float32) {
+	pointLightPos []float32, pointLightIntensity float32, pointLightColor []float32, pointLightRange float32,
+	spotLightPos []float32, spotLightDir []float32, spotLightColor []float32, spotLightIntensity, spotLightRange, spotInnerCos, spotOuterCos float32) {
 	if len(out) < pbrUniformsSize {
 		return
 	}
@@ -136,6 +139,27 @@ func writePBRUniforms(out []byte, viewProj render.Matrix4, baseColor []float32, 
 	}
 	putVec3(368, plc)
 	putF32(380, pointLightRange)
+
+	// Spotlight (offset 384): pos, dir, color, intensity/range/cos; интенсивность <= 0 выключает свет.
+	slp := spotLightPos
+	if len(slp) < 3 {
+		slp = []float32{0, 5, 0}
+	}
+	putVec3(384, slp)
+	sld := spotLightDir
+	if len(sld) < 3 {
+		sld = []float32{0, -1, 0}
+	}
+	putVec3(400, sld)
+	slc := spotLightColor
+	if len(slc) < 3 {
+		slc = []float32{1.0, 1.0, 1.0}
+	}
+	putVec3(416, slc)
+	putF32(432, spotLightIntensity)
+	putF32(436, spotLightRange)
+	putF32(440, spotInnerCos)
+	putF32(444, spotOuterCos)
 }
 
 const boneMatrixCount = 64
@@ -531,6 +555,94 @@ type sceneState struct {
 	fallbackBlack        *wgpu.Texture              // 1x1 чёрная (emissive по умолчанию)
 	textureSampler       *wgpu.Sampler
 	defaultMaterialGroup *wgpu.BindGroup // материал без текстур (fallback cube и т.п.)
+
+	// MSAA: multisample color + depth, резолв в surface view в конце main pass.
+	msaaColor     *wgpu.Texture
+	msaaView      *wgpu.TextureView
+	msaaDepth     *wgpu.Texture
+	msaaDepthView *wgpu.TextureView
+	msaaW, msaaH  int
+	msaaSamples   uint32
+}
+
+// ensureMSAA создаёт (или пересоздаёт при смене размера) multisample color/depth
+// текстуры для main pass. Формат color совпадает с форматом surface.
+func (sc *sceneState) ensureMSAA(device *wgpu.Device, format wgpu.TextureFormat, width, height int, samples uint32) error {
+	if sc.msaaColor != nil && sc.msaaW == width && sc.msaaH == height && sc.msaaSamples == samples {
+		return nil
+	}
+	sc.releaseMSAA()
+	sc.msaaSamples = samples
+	if width <= 0 || height <= 0 {
+		return nil
+	}
+	color, err := device.CreateTexture(&wgpu.TextureDescriptor{
+		Label:         "msaa color",
+		Size:          wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},
+		MipLevelCount: 1,
+		SampleCount:   samples,
+		Dimension:     wgpu.TextureDimension2D,
+		Format:        format,
+		Usage:         wgpu.TextureUsageRenderAttachment,
+	})
+	if err != nil {
+		return err
+	}
+	depth, err := device.CreateTexture(&wgpu.TextureDescriptor{
+		Label:         "msaa depth",
+		Size:          wgpu.Extent3D{Width: uint32(width), Height: uint32(height), DepthOrArrayLayers: 1},
+		MipLevelCount: 1,
+		SampleCount:   samples,
+		Dimension:     wgpu.TextureDimension2D,
+		Format:        wgpu.TextureFormatDepth32Float,
+		Usage:         wgpu.TextureUsageRenderAttachment,
+	})
+	if err != nil {
+		color.Release()
+		return err
+	}
+	colorView, err := color.CreateView(nil)
+	if err != nil {
+		color.Release()
+		depth.Release()
+		return err
+	}
+	depthView, err := depth.CreateView(nil)
+	if err != nil {
+		colorView.Release()
+		color.Release()
+		depth.Release()
+		return err
+	}
+	sc.msaaColor = color
+	sc.msaaDepth = depth
+	sc.msaaView = colorView
+	sc.msaaDepthView = depthView
+	sc.msaaW = width
+	sc.msaaH = height
+	return nil
+}
+
+// releaseMSAA освобождает multisample ресурсы main pass.
+func (sc *sceneState) releaseMSAA() {
+	if sc.msaaView != nil {
+		sc.msaaView.Release()
+		sc.msaaView = nil
+	}
+	if sc.msaaColor != nil {
+		sc.msaaColor.Release()
+		sc.msaaColor = nil
+	}
+	if sc.msaaDepthView != nil {
+		sc.msaaDepthView.Release()
+		sc.msaaDepthView = nil
+	}
+	if sc.msaaDepth != nil {
+		sc.msaaDepth.Release()
+		sc.msaaDepth = nil
+	}
+	sc.msaaW, sc.msaaH = 0, 0
+	sc.msaaSamples = 0
 }
 
 func (s *state) initSceneState() error {
@@ -600,7 +712,12 @@ func (s *state) initSceneState() error {
 			FrontFace:        wgpu.FrontFaceCCW,
 			CullMode:         wgpu.CullModeBack,
 		},
-		Multisample: wgpu.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
+		DepthStencil: &wgpu.DepthStencilState{
+			Format:            wgpu.TextureFormatDepth32Float,
+			DepthWriteEnabled: true,
+			DepthCompare:      wgpu.CompareFunctionLessEqual,
+		},
+		Multisample: wgpu.MultisampleState{Count: 4, Mask: 0xFFFFFFFF},
 		Fragment: &wgpu.FragmentState{
 			Module:     shader,
 			EntryPoint: "fs_main",
@@ -974,7 +1091,12 @@ func (s *state) initSceneState() error {
 			FrontFace:        wgpu.FrontFaceCCW,
 			CullMode:         wgpu.CullModeBack,
 		},
-		Multisample: wgpu.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
+		DepthStencil: &wgpu.DepthStencilState{
+			Format:            wgpu.TextureFormatDepth32Float,
+			DepthWriteEnabled: true,
+			DepthCompare:      wgpu.CompareFunctionLessEqual,
+		},
+		Multisample: wgpu.MultisampleState{Count: 4, Mask: 0xFFFFFFFF},
 		Fragment: &wgpu.FragmentState{
 			Module:     skinnedShader,
 			EntryPoint: "fs_main",
@@ -1153,6 +1275,15 @@ type pbrSceneData struct {
 	pointLightColor     []float32
 	pointLightIntensity float32
 	pointLightRange     float32
+
+	// Spotlight (первый в сцене; интенсивность <= 0 — выключен)
+	spotLightPos       []float32
+	spotLightDir       []float32
+	spotLightColor     []float32
+	spotLightIntensity float32
+	spotLightRange     float32
+	spotInnerCos       float32
+	spotOuterCos       float32
 }
 
 // buildLightViewProj строит orthographic view-projection для directional light.
@@ -1273,6 +1404,54 @@ func getPBRSceneData(world *ecs.World, width, height int) (data pbrSceneData, ok
 		if data.pointLightRange <= 0 {
 			data.pointLightRange = 10.0
 		}
+		break
+	}
+
+	// Первый spotlight (конус: направление из rotation transform, без теней — в backlog)
+	for _, id := range world.Entities() {
+		light, hasLight := world.GetLight(id)
+		if !hasLight || light.Kind != "spot" {
+			continue
+		}
+		tr, hasTr := world.GetTransform(id)
+		pos := emath.Vec3{X: 0, Y: 5, Z: 0}
+		dir := emath.Vec3{X: 0, Y: -1, Z: 0}
+		if hasTr {
+			pos = tr.Position
+			radX := tr.Rotation.X * math.Pi / 180
+			radY := tr.Rotation.Y * math.Pi / 180
+			dir = emath.Vec3{
+				X: float32(math.Sin(float64(radY)) * math.Cos(float64(radX))),
+				Y: float32(-math.Sin(float64(radX))),
+				Z: float32(math.Cos(float64(radY)) * math.Cos(float64(radX))),
+			}
+		}
+		dir = render.Normalize3(dir)
+		data.spotLightPos = []float32{pos.X, pos.Y, pos.Z}
+		data.spotLightDir = []float32{dir.X, dir.Y, dir.Z}
+		r, g, b := float32(light.ColorR)/255, float32(light.ColorG)/255, float32(light.ColorB)/255
+		if r == 0 && g == 0 && b == 0 {
+			r, g, b = light.ColorRGB.X, light.ColorRGB.Y, light.ColorRGB.Z
+		}
+		data.spotLightColor = []float32{r, g, b}
+		data.spotLightIntensity = light.Intensity
+		data.spotLightRange = light.Range
+		if data.spotLightRange <= 0 {
+			data.spotLightRange = 15.0
+		}
+		inner := light.SpotInnerAngle
+		if inner <= 0 {
+			inner = 20
+		}
+		outer := light.SpotOuterAngle
+		if outer <= 0 {
+			outer = 30
+		}
+		if outer < inner {
+			outer = inner + 1
+		}
+		data.spotInnerCos = float32(math.Cos(float64(inner) * math.Pi / 180))
+		data.spotOuterCos = float32(math.Cos(float64(outer) * math.Pi / 180))
 		break
 	}
 

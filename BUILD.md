@@ -105,6 +105,44 @@ GoEngineKenga собирается для следующих платформ:
 | macOS    | amd64       | бинарный       |
 | macOS    | arm64       | бинарный       |
 
+## WebGPU-бэкенд (требуется C-компилятор)
+
+Бэкенд `-tags webgpu` (PBR, MSAA 4×, тени, spotlight) требует cgo и C-компилятор
+GNU-ABI (MinGW-w64). Без него используется Ebiten (software rasterizer).
+
+### Windows: тулчейн без админа (w64devkit)
+
+1. Скачать: <https://github.com/skeeto/w64devkit/releases> (например `w64devkit-1.23.0.zip`, там обычный zip).
+2. Распаковать, например в `D:\tools\w64devkit`.
+3. В текущем shell добавить `bin` в PATH:
+
+   ```powershell
+   $env:PATH = "D:\tools\w64devkit\bin;" + $env:PATH
+   $env:CGO_ENABLED = "1"
+   ```
+
+4. Собрать и запустить:
+
+   ```powershell
+   go build -tags webgpu -o kenga-webgpu.exe ./cmd/kenga
+   ./kenga-webgpu.exe run --project samples/cyber_ninja --backend webgpu
+   ```
+
+Примечания:
+- `github.com/cogentcore/webgpu` **статически линкует** `libwgpu_native`
+  (папки `wgpu/lib/<os>/<arch>` в модуле) — отдельный DLL не нужен.
+- На этой машине при установке тулчейна может вмешиваться Windows Defender
+  (помечает свежесобранные/скачанные бинари). Добавь исключение в Defender
+  на каталоги проекта и TEMP, если сборка или запуск блокируются.
+
+### Linux/macOS
+
+`libwgpu_native.a` для linux/macos входит в модуль; нужен системный gcc/clang:
+
+```bash
+CGO_ENABLED=1 go build -tags webgpu -o kenga-webgpu ./cmd/kenga
+```
+
 ## Распространение
 
 Windows: NSIS-установщик, ярлыки. Linux: .deb. macOS: .dmg (планируется). Архивы: .zip (Windows), .tar.gz (Linux/macOS). Обновления: проверка через GitHub API.

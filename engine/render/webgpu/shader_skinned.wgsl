@@ -39,6 +39,13 @@ struct Uniforms {
   point_light_intensity: f32,
   point_light_color: vec3<f32>,
   point_light_range: f32,
+  spot_light_pos: vec3<f32>,
+  spot_light_dir: vec3<f32>,
+  spot_light_color: vec3<f32>,
+  spot_light_intensity: f32,
+  spot_light_range: f32,
+  spot_inner_cos: f32,
+  spot_outer_cos: f32,
 }
 
 struct BoneUniforms {
@@ -75,6 +82,17 @@ var emissive_sampler: sampler;
 
 fn fresnel_schlick(cos_theta: f32, f0: vec3<f32>) -> vec3<f32> {
   return f0 + (1.0 - f0) * pow(1.0 - cos_theta, 5.0);
+}
+
+// ACES filmic tonemap (Narkowicz 2015): переводит HDR-свет в LDR без
+// пережжённых бликов и «мутного» серого.
+fn aces(x: vec3<f32>) -> vec3<f32> {
+  let a = 2.51;
+  let b = 0.03;
+  let c = 2.43;
+  let d = 0.59;
+  let e = 0.14;
+  return clamp((x * (a * x + b)) / (x * (c * x + d) + e), vec3<f32>(0.0), vec3<f32>(1.0));
 }
 
 fn distribution_ggx(n: vec3<f32>, h: vec3<f32>, roughness: f32) -> f32 {
@@ -199,11 +217,31 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     lo += (pl_kd * diffuse * pl_ndotl + pl_specular * pl_radiance) * pl_ndotl;
   }
 
+  // Spotlight: конус (inner/outer) + затухание по расстоянию, без собственных теней (backlog).
+  if uniforms.spot_light_intensity > 0.0 {
+    let sl_dir = uniforms.spot_light_pos - in.world_pos;
+    let sl_dist = length(sl_dir);
+    let sl_l = sl_dir / max(sl_dist, 0.0001);
+    let sl_norm = sl_dist / max(uniforms.spot_light_range, 0.0001);
+    let sl_att = 1.0 / (1.0 + sl_norm * sl_norm);
+    let sl_cone = smoothstep(uniforms.spot_outer_cos, uniforms.spot_inner_cos, dot(-sl_l, normalize(uniforms.spot_light_dir)));
+    if sl_cone > 0.0 {
+      let sl_h = normalize(v + sl_l);
+      let sl_ndotl = max(dot(n, sl_l), 0.0);
+      let sl_d = distribution_ggx(n, sl_h, max(roughness, 0.04));
+      let sl_f = fresnel_schlick(max(dot(sl_h, v), 0.0), f0);
+      let sl_kd = (1.0 - sl_f) * (1.0 - metallic);
+      let sl_specular = sl_f * sl_d * 0.25;
+      let sl_radiance = uniforms.spot_light_color * uniforms.spot_light_intensity * sl_att * sl_cone;
+      lo += (sl_kd * diffuse * sl_ndotl + sl_specular * sl_radiance) * sl_ndotl;
+    }
+  }
+
   lo += albedo * uniforms.ambient;
 
   // Emissive (fallback-чёрная текстура даёт 0)
   let emissive = textureSample(emissive_tex, emissive_sampler, in.uv).rgb * uniforms.emissive_color * uniforms.emissive_strength;
   lo += emissive;
 
-  return vec4<f32>(lo, alpha);
+  return vec4<f32>(aces(lo), alpha);
 }

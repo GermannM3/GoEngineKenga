@@ -32,13 +32,17 @@ type MeshRenderer struct {
 }
 
 type Light struct {
-	Kind      string     `json:"kind"` // directional/point/ambient
+	Kind      string     `json:"kind"` // directional/point/ambient/spot
 	ColorRGB  emath.Vec3 `json:"colorRGB"`
 	ColorR    uint8      `json:"colorR"`
 	ColorG    uint8      `json:"colorG"`
 	ColorB    uint8      `json:"colorB"`
 	Intensity float32    `json:"intensity"`
-	Range     float32    `json:"range"` // for point lights
+	Range     float32    `json:"range"` // for point/spot lights
+
+	// Spotlight: половинные углы конуса в градусах (направление — из transform)
+	SpotInnerAngle float32 `json:"spotInnerAngle"`
+	SpotOuterAngle float32 `json:"spotOuterAngle"`
 }
 
 // Rigidbody и Collider определены в пакете physics

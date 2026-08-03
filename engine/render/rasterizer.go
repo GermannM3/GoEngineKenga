@@ -396,6 +396,29 @@ func (r *Rasterizer) calculateLighting(baseColor color.RGBA, worldPos, normal em
 			lightDir = Normalize3(diff)
 			attenuation = 1.0 - (dist / light.Range)
 			attenuation *= attenuation // quadratic falloff
+		case "spot":
+			// Прожектор: как point, но с конусом (ось — light.Direction).
+			diff := emath.Vec3{
+				X: light.Position.X - worldPos.X,
+				Y: light.Position.Y - worldPos.Y,
+				Z: light.Position.Z - worldPos.Z,
+			}
+			dist := float32(math.Sqrt(float64(diff.X*diff.X + diff.Y*diff.Y + diff.Z*diff.Z)))
+			if dist > light.Range {
+				continue
+			}
+			lightDir = Normalize3(diff)
+			attenuation = 1.0 - (dist / light.Range)
+			attenuation *= attenuation
+			// Конус: фикс. углы 15° (внутренний) / 30° (внешний), мягкий край.
+			axis := Normalize3(light.Direction)
+			cosA := Dot(Normalize3(emath.Vec3{X: -diff.X, Y: -diff.Y, Z: -diff.Z}), axis)
+			const innerCos, outerCos = 0.966, 0.866
+			if cosA < outerCos {
+				attenuation = 0
+			} else if cosA < innerCos {
+				attenuation *= (cosA - outerCos) / (innerCos - outerCos)
+			}
 		default:
 			continue
 		}

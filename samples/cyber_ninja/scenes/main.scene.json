@@ -56,6 +56,38 @@
    }
   },
   {
+   "name": "Spotlight",
+   "transform": {
+    "position": {
+     "x": 0,
+     "y": 6,
+     "z": 2
+    },
+    "rotation": {
+     "x": 55,
+     "y": 0,
+     "z": 0
+    },
+    "scale": {
+     "x": 1,
+     "y": 1,
+     "z": 1
+    }
+   },
+   "light": {
+    "kind": "spot",
+    "colorRGB": {
+     "x": 1.0,
+     "y": 0.93,
+     "z": 0.82
+    },
+    "intensity": 1.6,
+    "range": 18,
+    "spotInnerAngle": 14,
+    "spotOuterAngle": 30
+   }
+  },
+  {
    "name": "Player",
    "transform": {
     "position": {

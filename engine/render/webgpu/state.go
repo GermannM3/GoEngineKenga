@@ -269,9 +269,25 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 	}
 
 	// Main pass (GPU instancing: batch by mesh+material)
+	// Рендер в multisample-таргет (MSAA 4×) с depth-буфером, резолв в surface view.
+	if err := sc.ensureMSAA(s.device, s.config.Format, width, height, 4); err != nil {
+		return err
+	}
 	renderPass := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 		ColorAttachments: []wgpu.RenderPassColorAttachment{
-			{View: view, LoadOp: wgpu.LoadOpClear, StoreOp: wgpu.StoreOpStore, ClearValue: cc},
+			{
+				View:          sc.msaaView,
+				ResolveTarget: view,
+				LoadOp:        wgpu.LoadOpClear,
+				StoreOp:       wgpu.StoreOpStore,
+				ClearValue:    cc,
+			},
+		},
+		DepthStencilAttachment: &wgpu.RenderPassDepthStencilAttachment{
+			View:            sc.msaaDepthView,
+			DepthLoadOp:     wgpu.LoadOpClear,
+			DepthStoreOp:    wgpu.StoreOpStore,
+			DepthClearValue: 1.0,
 		},
 	})
 	renderPass.SetPipeline(sc.pipeline)
@@ -288,7 +304,8 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 			pbrData.lightDir, pbrData.lightIntensity, pbrData.lightColor,
 			pbrData.ambient, pbrData.camPos, lightViewProj, nil,
 			mat.emissiveColor, mat.emissiveStrength, mat.normalScale, mat.alphaCutoff, mat.flags,
-			pbrData.pointLightPos, pbrData.pointLightIntensity, pbrData.pointLightColor, pbrData.pointLightRange)
+			pbrData.pointLightPos, pbrData.pointLightIntensity, pbrData.pointLightColor, pbrData.pointLightRange,
+			pbrData.spotLightPos, pbrData.spotLightDir, pbrData.spotLightColor, pbrData.spotLightIntensity, pbrData.spotLightRange, pbrData.spotInnerCos, pbrData.spotOuterCos)
 		s.queue.WriteBuffer(sc.uniformBuffer, 0, ubBytes)
 
 		mg := sc.getMaterialBindGroup(resolver, mat)
@@ -331,7 +348,8 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 				pbrData.lightDir, pbrData.lightIntensity, pbrData.lightColor,
 				pbrData.ambient, pbrData.camPos, lightViewProj, &model,
 				mat.emissiveColor, mat.emissiveStrength, mat.normalScale, mat.alphaCutoff, mat.flags,
-				pbrData.pointLightPos, pbrData.pointLightIntensity, pbrData.pointLightColor, pbrData.pointLightRange)
+				pbrData.pointLightPos, pbrData.pointLightIntensity, pbrData.pointLightColor, pbrData.pointLightRange,
+				pbrData.spotLightPos, pbrData.spotLightDir, pbrData.spotLightColor, pbrData.spotLightIntensity, pbrData.spotLightRange, pbrData.spotInnerCos, pbrData.spotOuterCos)
 			s.queue.WriteBuffer(sc.skinnedUniform, 0, ubBytes)
 			// Bone matrices сущности (без Animator — bind pose)
 			var matrices []float32
@@ -368,7 +386,8 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 				pbrData.lightDir, pbrData.lightIntensity, pbrData.lightColor,
 				pbrData.ambient, pbrData.camPos, lightViewProj, nil,
 				[]float32{0, 0, 0}, 1.0, 1.0, 0.5, 0,
-				pbrData.pointLightPos, pbrData.pointLightIntensity, pbrData.pointLightColor, pbrData.pointLightRange)
+				pbrData.pointLightPos, pbrData.pointLightIntensity, pbrData.pointLightColor, pbrData.pointLightRange,
+				pbrData.spotLightPos, pbrData.spotLightDir, pbrData.spotLightColor, pbrData.spotLightIntensity, pbrData.spotLightRange, pbrData.spotInnerCos, pbrData.spotOuterCos)
 			s.queue.WriteBuffer(sc.uniformBuffer, 0, ubBytes)
 			mg := sc.getMaterialBindGroup(resolver, nil)
 			if mg != nil {
@@ -463,6 +482,7 @@ func (s *state) Destroy() {
 		if s.scene.pipeline != nil {
 			s.scene.pipeline.Release()
 		}
+		s.scene.releaseMSAA()
 		if s.scene.uniformBuffer != nil {
 			s.scene.uniformBuffer.Release()
 		}
