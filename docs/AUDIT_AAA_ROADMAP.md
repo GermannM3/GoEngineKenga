@@ -57,12 +57,13 @@
 
 ## 3. Важные пробелы (снижают конкурентоспособность)
 
-- **Point/spot shadows:** Только directional shadow map; point light в WebGPU есть (без теней), теневые cubemap — **backlog**
+- ~~**Point/spot shadows:** Только directional shadow map~~ — **point-тени реализованы** (depth-array cubemap 6 граней, линейная глубина через frag_depth; skinned-меши пока не бросают point-тени — TODO); spot-тени — **backlog**
 - ~~**MSAA 4× + depth-буфер в main pass**~~ — реализовано (WebGPU, resolve в surface; корректная сортировка и сглаживание)
 - ~~**Spotlight (конус) в обоих бэкендах**~~ — реализовано (ECS kind=spot, inner/outer углы, cone-attenuation в WGSL и в soft-растеризаторе)
-- ~~**Тонмаппинг**~~ — реализовано (ACES filmic в WGSL-шейдерах)
+- ~~**Тонмаппинг**~~ — реализовано (ACES filmic в composite-проходе пост-процесса)
+- ~~**Пост-процесс**~~ — реализовано (HDR offscreen RGBA16Float, bloom bright+blur 9-tap, виньетка)
+- ~~**IBL/отражения**~~ — реализовано (процедурные env/irradiance кубомапы, диффузный IBL + грубые зеркальные отражения)
 - **DOF, motion blur:** Нет (**backlog**)
-- **IBL/отражения, cubemap environment:** Нет (**backlog**)
 - **Shader Graph:** Нет, только фиксированные шейдеры
 - ~~**Mesh cache invalidation**~~ — реализовано
 - ~~**WebGPU orbit camera**~~ — реализовано (ПКМ rotate, СКМ pan, scroll zoom)

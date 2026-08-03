@@ -6,9 +6,11 @@
 
 ### Добавлено
 
-- **MSAA 4× в WebGPU**: multisample color/depth текстуры + resolve в surface — сглаженные края, корректная сортировка (в main pass появился depth-буфер)
-- **Spotlight (прожектор)**: новый тип света `kind=spot` (inner/outer углы конуса, направление из rotation) — в WebGPU (WGSL cone-attenuation) и в soft-растеризаторе (Ebiten); в сцену CyberNinja добавлен демо-прожектор
-- **ACES filmic-тонмаппинг** в WGSL-шейдерах (shader.wgsl, shader_skinned.wgsl) — HDR→LDR без пережжённых бликов
+- **Point light shadows в WebGPU**: cubemap-тени через depth-array (6 граней, 512²), линейная глубина через `frag_depth`, сравнение с bias; skinned-меши пока не бросают point-тени (TODO)
+- **IBL/отражения в WebGPU**: процедурные env- (64²) и irradiance- (8²) кубомапы без ассетов; диффузный IBL + грубые зеркальные отражения окружения
+- **Пост-процесс в WebGPU**: HDR-конвейер (сцена → RGBA16Float offscreen), bloom (bright-extract + separable gaussian 9-tap на полуразрешении) + ACES-тонмаппинг + виньетка в composite-проходе
+- **MSAA 4× в WebGPU**: multisample color/depth текстуры + resolve в offscreen-таргет — сглаженные края, корректная сортировка (в main pass появился depth-буфер)
+- **Spotlight (прожектор)**: новый тип света `kind=spot` (inner/outer углы конуса, направление из rotation) — в WebGPU (WGSL cone-attenuation) и в soft-растеризаторе (Ebiten); в сцену CyberNinja добавлены демо-прожектор и point-свет
 - **Тулчейн WebGPU задокументирован** (BUILD.md: w64devkit, CGO_ENABLED, сборка `-tags webgpu`)
 
 ### Исправлено
