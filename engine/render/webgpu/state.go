@@ -24,6 +24,9 @@ var shaderSkinnedWGSL string
 //go:embed point_shadow.wgsl
 var pointShadowWGSL string
 
+//go:embed point_shadow_skinned.wgsl
+var pointShadowSkinnedWGSL string
+
 //go:embed postprocess.wgsl
 var postprocessWGSL string
 
@@ -301,31 +304,125 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 			facePass.SetPipeline(sc.pointShadowPipeline)
 			facePass.SetBindGroup(0, sc.pointShadowBindGroup, nil)
 			copy(pointUbBytes[0:64], matrixToBytes(faceVP))
+			skinnedSet := false
 			for _, id := range frame.World.Entities() {
 				mr, hasMR := frame.World.GetMeshRenderer(id)
 				if !hasMR || mr.MeshAssetID == "" {
 					continue
 				}
-				if isMeshSkinned(resolver, mr.MeshAssetID) {
-					continue // skinned-меши пока не бросают point-тени
-				}
 				tr, hasTr := frame.World.GetTransform(id)
 				if !hasTr {
 					tr = ecs.Transform{Scale: emath.Vec3{X: 1, Y: 1, Z: 1}}
 				}
-				vb, vc := sc.getOrCreateMeshBuffer(resolver, mr.MeshAssetID)
+				skinned := isMeshSkinned(resolver, mr.MeshAssetID)
+				var vb *wgpu.Buffer
+				var vc uint32
+				if skinned {
+					vb, vc = sc.getOrCreateSkinnedMeshBuffer(resolver, mr.MeshAssetID)
+					if sc.pointShadowSkinnedPipeline != nil {
+						facePass.SetPipeline(sc.pointShadowSkinnedPipeline)
+						if !skinnedSet {
+							facePass.SetBindGroup(0, sc.pointShadowSkinnedBindGroup, nil)
+							skinnedSet = true
+						}
+						if anim, ok := frame.World.GetAnimator(id); ok {
+							writeBoneMatrices(boneBytes, anim.BoneMatrices)
+						} else {
+							writeBoneMatrices(boneBytes, nil)
+						}
+						s.queue.WriteBuffer(sc.boneUniform, 0, boneBytes)
+					}
+				} else {
+					vb, vc = sc.getOrCreateMeshBuffer(resolver, mr.MeshAssetID)
+					facePass.SetPipeline(sc.pointShadowPipeline)
+					if skinnedSet {
+						facePass.SetBindGroup(0, sc.pointShadowBindGroup, nil)
+						skinnedSet = false
+					}
+				}
 				if vb == nil {
 					continue
 				}
 				model := buildModelMatrix(&tr)
 				copy(pointUbBytes[64:128], matrixToBytes(model))
-				s.queue.WriteBuffer(sc.pointShadowUniform, 0, pointUbBytes)
+				if skinned && sc.pointShadowSkinnedUniform != nil {
+					s.queue.WriteBuffer(sc.pointShadowSkinnedUniform, 0, pointUbBytes)
+				} else {
+					s.queue.WriteBuffer(sc.pointShadowUniform, 0, pointUbBytes)
+				}
 				facePass.SetVertexBuffer(0, vb, 0, wgpu.WholeSize)
 				facePass.Draw(vc, 1, 0, 0)
 			}
 			facePass.End()
 			facePass.Release()
 		}
+	}
+
+	// Spot light shadow pass: перспективная карта из прожектора.
+	if sc.spotShadowView != nil && len(pbrData.spotLightDir) == 3 && pbrData.spotLightIntensity > 0 {
+		spotPass := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
+			ColorAttachments: []wgpu.RenderPassColorAttachment{},
+			DepthStencilAttachment: &wgpu.RenderPassDepthStencilAttachment{
+				View:            sc.spotShadowView,
+				DepthLoadOp:     wgpu.LoadOpClear,
+				DepthStoreOp:    wgpu.StoreOpStore,
+				DepthClearValue: 1.0,
+			},
+		})
+		spotPass.SetPipeline(sc.shadowPipeline)
+		copy(shadowUbBytes[0:64], matrixToBytes(pbrData.spotLightViewProj))
+		spotPass.SetBindGroup(0, sc.shadowBindGroup, nil)
+		skinnedSet := false
+		for _, id := range frame.World.Entities() {
+			mr, hasMR := frame.World.GetMeshRenderer(id)
+			if !hasMR || mr.MeshAssetID == "" {
+				continue
+			}
+			tr, hasTr := frame.World.GetTransform(id)
+			if !hasTr {
+				tr = ecs.Transform{Scale: emath.Vec3{X: 1, Y: 1, Z: 1}}
+			}
+			skinned := isMeshSkinned(resolver, mr.MeshAssetID)
+			var vb *wgpu.Buffer
+			var vc uint32
+			if skinned {
+				vb, vc = sc.getOrCreateSkinnedMeshBuffer(resolver, mr.MeshAssetID)
+				if sc.shadowSkinnedPipeline != nil {
+					spotPass.SetPipeline(sc.shadowSkinnedPipeline)
+					if !skinnedSet {
+						spotPass.SetBindGroup(0, sc.shadowSkinnedBindGroup, nil)
+						skinnedSet = true
+					}
+					if anim, ok := frame.World.GetAnimator(id); ok {
+						writeBoneMatrices(boneBytes, anim.BoneMatrices)
+					} else {
+						writeBoneMatrices(boneBytes, nil)
+					}
+					s.queue.WriteBuffer(sc.boneUniform, 0, boneBytes)
+				}
+			} else {
+				vb, vc = sc.getOrCreateMeshBuffer(resolver, mr.MeshAssetID)
+				spotPass.SetPipeline(sc.shadowPipeline)
+				if skinnedSet {
+					spotPass.SetBindGroup(0, sc.shadowBindGroup, nil)
+					skinnedSet = false
+				}
+			}
+			if vb == nil {
+				continue
+			}
+			model := buildModelMatrix(&tr)
+			copy(shadowUbBytes[64:128], matrixToBytes(model))
+			if skinned && sc.shadowSkinnedUniform != nil {
+				s.queue.WriteBuffer(sc.shadowSkinnedUniform, 0, shadowUbBytes)
+			} else {
+				s.queue.WriteBuffer(sc.shadowUniform, 0, shadowUbBytes)
+			}
+			spotPass.SetVertexBuffer(0, vb, 0, wgpu.WholeSize)
+			spotPass.Draw(vc, 1, 0, 0)
+		}
+		spotPass.End()
+		spotPass.Release()
 	}
 
 	// Main pass (GPU instancing: batch by mesh+material)
@@ -372,7 +469,8 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 			pbrData.ambient, pbrData.camPos, lightViewProj, nil,
 			mat.emissiveColor, mat.emissiveStrength, mat.normalScale, mat.alphaCutoff, mat.flags,
 			pbrData.pointLightPos, pbrData.pointLightIntensity, pbrData.pointLightColor, pbrData.pointLightRange,
-			pbrData.spotLightPos, pbrData.spotLightDir, pbrData.spotLightColor, pbrData.spotLightIntensity, pbrData.spotLightRange, pbrData.spotInnerCos, pbrData.spotOuterCos)
+			pbrData.spotLightPos, pbrData.spotLightDir, pbrData.spotLightColor, pbrData.spotLightIntensity, pbrData.spotLightRange, pbrData.spotInnerCos, pbrData.spotOuterCos,
+			pbrData.spotLightViewProj)
 		s.queue.WriteBuffer(sc.uniformBuffer, 0, ubBytes)
 
 		mg := sc.getMaterialBindGroup(resolver, mat)
@@ -419,7 +517,8 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 				pbrData.ambient, pbrData.camPos, lightViewProj, &model,
 				mat.emissiveColor, mat.emissiveStrength, mat.normalScale, mat.alphaCutoff, mat.flags,
 				pbrData.pointLightPos, pbrData.pointLightIntensity, pbrData.pointLightColor, pbrData.pointLightRange,
-				pbrData.spotLightPos, pbrData.spotLightDir, pbrData.spotLightColor, pbrData.spotLightIntensity, pbrData.spotLightRange, pbrData.spotInnerCos, pbrData.spotOuterCos)
+				pbrData.spotLightPos, pbrData.spotLightDir, pbrData.spotLightColor, pbrData.spotLightIntensity, pbrData.spotLightRange, pbrData.spotInnerCos, pbrData.spotOuterCos,
+				pbrData.spotLightViewProj)
 			s.queue.WriteBuffer(sc.skinnedUniform, 0, ubBytes)
 			// Bone matrices сущности (без Animator — bind pose)
 			var matrices []float32
@@ -460,7 +559,8 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 				pbrData.ambient, pbrData.camPos, lightViewProj, nil,
 				[]float32{0, 0, 0}, 1.0, 1.0, 0.5, 0,
 				pbrData.pointLightPos, pbrData.pointLightIntensity, pbrData.pointLightColor, pbrData.pointLightRange,
-				pbrData.spotLightPos, pbrData.spotLightDir, pbrData.spotLightColor, pbrData.spotLightIntensity, pbrData.spotLightRange, pbrData.spotInnerCos, pbrData.spotOuterCos)
+				pbrData.spotLightPos, pbrData.spotLightDir, pbrData.spotLightColor, pbrData.spotLightIntensity, pbrData.spotLightRange, pbrData.spotInnerCos, pbrData.spotOuterCos,
+				pbrData.spotLightViewProj)
 			s.queue.WriteBuffer(sc.uniformBuffer, 0, ubBytes)
 			mg := sc.getMaterialBindGroup(resolver, nil)
 			if mg != nil {
@@ -633,8 +733,23 @@ func (s *state) Destroy() {
 		if s.scene.pointShadowMap != nil {
 			s.scene.pointShadowMap.Release()
 		}
+		if s.scene.pointShadowSkinnedBindGroup != nil {
+			s.scene.pointShadowSkinnedBindGroup.Release()
+		}
+		if s.scene.pointShadowSkinnedPipeline != nil {
+			s.scene.pointShadowSkinnedPipeline.Release()
+		}
+		if s.scene.pointShadowSkinnedUniform != nil {
+			s.scene.pointShadowSkinnedUniform.Release()
+		}
 		if s.scene.shadowMap != nil {
 			s.scene.shadowMap.Release()
+		}
+		if s.scene.spotShadowView != nil {
+			s.scene.spotShadowView.Release()
+		}
+		if s.scene.spotShadowMap != nil {
+			s.scene.spotShadowMap.Release()
 		}
 		if s.scene.shadowPipeline != nil {
 			s.scene.shadowPipeline.Release()

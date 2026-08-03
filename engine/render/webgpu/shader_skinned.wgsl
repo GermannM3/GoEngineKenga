@@ -46,6 +46,7 @@ struct Uniforms {
   spot_light_range: f32,
   spot_inner_cos: f32,
   spot_outer_cos: f32,
+  spot_light_view_proj: mat4x4<f32>,
 }
 
 struct BoneUniforms {
@@ -65,6 +66,10 @@ var shadow_sampler: sampler_comparison;
 var shadow_map_point: texture_depth_2d_array;
 @group(1) @binding(3)
 var shadow_sampler_point: sampler_comparison;
+@group(1) @binding(4)
+var shadow_map_spot: texture_depth_2d;
+@group(1) @binding(5)
+var shadow_sampler_spot: sampler_comparison;
 
 // Текстуры материала (группа 2): color, normal, metallic-roughness, emissive + общий sampler.
 @group(2) @binding(0)
@@ -260,7 +265,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       let sl_kd = (1.0 - sl_f) * (1.0 - metallic);
       let sl_specular = sl_f * sl_d * 0.25;
       let sl_radiance = uniforms.spot_light_color * uniforms.spot_light_intensity * sl_att * sl_cone;
-      lo += (sl_kd * diffuse * sl_ndotl + sl_specular * sl_radiance) * sl_ndotl;
+      // Spot-тень: перспективная проекция из прожектора, сравнение в карте теней.
+      let ssl_clip = uniforms.spot_light_view_proj * vec4<f32>(in.world_pos, 1.0);
+      let ssl_z = ssl_clip.z / ssl_clip.w;
+      let ssl_uv = ssl_clip.xy / ssl_clip.w * 0.5 + 0.5;
+      var sl_shadow = 1.0;
+      if ssl_uv.x >= 0.0 && ssl_uv.x <= 1.0 && ssl_uv.y >= 0.0 && ssl_uv.y <= 1.0 {
+        sl_shadow = textureSampleCompare(shadow_map_spot, shadow_sampler_spot, ssl_uv, ssl_z);
+      }
+      lo += (sl_kd * diffuse * sl_ndotl + sl_specular * sl_radiance) * sl_ndotl * sl_shadow;
     }
   }
 
