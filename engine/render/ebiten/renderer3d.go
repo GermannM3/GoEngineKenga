@@ -301,6 +301,8 @@ func (r *Renderer3D) renderEntities(world *ecs.World, resolver *asset.Resolver) 
 		var normalMap *image.RGBA
 		normalScale := float32(1.0)
 		var meshMaterial *render.Material
+		var meshJoints []uint16
+		var meshWeights []float32
 
 		if resolver != nil && mr.MeshAssetID != "" {
 			meshAsset, err := resolver.ResolveMeshByAssetID(mr.MeshAssetID)
@@ -327,6 +329,8 @@ func (r *Renderer3D) renderEntities(world *ecs.World, resolver *asset.Resolver) 
 				normals = meshAsset.Normals
 				uvs = meshAsset.UV0
 				indices = meshAsset.Indices
+				meshJoints = meshAsset.Joints
+				meshWeights = meshAsset.Weights
 				// Resolve texture and normal map from material
 				if meshAsset.MaterialID != "" {
 					if mat, err := resolver.ResolveMaterialByPath(meshAsset.MaterialID); err == nil {
@@ -373,6 +377,15 @@ func (r *Renderer3D) renderEntities(world *ecs.World, resolver *asset.Resolver) 
 			}
 		} else if texture == nil {
 			// Ни цвета, ни текстуры — серый фолбэк.
+		}
+
+		// CPU-skinning: если у сущности есть Animator с bone matrices и меш имеет
+		// joints/weights, трансформируем позиции/нормали вершин на CPU (медленно, но
+		// даёт skeletal-анимацию в Ebiten-пути, где нет vertex-shader skinning).
+		if len(meshJoints) > 0 && len(meshWeights) > 0 && len(meshJoints) >= len(positions)/3*4 {
+			if anim, ok := world.GetAnimator(id); ok && len(anim.BoneMatrices) >= 16 {
+				positions, normals = applyCPUSkinning(positions, normals, meshJoints, meshWeights, anim.BoneMatrices)
+			}
 		}
 
 		// Emissive из материала (самосвет, без текстуры — берём вектор).
@@ -699,4 +712,61 @@ func clampF32(v, lo, hi float32) float32 {
 		return hi
 	}
 	return v
+}
+
+// applyCPUSkinning трансформирует позиции и нормали вершин bone matrices
+// (CPU skinning для Ebiten-пути). bones — плоский массив 16 float32 на кость
+// (row-major, как в animation.GetBoneMatrix). Возвращает новые срезы.
+func applyCPUSkinning(positions, normals []float32, joints []uint16, weights []float32, bones []float32) ([]float32, []float32) {
+	vertCount := len(positions) / 3
+	if vertCount == 0 {
+		return positions, normals
+	}
+	hasNormals := len(normals) >= len(positions)
+	outPos := make([]float32, len(positions))
+	outNorm := make([]float32, len(normals))
+	boneCount := len(bones) / 16
+
+	for v := 0; v < vertCount; v++ {
+		// Взвешенная сумма bone matrices для этой вершины.
+		var px, py, pz float32
+		var nx, ny, nz float32
+		ox := positions[v*3]
+		oy := positions[v*3+1]
+		oz := positions[v*3+2]
+		var inx, iny, inz float32
+		if hasNormals {
+			inx = normals[v*3]
+			iny = normals[v*3+1]
+			inz = normals[v*3+2]
+		}
+		for j := 0; j < 4; j++ {
+			bi := int(joints[v*4+j])
+			w := weights[v*4+j]
+			if bi < 0 || bi >= boneCount || w == 0 {
+				continue
+			}
+			m := bones[bi*16 : bi*16+16]
+			// m — row-major [16]: m[0..2]=row0, m[4..6]=row1, m[8..10]=row2, m[12..14]=translation.
+			// position: M * p
+			px += w * (m[0]*ox + m[4]*oy + m[8]*oz + m[12])
+			py += w * (m[1]*ox + m[5]*oy + m[9]*oz + m[13])
+			pz += w * (m[2]*ox + m[6]*oy + m[10]*oz + m[14])
+			if hasNormals {
+				// normal: M * n (без translation)
+				nx += w * (m[0]*inx + m[4]*iny + m[8]*inz)
+				ny += w * (m[1]*inx + m[5]*iny + m[9]*inz)
+				nz += w * (m[2]*inx + m[6]*iny + m[10]*inz)
+			}
+		}
+		outPos[v*3] = px
+		outPos[v*3+1] = py
+		outPos[v*3+2] = pz
+		if hasNormals {
+			outNorm[v*3] = nx
+			outNorm[v*3+1] = ny
+			outNorm[v*3+2] = nz
+		}
+	}
+	return outPos, outNorm
 }
