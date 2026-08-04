@@ -1,0 +1,1 @@
+{"name": "BarrelMat", "baseColor": {"x": 0.55, "y": 0.35, "z": 0.18}, "baseColorTex": "", "metallic": 0.0, "roughness": 0.7, "metallicRoughnessTex": "", "normalTex": "", "normalScale": 1, "emissiveColor": {"x": 0, "y": 0, "z": 0}, "emissiveTex": "", "emissiveStrength": 0, "alphaMode": "OPAQUE", "alphaCutoff": 0.5, "doubleSided": false}

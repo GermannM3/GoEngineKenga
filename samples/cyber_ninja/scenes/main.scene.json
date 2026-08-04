@@ -137,10 +137,7 @@
     }
    },
    "meshRenderer": {
-    "colorR": 70,
-    "colorG": 140,
-    "colorB": 230,
-    "colorA": 255
+    "meshAssetId": "bb8841a7-3d8b-49d9-8bf9-441bb8ca0872"
    },
    "rigidbody": {
     "mass": 1,
@@ -323,10 +320,7 @@
     }
    },
    "meshRenderer": {
-    "colorR": 232,
-    "colorG": 72,
-    "colorB": 72,
-    "colorA": 255
+    "meshAssetId": "bb8841a7-3d8b-49d9-8bf9-441bb8ca0872"
    },
    "rigidbody": {
     "mass": 1,
@@ -374,10 +368,7 @@
     }
    },
    "meshRenderer": {
-    "colorR": 204,
-    "colorG": 96,
-    "colorB": 224,
-    "colorA": 255
+    "meshAssetId": "bb8841a7-3d8b-49d9-8bf9-441bb8ca0872"
    },
    "rigidbody": {
     "mass": 1,
@@ -425,10 +416,7 @@
     }
    },
    "meshRenderer": {
-    "colorR": 255,
-    "colorG": 225,
-    "colorB": 96,
-    "colorA": 255
+    "meshAssetId": "16ddc08f-4226-47a7-9f66-c5cea902ee55"
    },
    "collider": {
     "type": "sphere",
@@ -466,10 +454,7 @@
     }
    },
    "meshRenderer": {
-    "colorR": 130,
-    "colorG": 230,
-    "colorB": 120,
-    "colorA": 255
+    "meshAssetId": "16ddc08f-4226-47a7-9f66-c5cea902ee55"
    },
    "collider": {
     "type": "sphere",
@@ -507,10 +492,7 @@
     }
    },
    "meshRenderer": {
-    "colorR": 110,
-    "colorG": 210,
-    "colorB": 235,
-    "colorA": 255
+    "meshAssetId": "16ddc08f-4226-47a7-9f66-c5cea902ee55"
    },
    "collider": {
     "type": "sphere",
@@ -574,10 +556,7 @@
     }
    },
    "meshRenderer": {
-    "colorR": 150,
-    "colorG": 220,
-    "colorB": 240,
-    "colorA": 255
+    "meshAssetId": "62a4eaed-1c28-4ddd-83b7-815785ecd96b"
    },
    "collider": {
     "type": "box",

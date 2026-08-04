@@ -1,35 +1,80 @@
 {
-  "assets": [
-    {
-      "id": "989e31ff-0f00-4bfe-a62b-6c30287573e7",
-      "type": "audio",
-      "sourcePath": "assets/audio/jump.wav",
-      "derived": null,
-      "importedAt": "2026-08-02T22:48:37.4862638+03:00"
-    },
-    {
-      "id": "b16df146-04a2-49bb-a1ec-6dde48573572",
-      "type": "audio",
-      "sourcePath": "assets/audio/music.wav",
-      "derived": null,
-      "importedAt": "2026-08-02T22:48:37.5176123+03:00"
-    },
-    {
-      "id": "d78b6bbf-0269-46e7-8010-4263e4c78ee0",
-      "type": "audio",
-      "sourcePath": "assets/audio/pickup.wav",
-      "derived": null,
-      "importedAt": "2026-08-02T22:48:37.5181007+03:00"
-    },
-    {
-      "id": "6352bde6-0454-4ff7-b968-fc5001977f0a",
-      "type": "gltf",
-      "sourcePath": "assets/triangle.gltf",
-      "derived": [
-        ".kenga/derived/6352bde6-0454-4ff7-b968-fc5001977f0a_0.mesh.json",
-        ".kenga/derived/6352bde6-0454-4ff7-b968-fc5001977f0a_0.material.json"
-      ],
-      "importedAt": "2026-08-02T22:48:37.5181007+03:00"
-    }
-  ]
+ "assets": [
+  {
+   "id": "989e31ff-0f00-4bfe-a62b-6c30287573e7",
+   "type": "audio",
+   "sourcePath": "assets/audio/jump.wav",
+   "derived": null,
+   "importedAt": "2026-08-02T22:48:37.4862638+03:00"
+  },
+  {
+   "id": "b16df146-04a2-49bb-a1ec-6dde48573572",
+   "type": "audio",
+   "sourcePath": "assets/audio/music.wav",
+   "derived": null,
+   "importedAt": "2026-08-02T22:48:37.5176123+03:00"
+  },
+  {
+   "id": "d78b6bbf-0269-46e7-8010-4263e4c78ee0",
+   "type": "audio",
+   "sourcePath": "assets/audio/pickup.wav",
+   "derived": null,
+   "importedAt": "2026-08-02T22:48:37.5181007+03:00"
+  },
+  {
+   "id": "6352bde6-0454-4ff7-b968-fc5001977f0a",
+   "type": "gltf",
+   "sourcePath": "assets/triangle.gltf",
+   "derived": [
+    ".kenga/derived/6352bde6-0454-4ff7-b968-fc5001977f0a_0.mesh.json",
+    ".kenga/derived/6352bde6-0454-4ff7-b968-fc5001977f0a_0.material.json"
+   ],
+   "importedAt": "2026-08-02T22:48:37.5181007+03:00"
+  },
+  {
+   "id": "16ddc08f-4226-47a7-9f66-c5cea902ee55",
+   "type": "mesh",
+   "sourcePath": "assets/meshes/crystal.mesh.json",
+   "derived": [
+    "assets/meshes/crystal.mesh.json"
+   ],
+   "importedAt": "2026-08-04T00:00:00+03:00"
+  },
+  {
+   "id": "bb8841a7-3d8b-49d9-8bf9-441bb8ca0872",
+   "type": "mesh",
+   "sourcePath": "assets/meshes/ninja.mesh.json",
+   "derived": [
+    "assets/meshes/ninja.mesh.json"
+   ],
+   "importedAt": "2026-08-04T00:00:00+03:00"
+  },
+  {
+   "id": "a48c70a0-64dc-4479-af0a-cdb29fabf01d",
+   "type": "mesh",
+   "sourcePath": "assets/meshes/tree.mesh.json",
+   "derived": [
+    "assets/meshes/tree.mesh.json"
+   ],
+   "importedAt": "2026-08-04T00:00:00+03:00"
+  },
+  {
+   "id": "1a88c6d6-04e5-404e-80bc-11cbc4cdc4e6",
+   "type": "mesh",
+   "sourcePath": "assets/meshes/rock.mesh.json",
+   "derived": [
+    "assets/meshes/rock.mesh.json"
+   ],
+   "importedAt": "2026-08-04T00:00:00+03:00"
+  },
+  {
+   "id": "62a4eaed-1c28-4ddd-83b7-815785ecd96b",
+   "type": "mesh",
+   "sourcePath": "assets/meshes/barrel.mesh.json",
+   "derived": [
+    "assets/meshes/barrel.mesh.json"
+   ],
+   "importedAt": "2026-08-04T00:00:00+03:00"
+  }
+ ]
 }

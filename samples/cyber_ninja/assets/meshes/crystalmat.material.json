@@ -1,0 +1,1 @@
+{"name": "CrystalMat", "baseColor": {"x": 1.0, "y": 0.88, "z": 0.35}, "baseColorTex": "", "metallic": 0.3, "roughness": 0.25, "metallicRoughnessTex": "", "normalTex": "", "normalScale": 1, "emissiveColor": {"x": 0.6, "y": 0.5, "z": 0.15}, "emissiveTex": "", "emissiveStrength": 0.6, "alphaMode": "OPAQUE", "alphaCutoff": 0.5, "doubleSided": false}

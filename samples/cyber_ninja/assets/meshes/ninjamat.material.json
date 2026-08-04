@@ -1,0 +1,1 @@
+{"name": "NinjaMat", "baseColor": {"x": 0.25, "y": 0.45, "z": 0.85}, "baseColorTex": "", "metallic": 0.1, "roughness": 0.55, "metallicRoughnessTex": "", "normalTex": "", "normalScale": 1, "emissiveColor": {"x": 0, "y": 0, "z": 0}, "emissiveTex": "", "emissiveStrength": 0, "alphaMode": "OPAQUE", "alphaCutoff": 0.5, "doubleSided": false}
