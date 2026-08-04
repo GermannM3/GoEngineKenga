@@ -300,6 +300,7 @@ func (r *Renderer3D) renderEntities(world *ecs.World, resolver *asset.Resolver) 
 		var texture *image.RGBA
 		var normalMap *image.RGBA
 		normalScale := float32(1.0)
+		var meshMaterial *render.Material
 
 		if resolver != nil && mr.MeshAssetID != "" {
 			meshAsset, err := resolver.ResolveMeshByAssetID(mr.MeshAssetID)
@@ -342,6 +343,8 @@ func (r *Renderer3D) renderEntities(world *ecs.World, resolver *asset.Resolver) 
 						if mat.NormalScale > 0 {
 							normalScale = mat.NormalScale
 						}
+						// Сохранить PBR-параметры материала для применения ниже.
+						meshMaterial = mat
 					}
 				}
 			}
@@ -360,9 +363,30 @@ func (r *Renderer3D) renderEntities(world *ecs.World, resolver *asset.Resolver) 
 		vertexColor := color.RGBA{R: 200, G: 200, B: 200, A: 255}
 		if mr.ColorA > 0 {
 			vertexColor = color.RGBA{R: mr.ColorR, G: mr.ColorG, B: mr.ColorB, A: mr.ColorA}
+		} else if meshMaterial != nil {
+			// Нет явного цвета в MeshRenderer — берём baseColor из материала.
+			vertexColor = color.RGBA{
+				R: uint8(clampF32(meshMaterial.BaseColor.X*255, 0, 255)),
+				G: uint8(clampF32(meshMaterial.BaseColor.Y*255, 0, 255)),
+				B: uint8(clampF32(meshMaterial.BaseColor.Z*255, 0, 255)),
+				A: 255,
+			}
+		} else if texture == nil {
+			// Ни цвета, ни текстуры — серый фолбэк.
 		}
 
-		r.rasterizer.DrawMesh(positions, indices, normals, uvs, modelMatrix, texture, normalMap, normalScale, vertexColor)
+		// Emissive из материала (самосвет, без текстуры — берём вектор).
+		var emissive color.RGBA
+		if meshMaterial != nil && meshMaterial.EmissiveStrength > 0 {
+			emissive = color.RGBA{
+				R: uint8(clampF32(meshMaterial.EmissiveColor.X*255*meshMaterial.EmissiveStrength, 0, 255)),
+				G: uint8(clampF32(meshMaterial.EmissiveColor.Y*255*meshMaterial.EmissiveStrength, 0, 255)),
+				B: uint8(clampF32(meshMaterial.EmissiveColor.Z*255*meshMaterial.EmissiveStrength, 0, 255)),
+				A: 0,
+			}
+		}
+
+		r.rasterizer.DrawMeshEmissive(positions, indices, normals, uvs, modelMatrix, texture, normalMap, normalScale, vertexColor, emissive)
 	}
 }
 
@@ -664,4 +688,15 @@ func (r *Renderer3D) UpdateParticleSystems(dt float32) {
 	for _, ps := range r.particleSystems {
 		ps.Update(dt)
 	}
+}
+
+// clampF32 ограничивает float32 в диапазон [lo, hi].
+func clampF32(v, lo, hi float32) float32 {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
 }

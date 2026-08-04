@@ -34,6 +34,9 @@ type Rasterizer struct {
 	camera       *Camera3D
 	lights       []Light3D
 	ambientColor color.RGBA
+
+	// per-mesh emissive: добавляется к финальному цвету пикселя (самосвет).
+	currentEmissive color.RGBA
 }
 
 // Light3D represents a light source
@@ -465,11 +468,23 @@ func (r *Rasterizer) calculateLighting(baseColor color.RGBA, worldPos, normal em
 		lightB = 1
 	}
 
-	// Apply lighting to base color
+	// Apply lighting to base color + emissive (самосвет поверх освещения)
+	fr := float32(baseColor.R)*lightR + float32(r.currentEmissive.R)
+	fg := float32(baseColor.G)*lightG + float32(r.currentEmissive.G)
+	fb := float32(baseColor.B)*lightB + float32(r.currentEmissive.B)
+	if fr > 255 {
+		fr = 255
+	}
+	if fg > 255 {
+		fg = 255
+	}
+	if fb > 255 {
+		fb = 255
+	}
 	return color.RGBA{
-		R: uint8(float32(baseColor.R) * lightR),
-		G: uint8(float32(baseColor.G) * lightG),
-		B: uint8(float32(baseColor.B) * lightB),
+		R: uint8(fr),
+		G: uint8(fg),
+		B: uint8(fb),
 		A: baseColor.A,
 	}
 }
@@ -487,6 +502,18 @@ func (r *Rasterizer) setPixel(x, y int, c color.RGBA) {
 
 // DrawMesh draws a mesh with transformation
 func (r *Rasterizer) DrawMesh(positions []float32, indices []uint32, normals []float32, uvs []float32, modelMatrix Matrix4, texture *image.RGBA, normalMap *image.RGBA, normalScale float32, vertexColor color.RGBA) {
+	r.currentEmissive = color.RGBA{}
+	r.drawMeshEx(positions, indices, normals, uvs, modelMatrix, texture, normalMap, normalScale, vertexColor)
+}
+
+// DrawMeshEmissive рисует меш с добавочным emissive-цветом (самосвет поверх освещения).
+func (r *Rasterizer) DrawMeshEmissive(positions []float32, indices []uint32, normals []float32, uvs []float32, modelMatrix Matrix4, texture *image.RGBA, normalMap *image.RGBA, normalScale float32, vertexColor, emissive color.RGBA) {
+	r.currentEmissive = emissive
+	r.drawMeshEx(positions, indices, normals, uvs, modelMatrix, texture, normalMap, normalScale, vertexColor)
+	r.currentEmissive = color.RGBA{}
+}
+
+func (r *Rasterizer) drawMeshEx(positions []float32, indices []uint32, normals []float32, uvs []float32, modelMatrix Matrix4, texture *image.RGBA, normalMap *image.RGBA, normalScale float32, vertexColor color.RGBA) {
 	// Build triangles from mesh data
 	for i := 0; i+2 < len(indices); i += 3 {
 		i0, i1, i2 := indices[i], indices[i+1], indices[i+2]

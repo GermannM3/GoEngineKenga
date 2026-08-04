@@ -599,6 +599,236 @@
    }
   },
   {
+   "name": "Tree0",
+   "transform": {
+    "position": {
+     "x": -8,
+     "y": 0.0,
+     "z": -7
+    },
+    "rotation": {
+     "x": 0,
+     "y": 0,
+     "z": 0
+    },
+    "scale": {
+     "x": 1.0,
+     "y": 1.0,
+     "z": 1.0
+    }
+   },
+   "meshRenderer": {
+    "meshAssetId": "a48c70a0-64dc-4479-af0a-cdb29fabf01d"
+   }
+  },
+  {
+   "name": "Tree1",
+   "transform": {
+    "position": {
+     "x": -9,
+     "y": 0.0,
+     "z": 4
+    },
+    "rotation": {
+     "x": 0,
+     "y": 0,
+     "z": 0
+    },
+    "scale": {
+     "x": 1.0,
+     "y": 1.0,
+     "z": 1.0
+    }
+   },
+   "meshRenderer": {
+    "meshAssetId": "a48c70a0-64dc-4479-af0a-cdb29fabf01d"
+   }
+  },
+  {
+   "name": "Tree2",
+   "transform": {
+    "position": {
+     "x": 7,
+     "y": 0.0,
+     "z": -6
+    },
+    "rotation": {
+     "x": 0,
+     "y": 0,
+     "z": 0
+    },
+    "scale": {
+     "x": 1.0,
+     "y": 1.0,
+     "z": 1.0
+    }
+   },
+   "meshRenderer": {
+    "meshAssetId": "a48c70a0-64dc-4479-af0a-cdb29fabf01d"
+   }
+  },
+  {
+   "name": "Tree3",
+   "transform": {
+    "position": {
+     "x": 8,
+     "y": 0.0,
+     "z": 5
+    },
+    "rotation": {
+     "x": 0,
+     "y": 0,
+     "z": 0
+    },
+    "scale": {
+     "x": 1.0,
+     "y": 1.0,
+     "z": 1.0
+    }
+   },
+   "meshRenderer": {
+    "meshAssetId": "a48c70a0-64dc-4479-af0a-cdb29fabf01d"
+   }
+  },
+  {
+   "name": "Tree4",
+   "transform": {
+    "position": {
+     "x": 0,
+     "y": 0.0,
+     "z": -9
+    },
+    "rotation": {
+     "x": 0,
+     "y": 0,
+     "z": 0
+    },
+    "scale": {
+     "x": 1.0,
+     "y": 1.0,
+     "z": 1.0
+    }
+   },
+   "meshRenderer": {
+    "meshAssetId": "a48c70a0-64dc-4479-af0a-cdb29fabf01d"
+   }
+  },
+  {
+   "name": "Tree5",
+   "transform": {
+    "position": {
+     "x": 6,
+     "y": 0.0,
+     "z": 8
+    },
+    "rotation": {
+     "x": 0,
+     "y": 0,
+     "z": 0
+    },
+    "scale": {
+     "x": 1.0,
+     "y": 1.0,
+     "z": 1.0
+    }
+   },
+   "meshRenderer": {
+    "meshAssetId": "a48c70a0-64dc-4479-af0a-cdb29fabf01d"
+   }
+  },
+  {
+   "name": "Rock0",
+   "transform": {
+    "position": {
+     "x": -5,
+     "y": -0.3,
+     "z": 3
+    },
+    "rotation": {
+     "x": 0,
+     "y": 0,
+     "z": 0
+    },
+    "scale": {
+     "x": 0.8,
+     "y": 0.8,
+     "z": 0.8
+    }
+   },
+   "meshRenderer": {
+    "meshAssetId": "1a88c6d6-04e5-404e-80bc-11cbc4cdc4e6"
+   }
+  },
+  {
+   "name": "Rock1",
+   "transform": {
+    "position": {
+     "x": 4,
+     "y": -0.3,
+     "z": -4
+    },
+    "rotation": {
+     "x": 0,
+     "y": 40,
+     "z": 0
+    },
+    "scale": {
+     "x": 0.6,
+     "y": 0.6,
+     "z": 0.6
+    }
+   },
+   "meshRenderer": {
+    "meshAssetId": "1a88c6d6-04e5-404e-80bc-11cbc4cdc4e6"
+   }
+  },
+  {
+   "name": "Rock2",
+   "transform": {
+    "position": {
+     "x": 2,
+     "y": -0.3,
+     "z": 7
+    },
+    "rotation": {
+     "x": 0,
+     "y": 80,
+     "z": 0
+    },
+    "scale": {
+     "x": 0.7,
+     "y": 0.7,
+     "z": 0.7
+    }
+   },
+   "meshRenderer": {
+    "meshAssetId": "1a88c6d6-04e5-404e-80bc-11cbc4cdc4e6"
+   }
+  },
+  {
+   "name": "Rock3",
+   "transform": {
+    "position": {
+     "x": -3,
+     "y": -0.3,
+     "z": -5
+    },
+    "rotation": {
+     "x": 0,
+     "y": 120,
+     "z": 0
+    },
+    "scale": {
+     "x": 0.5,
+     "y": 0.5,
+     "z": 0.5
+    }
+   },
+   "meshRenderer": {
+    "meshAssetId": "1a88c6d6-04e5-404e-80bc-11cbc4cdc4e6"
+   }
+  },
+  {
    "name": "Music",
    "transform": {
     "position": {
