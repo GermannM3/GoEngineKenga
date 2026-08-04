@@ -357,6 +357,10 @@ func (b *Backend) Draw(screen *ebiten.Image) {
 		}
 		msg += "\n"
 		ebitenutil.DebugPrint(screen, msg)
+		// Графический HUD (полоса здоровья, экраны победы/поражения) для 3D-игр.
+		if !gameplay.HasKart(w) {
+			b.drawGameHUD(screen)
+		}
 	}
 
 	// Render UI on top
@@ -608,4 +612,72 @@ func (b *Backend) SetUIManager(uiManager *ui.UIManager) {
 	if b.UIContext != nil {
 		b.UIContext.SetUIManager(uiManager)
 	}
+}
+
+// drawGameHUD рисует графический HUD для 3D-игр (CyberNinja): полоса здоровья,
+// иконки собранных предметов, экран победы/поражения. Поверх текстового DebugPrint.
+func (b *Backend) drawGameHUD(screen *ebiten.Image) {
+	health, maxHealth, score, total, level, status := gameplay.GameHealthState()
+	if total == 0 && status == gameplay.StatusPlaying {
+		return // нет игровой логики — не рисуем
+	}
+
+	sw, sh := screen.Size()
+	W, H := float32(sw), float32(sh)
+
+	// Полупрозрачные панели — рисуем через fill vector-примитивами.
+	// Полоса здоровья (левый верх).
+	barW := float32(240)
+	barH := float32(22)
+	barX := float32(16)
+	barY := float32(16)
+	// фон
+	fillRect(screen, barX-2, barY-2, barW+4, barH+4, color.RGBA{R: 0, G: 0, B: 0, A: 140})
+	// красная заливка пропорционально здоровью
+	hp := float32(0)
+	if maxHealth > 0 {
+		hp = health / maxHealth
+		if hp > 1 {
+			hp = 1
+		}
+		if hp < 0 {
+			hp = 0
+		}
+	}
+	fillRect(screen, barX, barY, barW*hp, barH, color.RGBA{R: 220, G: 60, B: 60, A: 230})
+	// рамка
+	fillRect(screen, barX, barY, barW, 2, color.RGBA{R: 255, G: 255, B: 255, A: 200})
+	fillRect(screen, barX, barY+barH-2, barW, 2, color.RGBA{R: 255, G: 255, B: 255, A: 200})
+	fillRect(screen, barX, barY, 2, barH, color.RGBA{R: 255, G: 255, B: 255, A: 200})
+	fillRect(screen, barX+barW-2, barY, 2, barH, color.RGBA{R: 255, G: 255, B: 255, A: 200})
+
+	// Текст здоровья/счёта/уровня — используем DebugPrint в маленькие зоны.
+	healthTxt := gameplay.Tr("hud.health", int(health)) + "  " + gameplay.Tr("hud.items", score, total)
+	if level > 0 {
+		healthTxt += "  " + gameplay.Tr("hud.level", level)
+	}
+	ebitenutil.DebugPrintAt(screen, healthTxt, int(barX+8), int(barY+3))
+
+	// Экраны победы/поражения — затемнение + крупный текст по центру.
+	if status == gameplay.StatusVictory || status == gameplay.StatusDefeat {
+		fillRect(screen, 0, 0, W, H, color.RGBA{R: 0, G: 0, B: 0, A: 160})
+		msg := gameplay.Tr("hud.defeat") + "\n" + gameplay.Tr("hud.restart")
+		if status == gameplay.StatusVictory {
+			msg = gameplay.Tr("hud.victory") + "\n" + gameplay.Tr("hud.next")
+		}
+		// Многократно печатаем по центру для «крупного» эффекта (нет TTF-шрифта в наличии).
+		ebitenutil.DebugPrintAt(screen, msg, int(W/2)-120, int(H/2)-20)
+	}
+}
+
+// fillRect рисует залитый прямоугольник поверх screen.
+func fillRect(screen *ebiten.Image, x, y, w, h float32, col color.RGBA) {
+	if w <= 0 || h <= 0 {
+		return
+	}
+	rect := ebiten.NewImage(int(w), int(h))
+	rect.Fill(col)
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Translate(float64(x), float64(y))
+	screen.DrawImage(rect, op)
 }

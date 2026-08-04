@@ -335,6 +335,21 @@ func (gls *GameLogicSystem) Status() GameStatus {
 	return gls.status
 }
 
+// Публичные геттеры для графического HUD (полоса здоровья, счёт, статус).
+
+// HealthState возвращает (текущее здоровье, максимум, счёт предметов, всего предметов, уровень, статус).
+func (gls *GameLogicSystem) HealthState() (health, maxHealth float32, score, totalItems, level int, status GameStatus) {
+	return gls.health, gls.maxHealth, gls.score, len(gls.itemIDs), gls.level, gls.status
+}
+
+// GameHealthState возвращает данные активной игровой логики (для HUD-рендера).
+func GameHealthState() (health, maxHealth float32, score, totalItems, level int, status GameStatus) {
+	if defaultGLS == nil {
+		return 0, 0, 0, 0, 0, StatusPlaying
+	}
+	return defaultGLS.HealthState()
+}
+
 // HUD собирает строку интерфейса уровня (здоровье, сферы, номер уровня,
 // либо экран победы/поражения). Локализуется через gameplay.Tr.
 func (gls *GameLogicSystem) HUD() string {
