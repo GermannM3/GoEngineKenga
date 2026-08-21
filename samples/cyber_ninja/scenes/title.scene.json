@@ -1,0 +1,178 @@
+{
+  "name": "Title",
+  "entities": [
+    {
+      "name": "MainCamera",
+      "transform": {
+        "position": { "x": 0, "y": 2.2, "z": 7 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "scale": { "x": 1, "y": 1, "z": 1 }
+      },
+      "camera": {
+        "fovYDegrees": 50,
+        "near": 0.1,
+        "far": 1000
+      }
+    },
+    {
+      "name": "DirectionalLight",
+      "transform": {
+        "position": { "x": 0, "y": 10, "z": 5 },
+        "rotation": { "x": -45, "y": 30, "z": 0 },
+        "scale": { "x": 1, "y": 1, "z": 1 }
+      },
+      "light": {
+        "kind": "directional",
+        "colorR": 255,
+        "colorG": 245,
+        "colorB": 220,
+        "intensity": 1.0
+      }
+    },
+    {
+      "name": "PointLight",
+      "transform": {
+        "position": { "x": 0, "y": 3, "z": 0 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "scale": { "x": 1, "y": 1, "z": 1 }
+      },
+      "light": {
+        "kind": "point",
+        "colorR": 120,
+        "colorG": 180,
+        "colorB": 255,
+        "intensity": 2.0,
+        "range": 18
+      }
+    },
+    {
+      "name": "Ground",
+      "transform": {
+        "position": { "x": 0, "y": -0.5, "z": 0 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "scale": { "x": 24, "y": 1, "z": 24 }
+      },
+      "meshRenderer": {
+        "meshAssetId": "",
+        "colorR": 60,
+        "colorG": 110,
+        "colorB": 65,
+        "colorA": 255
+      }
+    },
+    {
+      "name": "NinjaStatue",
+      "transform": {
+        "position": { "x": 0, "y": 1.6, "z": 0 },
+        "rotation": { "x": 0, "y": 180, "z": 0 },
+        "scale": { "x": 2.2, "y": 2.2, "z": 2.2 }
+      },
+      "meshRenderer": {
+        "meshAssetId": "bb8841a7-3d8b-49d9-8bf9-441bb8ca0872"
+      }
+    },
+    {
+      "name": "CrystalOrbit1",
+      "transform": {
+        "position": { "x": -3.2, "y": 2.4, "z": -1 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "scale": { "x": 1.6, "y": 1.6, "z": 1.6 }
+      },
+      "meshRenderer": {
+        "meshAssetId": "16ddc08f-4226-47a7-9f66-c5cea902ee55"
+      },
+      "script": {
+        "name": "spinner",
+        "params": { "speed": "80" }
+      }
+    },
+    {
+      "name": "CrystalOrbit2",
+      "transform": {
+        "position": { "x": 3.2, "y": 2.4, "z": -1 },
+        "rotation": { "x": 0, "y": 45, "z": 0 },
+        "scale": { "x": 1.6, "y": 1.6, "z": 1.6 }
+      },
+      "meshRenderer": {
+        "meshAssetId": "16ddc08f-4226-47a7-9f66-c5cea902ee55"
+      },
+      "script": {
+        "name": "spinner",
+        "params": { "speed": "-80" }
+      }
+    },
+    {
+      "name": "CrystalFloat",
+      "transform": {
+        "position": { "x": 0, "y": 4.4, "z": 0 },
+        "rotation": { "x": 0, "y": 90, "z": 0 },
+        "scale": { "x": 1.2, "y": 1.2, "z": 1.2 }
+      },
+      "meshRenderer": {
+        "meshAssetId": "16ddc08f-4226-47a7-9f66-c5cea902ee55"
+      },
+      "script": {
+        "name": "bob",
+        "params": { "amplitude": "0.35", "speed": "1.6" }
+      }
+    },
+    {
+      "name": "Tree0",
+      "transform": {
+        "position": { "x": -7, "y": 0.8, "z": -4 },
+        "rotation": { "x": 0, "y": 20, "z": 0 },
+        "scale": { "x": 1.4, "y": 1.4, "z": 1.4 }
+      },
+      "meshRenderer": {
+        "meshAssetId": "a48c70a0-64dc-4479-af0a-cdb29fabf01d"
+      }
+    },
+    {
+      "name": "Tree1",
+      "transform": {
+        "position": { "x": 7, "y": 0.8, "z": -3 },
+        "rotation": { "x": 0, "y": 140, "z": 0 },
+        "scale": { "x": 1.3, "y": 1.3, "z": 1.3 }
+      },
+      "meshRenderer": {
+        "meshAssetId": "a48c70a0-64dc-4479-af0a-cdb29fabf01d"
+      }
+    },
+    {
+      "name": "Rock0",
+      "transform": {
+        "position": { "x": -6, "y": 0.4, "z": 3 },
+        "rotation": { "x": 0, "y": 40, "z": 0 },
+        "scale": { "x": 1.1, "y": 1.1, "z": 1.1 }
+      },
+      "meshRenderer": {
+        "meshAssetId": "1a88c6d6-04e5-404e-80bc-11cbc4cdc4e6"
+      }
+    },
+    {
+      "name": "Barrel0",
+      "transform": {
+        "position": { "x": 5.5, "y": 0.5, "z": 2.5 },
+        "rotation": { "x": 0, "y": 10, "z": 0 },
+        "scale": { "x": 1, "y": 1, "z": 1 }
+      },
+      "meshRenderer": {
+        "meshAssetId": "62a4eaed-1c28-4ddd-83b7-815785ecd96b"
+      }
+    },
+    {
+      "name": "Music",
+      "transform": {
+        "position": { "x": 0, "y": 0, "z": 0 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "scale": { "x": 1, "y": 1, "z": 1 }
+      },
+      "audioSource": {
+        "clip": "b16df146-04a2-49bb-a1ec-6dde48573572",
+        "volume": 0.25,
+        "playOnStart": true,
+        "loop": true
+      }
+    }
+  ]
+}

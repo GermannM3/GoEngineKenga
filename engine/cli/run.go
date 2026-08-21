@@ -95,6 +95,19 @@ func newRunCommand() *cobra.Command {
 			}
 			sceneIdx := 0
 
+			// Титульный экран: первая сцена проекта с "title" в имени — меню-режим.
+			// Игровые системы стоят (декор живёт на скриптах), ENTER/START запускает игру.
+			projectName := "GoEngineKenga"
+			menu := false
+			if p, err := project.Load(projectDir); err == nil {
+				if p.Name != "" {
+					projectName = p.Name
+				}
+				if len(p.Scenes) > 1 && strings.Contains(strings.ToLower(p.Scenes[0]), "title") && p.Scenes[0] == scenePath {
+					menu = true
+				}
+			}
+
 			rt := runtime.NewFromScene(s)
 			rt.StartPlay()
 
@@ -193,10 +206,12 @@ func newRunCommand() *cobra.Command {
 			// Единый шаг игровых систем (ввод → анимация → геймплей).
 			// Используется и оконным OnUpdate, и headless-бэкендом для паритета поведения.
 			systemsUpdate := func(aw *ecs.World, is *input.State, dt float64) {
-				if gameplay.HasKart(aw) {
-					gameplay.KartSystem(aw, is, float32(dt))
-				} else {
-					runtime.ApplyPlayerInput(aw, is, float32(dt))
+				if !menu {
+					if gameplay.HasKart(aw) {
+						gameplay.KartSystem(aw, is, float32(dt))
+					} else {
+						runtime.ApplyPlayerInput(aw, is, float32(dt))
+					}
 				}
 				runtime.UpdateFollowCameras(aw, float32(dt)) // следящая камера (до рендера)
 				camShake.Step(aw, float32(dt))               // тряска поверх follow-cam
@@ -204,12 +219,13 @@ func newRunCommand() *cobra.Command {
 				scriptSystem.Update(float32(dt))
 				animationSystem.Update(aw)
 				skeletalSystem.Update(aw, float32(dt))
-				if !gameplay.HasKart(aw) {
+				if !gameplay.HasKart(aw) && !menu {
 					gameLogicSystem.Update(aw, is, float32(dt))
 				}
 				audioSystem.Update(aw, time.Duration(dt*float64(time.Second)))
 			}
 
+			var loadScene func(idx int) error // объявлено до frame; присваивается ниже
 			var frame *render.Frame
 			frame = &render.Frame{
 				ClearColor: clearColor,
@@ -276,11 +292,34 @@ func newRunCommand() *cobra.Command {
 						}
 						sh.AttachWorld(aw) // мир мог пересоздаться при hot-reload сцены
 					}
+
+					// Титульный экран: ждём Enter/START — запускаем первый уровень
+					if menu {
+						startPressed := false
+						if is, ok := frame.InputState.(*input.State); ok {
+							startPressed = is.IsKeyJustPressed(input.KeyEnter) || is.IsPadButtonJustPressed(input.PadStart) || is.IsPadButtonJustPressed(input.PadA)
+						}
+						if startPressed && sceneIdx+1 < len(scenes) {
+							menu = false
+							sceneIdx++
+							if err := loadScene(sceneIdx); err != nil {
+								sceneIdx--
+								menu = true
+							}
+						}
+					}
+
 					delta := rt.Step()
 					if aw, err := rt.ActiveWorld(); err == nil {
 						runtime.SpinSystem(aw, delta)
 						frame.World = aw
-						if !gameplay.HasKart(aw) {
+						if menu {
+							frame.HUDText = ""
+							frame.HUD = &render.HUDOverlay{
+								CenterText: projectName,
+								SubText:    gameplay.Tr("menu.start"),
+							}
+						} else if !gameplay.HasKart(aw) {
 							frame.HUDText = gameplay.GameHUD() // webgpu показывает и в заголовке
 							frame.HUD = buildHUDOverlay()
 						}
@@ -293,7 +332,7 @@ func newRunCommand() *cobra.Command {
 			// Перезапуск уровня (R) и переход на следующий уровень (победа, ENTER).
 			// Сцены из project.kenga.json проходятся по порядку; мир пересоздаётся
 			// через rt.ReplaceFromScene, как при hot-reload сцены.
-			loadScene := func(idx int) error {
+			loadScene = func(idx int) error {
 				if idx < 0 || idx >= len(scenes) {
 					return nil
 				}

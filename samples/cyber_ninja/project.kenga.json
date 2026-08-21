@@ -1,6 +1,7 @@
 {
   "name": "CyberNinja",
   "scenes": [
+    "scenes/title.scene.json",
     "scenes/main.scene.json",
     "scenes/level2.scene.json"
   ],

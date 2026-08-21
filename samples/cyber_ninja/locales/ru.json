@@ -1,4 +1,5 @@
 {
+  "menu.start": "ENTER — начать игру",
   "hud.health": "Здоровье: %d",
   "hud.items": "Сферы: %d/%d",
   "hud.kills": "Враги: %d",

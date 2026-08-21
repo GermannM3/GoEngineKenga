@@ -1,4 +1,5 @@
 {
+  "menu.start": "ENTER — start game",
   "hud.health": "Health: %d",
   "hud.items": "Orbs: %d/%d",
   "hud.kills": "Enemies: %d",
