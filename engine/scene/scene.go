@@ -34,6 +34,7 @@ type SceneEntity struct {
 	Attacker            *ecs.Attacker            `json:"attacker,omitempty"`
 	EnemyBrain          *ecs.EnemyBrain          `json:"enemyBrain,omitempty"`
 	CharacterController *ecs.CharacterController `json:"characterController,omitempty"`
+	Script              *ecs.Script              `json:"script,omitempty"`
 
 	// Для префабов
 	PrefabID  string                 `json:"prefabId,omitempty"`  // ID префаба, если это инстанс
@@ -170,6 +171,9 @@ func (s *Scene) ToWorld() *ecs.World {
 		}
 		if se.CharacterController != nil {
 			w.SetCharacterController(id, *se.CharacterController)
+		}
+		if se.Script != nil {
+			w.SetScript(id, *se.Script)
 		}
 	}
 	return w

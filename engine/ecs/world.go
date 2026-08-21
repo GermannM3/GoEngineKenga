@@ -96,6 +96,13 @@ type CharacterController struct {
 	Grounded bool `json:"-"` // стоит на земле (runtime, обновляется физическим шагом)
 }
 
+// Script — скриптовое поведение сущности: Name ищется в реестре
+// engine/scripts (регистрация в init() пакета игры), Params — параметры из сцены.
+type Script struct {
+	Name   string            `json:"name"`
+	Params map[string]string `json:"params,omitempty"`
+}
+
 type AudioSource struct {
 	Clip        string  `json:"clip"`   // asset ID аудиоклипа
 	Volume      float32 `json:"volume"` // 0.0 - 1.0
@@ -277,6 +284,7 @@ type World struct {
 	attackers             map[EntityID]Attacker
 	enemyBrains           map[EntityID]EnemyBrain
 	characterControllers  map[EntityID]CharacterController
+	scripts               map[EntityID]Script
 
 	names map[EntityID]string
 }
@@ -307,6 +315,7 @@ func NewWorld() *World {
 		attackers:            map[EntityID]Attacker{},
 		enemyBrains:          map[EntityID]EnemyBrain{},
 		characterControllers: map[EntityID]CharacterController{},
+		scripts:              map[EntityID]Script{},
 		names:                map[EntityID]string{},
 	}
 }
@@ -350,6 +359,7 @@ func (w *World) RemoveEntity(id EntityID) {
 	delete(w.attackers, id)
 	delete(w.enemyBrains, id)
 	delete(w.characterControllers, id)
+	delete(w.scripts, id)
 	delete(w.names, id)
 	for i, e := range w.order {
 		if e == id {
@@ -591,6 +601,19 @@ func (w *World) GetCharacterController(id EntityID) (CharacterController, bool) 
 	return c, ok
 }
 
+func (w *World) SetScript(id EntityID, s Script) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.scripts[id] = s
+}
+
+func (w *World) GetScript(id EntityID) (Script, bool) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	s, ok := w.scripts[id]
+	return s, ok
+}
+
 func (w *World) SetAnimationState(id EntityID, animState AnimationState) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -750,6 +773,9 @@ func (w *World) Clone() *World {
 	}
 	for k, v := range w.characterControllers {
 		nw.characterControllers[k] = v
+	}
+	for k, v := range w.scripts {
+		nw.scripts[k] = v
 	}
 	for k, v := range w.names {
 		nw.names[k] = v

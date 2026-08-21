@@ -32,6 +32,7 @@ import (
 	"goenginekenga/engine/runtime"
 	"goenginekenga/engine/scene"
 	"goenginekenga/engine/script"
+	"goenginekenga/engine/scripts"
 )
 
 func newRunCommand() *cobra.Command {
@@ -179,6 +180,8 @@ func newRunCommand() *cobra.Command {
 
 			// Create animation system
 			animationSystem := animation.NewAnimationSystem()
+			// Скриптовые компоненты (engine/scripts): поведение из реестра по ecs.Script.Name
+			scriptSystem := scripts.NewSystem(w)
 			// 3D skeletal-анимации (glTF skins): пишет bone matrices в ecs.Animator
 			skeletalSystem := animation.NewSkeletalAnimationSystem(projectDir)
 
@@ -197,6 +200,8 @@ func newRunCommand() *cobra.Command {
 				}
 				runtime.UpdateFollowCameras(aw, float32(dt)) // следящая камера (до рендера)
 				camShake.Step(aw, float32(dt))               // тряска поверх follow-cam
+				scriptSystem.AttachWorld(aw)                 // мир мог пересоздаться (уровень/hot-reload)
+				scriptSystem.Update(float32(dt))
 				animationSystem.Update(aw)
 				skeletalSystem.Update(aw, float32(dt))
 				if !gameplay.HasKart(aw) {
