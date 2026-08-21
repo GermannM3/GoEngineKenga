@@ -31,6 +31,9 @@ type SceneEntity struct {
 	PowerUpPickup       *ecs.PowerUpPickup       `json:"powerUpPickup,omitempty"`
 	AudioSource         *ecs.AudioSource         `json:"audioSource,omitempty"`
 	UICanvas            *ecs.UICanvas            `json:"uiCanvas,omitempty"`
+	Attacker            *ecs.Attacker            `json:"attacker,omitempty"`
+	EnemyBrain          *ecs.EnemyBrain          `json:"enemyBrain,omitempty"`
+	CharacterController *ecs.CharacterController `json:"characterController,omitempty"`
 
 	// Для префабов
 	PrefabID  string                 `json:"prefabId,omitempty"`  // ID префаба, если это инстанс
@@ -158,6 +161,15 @@ func (s *Scene) ToWorld() *ecs.World {
 		}
 		if se.UICanvas != nil {
 			w.SetUICanvas(id, *se.UICanvas)
+		}
+		if se.Attacker != nil {
+			w.SetAttacker(id, *se.Attacker)
+		}
+		if se.EnemyBrain != nil {
+			w.SetEnemyBrain(id, *se.EnemyBrain)
+		}
+		if se.CharacterController != nil {
+			w.SetCharacterController(id, *se.CharacterController)
 		}
 	}
 	return w

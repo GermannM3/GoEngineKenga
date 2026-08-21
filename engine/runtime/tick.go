@@ -138,6 +138,10 @@ func (rt *Runtime) stepPhysics(deltaTime float32) {
 
 	// Дополнительный шаг: обновляем системы нанесения мастики (dispensers).
 	rt.stepDispensers(deltaTime)
+
+	// Grounded для CharacterController — после записи финальных позиций,
+	// чтобы ввод следующего кадра видел актуальное состояние «на земле».
+	UpdateCharacterControllers(rt.PlayWorld)
 }
 
 // SpinSystem — пустая система (ранее вращала объекты вокруг Y; отключено для платформера).

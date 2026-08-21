@@ -23,3 +23,8 @@ func (v Vec3) Mul(s float32) Vec3 { return Vec3{X: v.X * s, Y: v.Y * s, Z: v.Z *
 func (v Vec3) Len() float32 {
 	return float32(math.Sqrt(float64(v.X*v.X + v.Y*v.Y + v.Z*v.Z)))
 }
+
+// Lerp линейно интерполирует вектор между a и b (t=0 → a, t=1 → b).
+func Lerp(a, b Vec3, t float32) Vec3 {
+	return Vec3{X: a.X + (b.X-a.X)*t, Y: a.Y + (b.Y-a.Y)*t, Z: a.Z + (b.Z-a.Z)*t}
+}

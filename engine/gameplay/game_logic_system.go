@@ -16,18 +16,10 @@ const (
 	StatusDefeat
 )
 
-// enemyPatrol — состояние патруля одного врага.
-type enemyPatrol struct {
-	dir   float32 // направление движения по X: -1 или +1
-	speed float32 // скорость патруля, ед/с
-	homeX float32 // центральная точка патруля
-	span  float32 // полуширина зоны патруля от homeX
-}
-
-// GameLogicSystem handles the core gameplay mechanics: enemy patrol,
+// GameLogicSystem handles the core gameplay mechanics: enemy AI,
 // pickups, health/damage, win/lose and level flow. Движение игрока
-// обрабатывает runtime.ApplyPlayerInput (A/D, Space) — здесь ввод НЕ
-// перехватывается, чтобы два обработчика не дрались за rigidbody.
+// обрабатывает runtime.ApplyPlayerInput (A/D, Space), ближний бой —
+// combat.go (Attacker/Health) — здесь ввод на движение НЕ перехватывается.
 type GameLogicSystem struct {
 	playerID ecs.EntityID
 	enemyIDs []ecs.EntityID
@@ -43,24 +35,29 @@ type GameLogicSystem struct {
 	health     float32
 	maxHealth  float32
 	score      int
+	kills      int
 	level      int
 	invuln     float32 // секунд неуязвимости после урона
 	prevVelY   float32 // предыдущая вертикальная скорость игрока (детект прыжка)
 	collected  map[ecs.EntityID]bool
-	enemyState map[ecs.EntityID]*enemyPatrol
+	enemyFSMs  map[ecs.EntityID]*enemyFSM
 	lastWorld  *ecs.World // смена мира (перезапуск/уровень) сбрасывает состояние
 
 	// Колбэки, устанавливаемые run.go: перезагрузка текущего уровня (R)
 	// и переход на следующий (победа, ENTER).
 	Restart   func()
 	NextLevel func()
+
+	// Хуки для «сока» (тряска камеры, частицы): удар нанесён / игрок ранен.
+	OnHit        func(pos emath.Vec3)
+	OnPlayerHurt func(pos emath.Vec3)
 }
 
 // NewGameLogicSystem creates a new instance of the game logic system
 func NewGameLogicSystem() *GameLogicSystem {
 	return &GameLogicSystem{
-		collected:  map[ecs.EntityID]bool{},
-		enemyState: map[ecs.EntityID]*enemyPatrol{},
+		collected: map[ecs.EntityID]bool{},
+		enemyFSMs: map[ecs.EntityID]*enemyFSM{},
 	}
 }
 
@@ -81,11 +78,12 @@ func (gls *GameLogicSystem) Update(world *ecs.World, inputState *input.State, dt
 	if world != gls.lastWorld {
 		gls.lastWorld = world
 		gls.collected = map[ecs.EntityID]bool{}
-		gls.enemyState = map[ecs.EntityID]*enemyPatrol{}
+		gls.enemyFSMs = map[ecs.EntityID]*enemyFSM{}
 		gls.prevVelY = 0
 		gls.invuln = 0
 		gls.status = StatusPlaying
 		gls.score = 0
+		gls.kills = 0
 		gls.readHealth(world)
 	}
 
@@ -110,10 +108,61 @@ func (gls *GameLogicSystem) Update(world *ecs.World, inputState *input.State, dt
 		gls.invuln -= dt
 	}
 
+	tickAttackers(world, dt) // кулдауны атак и i-frames всех бойцов
+	gls.updatePlayerAttack(world, inputState)
 	gls.updatePlayer(world)
-	gls.updateEnemies(world)
+	gls.updateEnemies(world, dt)
 	gls.checkItemPickups(world)
 	gls.updateGameStatus(world)
+}
+
+// updatePlayerAttack: удар игрока по вводу (F / ЛКМ) через Attacker.
+func (gls *GameLogicSystem) updatePlayerAttack(world *ecs.World, inputState *input.State) {
+	if !playerWantsAttack(inputState) || gls.playerID == 0 {
+		return
+	}
+	atk, ok := world.GetAttacker(gls.playerID)
+	if !ok {
+		atk = defaultPlayerAttack() // старые сцены без компонента
+	}
+	if atk.Timer > 0 {
+		return
+	}
+	tr, hasTr := world.GetTransform(gls.playerID)
+	if !hasTr {
+		return
+	}
+	atk.Timer = atk.Cooldown
+	world.SetAttacker(gls.playerID, atk)
+
+	for _, target := range attackTargetsOf(world, gls.playerID, tr, atk) {
+		gls.hitEnemy(world, target, tr.Position, atk.Damage, atk.Knockback)
+	}
+}
+
+// hitEnemy наносит урон врагу: звук, счёт убийств, удаление трупа.
+func (gls *GameLogicSystem) hitEnemy(world *ecs.World, target ecs.EntityID, from emath.Vec3, dmg, knockback float32) {
+	pos := posOf(world, target)
+	died := applyHit(world, target, dmg, knockback, from)
+	if gls.Sound != nil && !died {
+		if clip := gls.clipOf(world, target); clip != "" {
+			gls.Sound.PlayOneShot(clip, pos, 0.7)
+		}
+	}
+	if gls.OnHit != nil {
+		gls.OnHit(pos)
+	}
+	if died {
+		gls.kills++
+		if gls.Sound != nil {
+			if clip := gls.clipOf(world, target); clip != "" {
+				gls.Sound.PlayOneShot(clip, pos, 0.9)
+			} else if clip := gls.clipOf(world, gls.playerID); clip != "" {
+				gls.Sound.PlayOneShot(clip, pos, 0.5)
+			}
+		}
+		world.RemoveEntity(target)
+	}
 }
 
 // findEntities locates all relevant entities in the world
@@ -170,53 +219,61 @@ func (gls *GameLogicSystem) updatePlayer(world *ecs.World) {
 	gls.prevVelY = rb.Velocity.Y
 }
 
-// updateEnemies handles enemy AI: patrol between homeX±span and damage
-// the player on contact (with invulnerability cooldown).
-func (gls *GameLogicSystem) updateEnemies(world *ecs.World) {
+// updateEnemies ведёт ИИ врагов: FSM Patrol→Chase→Attack (параметры из
+// EnemyBrain), в состоянии attack — урон игроку по кулдауну Attacker'а.
+func (gls *GameLogicSystem) updateEnemies(world *ecs.World, dt float32) {
 	for _, enemyID := range gls.enemyIDs {
 		tr, hasTr := world.GetTransform(enemyID)
-		rb, hasRb := world.GetRigidbody(enemyID)
-		if !hasTr || !hasRb {
+		if !hasTr {
+			continue
+		}
+		if _, hasRb := world.GetRigidbody(enemyID); !hasRb {
 			continue
 		}
 
-		st := gls.enemyState[enemyID]
-		if st == nil {
-			st = &enemyPatrol{dir: 1, speed: 2.5, homeX: tr.Position.X, span: 6}
-			gls.enemyState[enemyID] = st
+		fsm := gls.enemyFSMs[enemyID]
+		if fsm == nil {
+			fsm = newEnemyFSM(world, enemyID, gls.playerID, gls.brainOf(world, enemyID))
+			gls.enemyFSMs[enemyID] = fsm
 		}
+		fsm.agent.Position = tr.Position
+		fsm.sm.Update(dt)
 
-		// Разворот на границах зоны патруля
-		if tr.Position.X > st.homeX+st.span {
-			st.dir = -1
-		} else if tr.Position.X < st.homeX-st.span {
-			st.dir = 1
+		// В состоянии attack наносим урон по кулдауну Attacker'а
+		if fsm.agent.State != "attack" {
+			continue
 		}
-
-		// Враги висят в воздухе: гравитации нет, движение задаётся скоростью
-		rb.Velocity = emath.V3(st.dir*st.speed, 0, 0)
-		world.SetRigidbody(enemyID, rb)
-
-		gls.checkEnemyHitsPlayer(world, tr.Position)
+		if gls.invuln > 0 || gls.status != StatusPlaying {
+			continue // игрок неуязвим или раунд окончен
+		}
+		atk, ok := world.GetAttacker(enemyID)
+		if !ok {
+			atk = defaultEnemyAttack()
+		}
+		if atk.Timer > 0 {
+			continue
+		}
+		atk.Timer = atk.Cooldown
+		world.SetAttacker(enemyID, atk)
+		gls.damagePlayer(world, tr.Position, atk.Damage)
 	}
 }
 
-// checkEnemyHitsPlayer наносит урон при контакте с игроком (сфера вокруг дрона).
-func (gls *GameLogicSystem) checkEnemyHitsPlayer(world *ecs.World, enemyPos emath.Vec3) {
-	if gls.playerID == 0 || gls.invuln > 0 || gls.status != StatusPlaying {
-		return
+// brainOf возвращает EnemyBrain врага или разумные дефолты (старые сцены).
+func (gls *GameLogicSystem) brainOf(world *ecs.World, id ecs.EntityID) ecs.EnemyBrain {
+	if b, ok := world.GetEnemyBrain(id); ok {
+		return b
 	}
-	playerTr, ok := world.GetTransform(gls.playerID)
-	if !ok {
-		return
-	}
-	dx := playerTr.Position.X - enemyPos.X
-	dy := playerTr.Position.Y - enemyPos.Y
-	dz := playerTr.Position.Z - enemyPos.Z
-	if dx*dx+dz*dz >= 1.0*1.0 || dy < -1.2 || dy > 1.2 {
-		return
-	}
-	gls.damagePlayer(world, enemyPos, 25)
+	return ecs.EnemyBrain{PatrolSpan: 6, Speed: 2.5, ChaseSpeed: 3.5, AggroRadius: 8, AttackRadius: 1.8}
+}
+
+// defaultPlayerAttack / defaultEnemyAttack — параметры для сцен без компонентов.
+func defaultPlayerAttack() ecs.Attacker {
+	return ecs.Attacker{Radius: 2.2, ArcDeg: 120, Damage: 34, Cooldown: 0.45, Knockback: 7}
+}
+
+func defaultEnemyAttack() ecs.Attacker {
+	return ecs.Attacker{Radius: 1.8, ArcDeg: 360, Damage: 15, Cooldown: 1.0, Knockback: 5}
 }
 
 // damagePlayer отнимает здоровье, включает неуязвимость, отбрасывает игрока.
@@ -255,6 +312,9 @@ func (gls *GameLogicSystem) damagePlayer(world *ecs.World, from emath.Vec3, dmg 
 		if clip := gls.clipOf(world, gls.playerID); clip != "" {
 			gls.Sound.PlayOneShot(clip, from, 0.8)
 		}
+	}
+	if gls.OnPlayerHurt != nil {
+		gls.OnPlayerHurt(from)
 	}
 }
 
@@ -323,7 +383,7 @@ func (gls *GameLogicSystem) restartLevel() {
 	gls.status = StatusPlaying
 	gls.score = 0
 	gls.collected = map[ecs.EntityID]bool{}
-	gls.enemyState = map[ecs.EntityID]*enemyPatrol{}
+	gls.enemyFSMs = map[ecs.EntityID]*enemyFSM{}
 	gls.invuln = 0
 	if gls.Restart != nil {
 		gls.Restart()
@@ -340,6 +400,17 @@ func (gls *GameLogicSystem) Status() GameStatus {
 // HealthState возвращает (текущее здоровье, максимум, счёт предметов, всего предметов, уровень, статус).
 func (gls *GameLogicSystem) HealthState() (health, maxHealth float32, score, totalItems, level int, status GameStatus) {
 	return gls.health, gls.maxHealth, gls.score, len(gls.itemIDs), gls.level, gls.status
+}
+
+// Kills возвращает число убитых врагов.
+func (gls *GameLogicSystem) Kills() int { return gls.kills }
+
+// GameKills возвращает убийства активной игровой логики (для HUD).
+func GameKills() int {
+	if defaultGLS == nil {
+		return 0
+	}
+	return defaultGLS.Kills()
 }
 
 // GameHealthState возвращает данные активной игровой логики (для HUD-рендера).
@@ -361,6 +432,9 @@ func (gls *GameLogicSystem) HUD() string {
 	}
 	out := Tr("hud.health", int(gls.health))
 	out += "  " + Tr("hud.items", gls.score, len(gls.itemIDs))
+	if gls.kills > 0 {
+		out += "  " + Tr("hud.kills", gls.kills)
+	}
 	if gls.level > 0 {
 		out += "  " + Tr("hud.level", gls.level)
 	}

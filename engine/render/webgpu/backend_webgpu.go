@@ -14,15 +14,17 @@ import (
 
 	"goenginekenga/engine/asset"
 	"goenginekenga/engine/ecs"
+	"goenginekenga/engine/input"
 	emath "goenginekenga/engine/math"
 	"goenginekenga/engine/render"
 )
 
 // Backend (webgpu) — GPU рендер 3D-сцены через WebGPU.
 type Backend struct {
-	title  string
-	width  int
-	height int
+	title      string
+	width      int
+	height     int
+	InputState *input.State // заполняется каждый кадр (клавиатура/мышь), как в ebiten backend
 
 	// Orbit camera (ПКМ rotate, СКМ pan, scroll zoom) — как в ebiten backend
 	orbitState   render.OrbitState
@@ -41,7 +43,7 @@ func init() {
 }
 
 func New(title string, width, height int) *Backend {
-	return &Backend{title: title, width: width, height: height}
+	return &Backend{title: title, width: width, height: height, InputState: input.NewState()}
 }
 
 func (b *Backend) RunLoop(initial *render.Frame) error {
@@ -72,7 +74,14 @@ func (b *Backend) RunLoop(initial *render.Frame) error {
 		}
 	}
 
+	// Ввод: клавиатура через колбэк, мышь опрашивается каждый кадр.
+	// initial.InputState нужен run.go, чтобы игровые системы получили состояние.
+	initial.InputState = b.InputState
+
 	window.SetKeyCallback(func(_ *glfw.Window, key glfw.Key, scancode int, action glfw.Action, mods glfw.ModifierKey) {
+		if k, ok := glfwKeyToInput(key); ok {
+			b.InputState.SetKeyPressed(k, action == glfw.Press || action == glfw.Repeat)
+		}
 		if key == glfw.KeyR && (action == glfw.Press || action == glfw.Repeat) {
 			report := s.instance.GenerateReport()
 			buf, _ := json.MarshalIndent(report, "", "  ")
@@ -115,6 +124,14 @@ func (b *Backend) RunLoop(initial *render.Frame) error {
 			dt = 1.0 / 60.0
 		}
 
+		// Мышь: позиция и кнопки в input.State (орбита ниже использует свои raw-флаги)
+		mx, my := window.GetCursorPos()
+		b.InputState.SetMousePosition(int(mx), int(my))
+		b.InputState.SetMouseButton(input.MouseButtonLeft, window.GetMouseButton(glfw.MouseButtonLeft) == glfw.Press)
+		b.InputState.SetMouseButton(input.MouseButtonMiddle, window.GetMouseButton(glfw.MouseButtonMiddle) == glfw.Press)
+		b.InputState.SetMouseButton(input.MouseButtonRight, window.GetMouseButton(glfw.MouseButtonRight) == glfw.Press)
+		b.InputState.Update()
+
 		if initial != nil && initial.World != nil && b.orbitEnabled {
 			b.updateOrbitCamera(initial)
 		}
@@ -134,18 +151,102 @@ func (b *Backend) RunLoop(initial *render.Frame) error {
 				return err
 			}
 		}
+		b.InputState.EndFrame()
 	}
 	return nil
 }
 
+// glfwKeyToInput маппит клавишу glfw в engine/input.Key (порядок констант совпадает с ebiten).
+func glfwKeyToInput(k glfw.Key) (input.Key, bool) {
+	switch {
+	case k >= glfw.KeyA && k <= glfw.KeyZ:
+		return input.KeyA + input.Key(k-glfw.KeyA), true
+	case k >= glfw.Key0 && k <= glfw.Key9:
+		return input.Key0 + input.Key(k-glfw.Key0), true
+	}
+	switch k {
+	case glfw.KeySpace:
+		return input.KeySpace, true
+	case glfw.KeyEnter:
+		return input.KeyEnter, true
+	case glfw.KeyEscape:
+		return input.KeyEscape, true
+	case glfw.KeyTab:
+		return input.KeyTab, true
+	case glfw.KeyBackspace:
+		return input.KeyBackspace, true
+	case glfw.KeyDelete:
+		return input.KeyDelete, true
+	case glfw.KeyInsert:
+		return input.KeyInsert, true
+	case glfw.KeyHome:
+		return input.KeyHome, true
+	case glfw.KeyEnd:
+		return input.KeyEnd, true
+	case glfw.KeyPageUp:
+		return input.KeyPageUp, true
+	case glfw.KeyPageDown:
+		return input.KeyPageDown, true
+	case glfw.KeyUp:
+		return input.KeyArrowUp, true
+	case glfw.KeyDown:
+		return input.KeyArrowDown, true
+	case glfw.KeyLeft:
+		return input.KeyArrowLeft, true
+	case glfw.KeyRight:
+		return input.KeyArrowRight, true
+	case glfw.KeyLeftShift:
+		return input.KeyShiftLeft, true
+	case glfw.KeyRightShift:
+		return input.KeyShiftRight, true
+	case glfw.KeyLeftControl:
+		return input.KeyControlLeft, true
+	case glfw.KeyRightControl:
+		return input.KeyControlRight, true
+	case glfw.KeyLeftAlt:
+		return input.KeyAltLeft, true
+	case glfw.KeyRightAlt:
+		return input.KeyAltRight, true
+	case glfw.KeyF1:
+		return input.KeyF1, true
+	case glfw.KeyF2:
+		return input.KeyF2, true
+	case glfw.KeyF3:
+		return input.KeyF3, true
+	case glfw.KeyF4:
+		return input.KeyF4, true
+	case glfw.KeyF5:
+		return input.KeyF5, true
+	case glfw.KeyF6:
+		return input.KeyF6, true
+	case glfw.KeyF7:
+		return input.KeyF7, true
+	case glfw.KeyF8:
+		return input.KeyF8, true
+	case glfw.KeyF9:
+		return input.KeyF9, true
+	case glfw.KeyF10:
+		return input.KeyF10, true
+	case glfw.KeyF11:
+		return input.KeyF11, true
+	case glfw.KeyF12:
+		return input.KeyF12, true
+	}
+	return 0, false
+}
+
 // updateOrbitCamera применяет orbit/pan/zoom к первой 3D-камере сцены
-// (зеркало ebiten/backend.go:updateOrbitCamera).
+// (зеркало ebiten/backend.go:updateOrbitCamera). Следящие камеры (FollowID != 0)
+// не трогаются — ими управляет runtime.UpdateFollowCameras.
 func (b *Backend) updateOrbitCamera(frame *render.Frame) {
 	w := frame.World
 	var camID ecs.EntityID
 	var hasCam bool
 	for _, id := range w.Entities() {
-		if _, ok := w.GetCamera(id); ok {
+		if c, ok := w.GetCamera(id); ok {
+			if c.FollowID != 0 {
+				return // сцена со следящей камерой — orbit отключён
+			}
 			camID = id
 			hasCam = true
 			break

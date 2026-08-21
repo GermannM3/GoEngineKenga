@@ -177,6 +177,7 @@ func newRunCommand() *cobra.Command {
 				} else {
 					runtime.ApplyPlayerInput(aw, is, float32(dt))
 				}
+				runtime.UpdateFollowCameras(aw, float32(dt)) // следящая камера (до рендера)
 				animationSystem.Update(aw)
 				skeletalSystem.Update(aw, float32(dt))
 				if !gameplay.HasKart(aw) {

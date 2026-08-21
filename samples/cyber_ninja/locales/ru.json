@@ -1,6 +1,7 @@
 {
   "hud.health": "Здоровье: %d",
   "hud.items": "Сферы: %d/%d",
+  "hud.kills": "Враги: %d",
   "hud.level": "Уровень %d",
   "hud.victory": "ПОБЕДА!",
   "hud.next": "ENTER — следующий уровень",

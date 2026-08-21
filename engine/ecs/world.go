@@ -20,6 +20,12 @@ type Camera struct {
 	FovYDegrees float32 `json:"fovYDegrees"`
 	Near        float32 `json:"near"`
 	Far         float32 `json:"far"`
+
+	// Следящая камера (play-режим): позиция лерпится к цели + оффсет.
+	// FollowID == 0 — обычная камера (orbit в редакторе её не трогает).
+	FollowID    EntityID   `json:"followId,omitempty"`
+	FollowOffset emath.Vec3 `json:"followOffset,omitempty"` // смещение за целью
+	FollowLerp  float32    `json:"followLerp,omitempty"`   // скорость догоняния (ед/с), 0 = мгновенно
 }
 
 type MeshRenderer struct {
@@ -53,6 +59,41 @@ type Collider = physics.Collider
 type Health struct {
 	Current float32 `json:"current"`
 	Max     float32 `json:"max"`
+
+	InvulnTimer float32 `json:"-"` // секунд неуязвимости после урона (runtime)
+}
+
+// Attacker — ближняя атака сущности (удар сектором/сферой перед собой).
+// Параметры настраиваются из сцены; Timer — кулдаун до следующего удара (runtime).
+type Attacker struct {
+	Radius    float32 `json:"radius"`    // дальность удара
+	ArcDeg    float32 `json:"arcDeg"`    // угол сектора в градусах (360 = круговой)
+	Damage    float32 `json:"damage"`    // урон за удар
+	Cooldown  float32 `json:"cooldown"`  // сек между ударами
+	Knockback float32 `json:"knockback"` // сила отброса цели
+
+	Timer float32 `json:"-"` // сек до следующего возможного удара (runtime)
+}
+
+// EnemyBrain — параметры ИИ врага: патруль вокруг точки спавна,
+// преследование игрока в радиусе агро, атака вплотную (через Attacker).
+type EnemyBrain struct {
+	PatrolSpan   float32 `json:"patrolSpan"`   // полуширина зоны патруля по X
+	Speed        float32 `json:"speed"`        // скорость патруля, ед/с
+	ChaseSpeed   float32 `json:"chaseSpeed"`   // скорость преследования, ед/с
+	AggroRadius  float32 `json:"aggroRadius"`  // радиус, в котором замечает игрока
+	AttackRadius float32 `json:"attackRadius"` // дистанция начала атаки
+
+	State string `json:"-"` // patrol/chase/attack (runtime, для отладки/HUD)
+}
+
+// CharacterController — кинематический контроллер персонажа (как в Unity):
+// движение через Rigidbody.Velocity, Grounded вычисляется raycast'ом вниз.
+type CharacterController struct {
+	MoveSpeed float32 `json:"moveSpeed"` // скорость бега, ед/с
+	JumpForce float32 `json:"jumpForce"` // импульс прыжка
+
+	Grounded bool `json:"-"` // стоит на земле (runtime, обновляется физическим шагом)
 }
 
 type AudioSource struct {
@@ -233,6 +274,10 @@ type World struct {
 	karts          map[EntityID]Kart
 	powerUpPickups map[EntityID]PowerUpPickup
 
+	attackers             map[EntityID]Attacker
+	enemyBrains           map[EntityID]EnemyBrain
+	characterControllers  map[EntityID]CharacterController
+
 	names map[EntityID]string
 }
 
@@ -259,6 +304,9 @@ func NewWorld() *World {
 		animators:            map[EntityID]Animator{},
 		karts:                map[EntityID]Kart{},
 		powerUpPickups:       map[EntityID]PowerUpPickup{},
+		attackers:            map[EntityID]Attacker{},
+		enemyBrains:          map[EntityID]EnemyBrain{},
+		characterControllers: map[EntityID]CharacterController{},
 		names:                map[EntityID]string{},
 	}
 }
@@ -273,6 +321,42 @@ func (w *World) CreateEntity(name string) EntityID {
 		w.names[id] = name
 	}
 	return id
+}
+
+// RemoveEntity удаляет сущность и все её компоненты (аналог Destroy в Unity).
+// Безопасно вызывать во время итерации: Entities() возвращает копию списка.
+func (w *World) RemoveEntity(id EntityID) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	delete(w.transforms, id)
+	delete(w.cameras, id)
+	delete(w.meshRenderers, id)
+	delete(w.spriteRenderers, id)
+	delete(w.camera2Ds, id)
+	delete(w.lights, id)
+	delete(w.rigidbodies, id)
+	delete(w.colliders, id)
+	delete(w.healths, id)
+	delete(w.audioSources, id)
+	delete(w.uiCanvases, id)
+	delete(w.dispensers, id)
+	delete(w.joints, id)
+	delete(w.trajectories, id)
+	delete(w.animationStates, id)
+	delete(w.animationControllers, id)
+	delete(w.animators, id)
+	delete(w.karts, id)
+	delete(w.powerUpPickups, id)
+	delete(w.attackers, id)
+	delete(w.enemyBrains, id)
+	delete(w.characterControllers, id)
+	delete(w.names, id)
+	for i, e := range w.order {
+		if e == id {
+			w.order = append(w.order[:i], w.order[i+1:]...)
+			break
+		}
+	}
 }
 
 func (w *World) Entities() []EntityID {
@@ -468,6 +552,45 @@ func (w *World) GetPowerUpPickup(id EntityID) (PowerUpPickup, bool) {
 	return p, ok
 }
 
+func (w *World) SetAttacker(id EntityID, a Attacker) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.attackers[id] = a
+}
+
+func (w *World) GetAttacker(id EntityID) (Attacker, bool) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	a, ok := w.attackers[id]
+	return a, ok
+}
+
+func (w *World) SetEnemyBrain(id EntityID, b EnemyBrain) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.enemyBrains[id] = b
+}
+
+func (w *World) GetEnemyBrain(id EntityID) (EnemyBrain, bool) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	b, ok := w.enemyBrains[id]
+	return b, ok
+}
+
+func (w *World) SetCharacterController(id EntityID, c CharacterController) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.characterControllers[id] = c
+}
+
+func (w *World) GetCharacterController(id EntityID) (CharacterController, bool) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	c, ok := w.characterControllers[id]
+	return c, ok
+}
+
 func (w *World) SetAnimationState(id EntityID, animState AnimationState) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -618,6 +741,15 @@ func (w *World) Clone() *World {
 	}
 	for k, v := range w.powerUpPickups {
 		nw.powerUpPickups[k] = v
+	}
+	for k, v := range w.attackers {
+		nw.attackers[k] = v
+	}
+	for k, v := range w.enemyBrains {
+		nw.enemyBrains[k] = v
+	}
+	for k, v := range w.characterControllers {
+		nw.characterControllers[k] = v
 	}
 	for k, v := range w.names {
 		nw.names[k] = v

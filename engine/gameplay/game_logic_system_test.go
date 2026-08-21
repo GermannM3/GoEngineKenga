@@ -94,8 +94,10 @@ func TestCyberNinjaEnemyPatrol(t *testing.T) {
 	enemy := entityByName(t, w, "Enemy")
 	player := entityByName(t, w, "Player")
 
-	// Враги висят в воздухе (useGravity=false): Y не должен меняться
-	// Движение: патруль от homeX=5 вправо со скоростью 2.5 ед/с
+	// Уносим игрока за пределы радиуса агро — враг должен патрулировать
+	teleport(w, player, emath.V3(0, 2, 50))
+
+	// Движение: патруль от homeX=5 вправо со скоростью 2.5 ед/с (дефолтный мозг)
 	tr, _ := w.GetTransform(enemy)
 	startX := tr.Position.X
 
@@ -137,32 +139,39 @@ func TestCyberNinjaEnemyDamage(t *testing.T) {
 	enemy := entityByName(t, w, "Enemy")
 	player := entityByName(t, w, "Player")
 
-	// Подносим игрока к дрону — урон 25 + отбрасывание + неуязвимость 1с
+	// Подносим игрока к дрону: FSM переходит в attack и бьёт по кулдауну.
+	// Дефолтная атака врага: 15 урона, кулдаун 1с. 3 кадра хватает на
+	// patrol→chase→attack и первый удар.
 	teleport(w, player, enemyPos(t, w, enemy).Add(emath.V3(0.5, 0, 0)))
-	frame(w, gls, is)
-
+	for i := 0; i < 3; i++ {
+		frame(w, gls, is)
+	}
 	h, _ := w.GetHealth(player)
-	if h.Current != 75 {
-		t.Fatalf("expected health 75 after hit, got %v", h.Current)
+	if h.Current != 85 {
+		t.Fatalf("expected health 85 after first attack, got %v", h.Current)
 	}
 
-	// Во время неуязвимости урона нет
-	teleport(w, player, enemyPos(t, w, enemy).Add(emath.V3(0.5, 0, 0)))
-	frame(w, gls, is)
+	// Во время неуязвимости (1с) и кулдауна врага урона нет
+	for i := 0; i < 30; i++ { // ~0.5с — меньше кулдауна
+		frame(w, gls, is)
+	}
 	h, _ = w.GetHealth(player)
-	if h.Current != 75 {
-		t.Fatalf("damage during invulnerability: %v", h.Current)
+	if h.Current != 85 {
+		t.Fatalf("damage during invulnerability/cooldown: %v", h.Current)
 	}
 
-	// После 1 секунды неуязвимость заканчивается — урон снова работает
-	for i := 0; i < 70; i++ {
+	// После секунды неуязвимость и кулдаун истекли — подносим игрока снова
+	// (первый удар отбросил его из радиуса атаки) и ждём второй удар
+	for i := 0; i < 60; i++ {
 		frame(w, gls, is)
 	}
 	teleport(w, player, enemyPos(t, w, enemy).Add(emath.V3(0.5, 0, 0)))
-	frame(w, gls, is)
+	for i := 0; i < 5; i++ {
+		frame(w, gls, is)
+	}
 	h, _ = w.GetHealth(player)
-	if h.Current != 50 {
-		t.Fatalf("expected health 50 after second hit, got %v", h.Current)
+	if h.Current >= 85 {
+		t.Fatalf("expected second hit after cooldown, health=%v", h.Current)
 	}
 }
 
@@ -218,15 +227,14 @@ func TestCyberNinjaDefeatAndRestart(t *testing.T) {
 	enemy := entityByName(t, w, "Enemy")
 	player := entityByName(t, w, "Player")
 
-	// 4 попадания по 25 = смерть
-	for i := 0; i < 4; i++ {
-		teleport(w, player, enemyPos(t, w, enemy).Add(emath.V3(0.5, 0, 0)))
-		frame(w, gls, is)
-		if i < 3 {
-			for j := 0; j < 70; j++ { // ждём окончания неуязвимости
-				frame(w, gls, is)
-			}
+	// Враг в состоянии attack бьёт по 15 с кулдауном 1с; держим игрока рядом,
+	// пока тот не погибнет (100/15 ≈ 7 ударов ≈ 7+ секунд).
+	teleport(w, player, enemyPos(t, w, enemy).Add(emath.V3(0.5, 0, 0)))
+	for i := 0; i < 1200 && gls.Status() != StatusDefeat; i++ { // до 20с
+		if i%60 == 0 {
+			teleport(w, player, enemyPos(t, w, enemy).Add(emath.V3(0.5, 0, 0)))
 		}
+		frame(w, gls, is)
 	}
 
 	if gls.Status() != StatusDefeat {

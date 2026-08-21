@@ -1,6 +1,7 @@
 {
   "hud.health": "Health: %d",
   "hud.items": "Orbs: %d/%d",
+  "hud.kills": "Enemies: %d",
   "hud.level": "Level %d",
   "hud.victory": "VICTORY!",
   "hud.next": "ENTER — next level",

@@ -187,13 +187,17 @@ func (b *Backend) Update() error {
 	return nil
 }
 
-// updateOrbitCamera применяет orbit/pan/zoom к первой камере в сцене
+// updateOrbitCamera применяет orbit/pan/zoom к первой камере в сцене.
+// Следящие камеры (FollowID != 0) не трогаются — ими управляет runtime.UpdateFollowCameras.
 func (b *Backend) updateOrbitCamera() {
 	w := b.frame.World
 	var camID ecs.EntityID
 	var hasCam bool
 	for _, id := range w.Entities() {
-		if _, ok := w.GetCamera(id); ok {
+		if c, ok := w.GetCamera(id); ok {
+			if c.FollowID != 0 {
+				return // сцена со следящей камерой — orbit отключён
+			}
 			camID = id
 			hasCam = true
 			break
