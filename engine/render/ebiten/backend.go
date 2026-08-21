@@ -271,8 +271,42 @@ func (b *Backend) pollInput() {
 		}
 	}
 
+	// Геймпад: первый подключённый, стандартная раскладка
+	if ids := ebiten.GamepadIDs(); len(ids) > 0 {
+		id := ids[0]
+		b.InputState.SetPadConnected(true)
+		for pb, eb := range padButtonMap {
+			b.InputState.SetPadButton(pb, ebiten.IsStandardGamepadButtonPressed(id, eb))
+		}
+		b.InputState.SetPadAxis(input.PadAxisLX, float32(ebiten.GamepadAxisValue(id, ebiten.GamepadAxisType(ebiten.StandardGamepadAxisLeftStickHorizontal))))
+		b.InputState.SetPadAxis(input.PadAxisLY, float32(ebiten.GamepadAxisValue(id, ebiten.GamepadAxisType(ebiten.StandardGamepadAxisLeftStickVertical))))
+		b.InputState.SetPadAxis(input.PadAxisRX, float32(ebiten.GamepadAxisValue(id, ebiten.GamepadAxisType(ebiten.StandardGamepadAxisRightStickHorizontal))))
+		b.InputState.SetPadAxis(input.PadAxisRY, float32(ebiten.GamepadAxisValue(id, ebiten.GamepadAxisType(ebiten.StandardGamepadAxisRightStickVertical))))
+	} else {
+		b.InputState.SetPadConnected(false)
+	}
+
 	// Calculate deltas
 	b.InputState.Update()
+}
+
+// padButtonMap — соответствие кнопок движка стандартной раскладке ebiten (W3C).
+var padButtonMap = map[input.PadButton]ebiten.StandardGamepadButton{
+	input.PadA:     ebiten.StandardGamepadButtonRightBottom,
+	input.PadB:     ebiten.StandardGamepadButtonRightRight,
+	input.PadX:     ebiten.StandardGamepadButtonRightLeft,
+	input.PadY:     ebiten.StandardGamepadButtonRightTop,
+	input.PadLB:    ebiten.StandardGamepadButtonFrontTopLeft,
+	input.PadRB:    ebiten.StandardGamepadButtonFrontTopRight,
+	input.PadBack:  ebiten.StandardGamepadButtonFrontBottomLeft,
+	input.PadStart: ebiten.StandardGamepadButtonFrontBottomRight,
+	input.PadGuide: ebiten.StandardGamepadButtonCenterCenter,
+	input.PadL3:    ebiten.StandardGamepadButtonLeftStick,
+	input.PadR3:    ebiten.StandardGamepadButtonRightStick,
+	input.PadUp:    ebiten.StandardGamepadButtonLeftTop,
+	input.PadDown:  ebiten.StandardGamepadButtonLeftBottom,
+	input.PadLeft:  ebiten.StandardGamepadButtonLeftLeft,
+	input.PadRight: ebiten.StandardGamepadButtonLeftRight,
 }
 
 func (b *Backend) Draw(screen *ebiten.Image) {

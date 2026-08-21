@@ -87,6 +87,53 @@ const (
 	MouseButtonMax
 )
 
+// PadButton — кнопка геймпада в стандартной раскладке (XBox/PS).
+// Порядок совпадает с GLFW/XInput; для ebiten есть таблица соответствия.
+type PadButton int
+
+const (
+	PadA PadButton = iota // нижняя (A / Cross)
+	PadB                  // правая (B / Circle)
+	PadX                  // левая (X / Square)
+	PadY                  // верхняя (Y / Triangle)
+	PadLB
+	PadRB
+	PadBack
+	PadStart
+	PadGuide // центральная (Xbox/PS) — в XInput не приходит
+	PadL3
+	PadR3
+	PadUp
+	PadDown
+	PadLeft
+	PadRight
+
+	PadButtonMax
+)
+
+// PadAxis — ось геймпада: стики -1..1, триггеры 0..1.
+// Стики: LY/RY положительны ВНИЗ (стандартная конвенция).
+type PadAxis int
+
+const (
+	PadAxisLX PadAxis = iota
+	PadAxisLY
+	PadAxisRX
+	PadAxisRY
+	PadAxisLT
+	PadAxisRT
+
+	PadAxisMax
+)
+
+// Deadzone обнуляет малые отклонения оси (дрейф аналоговых стиков).
+func Deadzone(v, deadzone float32) float32 {
+	if v < deadzone && v > -deadzone {
+		return 0
+	}
+	return v
+}
+
 // State holds the current input state
 type State struct {
 	// Keyboard state
@@ -100,6 +147,13 @@ type State struct {
 	mouseButtons               [MouseButtonMax]bool
 	mouseButtonsPrev           [MouseButtonMax]bool
 	MouseScrollX, MouseScrollY float64
+
+	// Gamepad state (заполняется бэкендом: XInput на Windows/webgpu,
+	// встроенный API ebiten в ebiten-бэкенде)
+	padConnected   bool
+	padButtons     [PadButtonMax]bool
+	padButtonsPrev [PadButtonMax]bool
+	padAxes        [PadAxisMax]float32
 }
 
 // NewState creates a new input state
@@ -120,8 +174,63 @@ func (s *State) Update() {
 func (s *State) EndFrame() {
 	copy(s.keysPressedPrev[:], s.keysPressed[:])
 	copy(s.mouseButtonsPrev[:], s.mouseButtons[:])
+	copy(s.padButtonsPrev[:], s.padButtons[:])
 	s.MouseScrollX = 0
 	s.MouseScrollY = 0
+}
+
+// ---- Геймпад ----
+
+// SetPadConnected задаёт факт подключения геймпада (вызывается бэкендом).
+func (s *State) SetPadConnected(connected bool) { s.padConnected = connected }
+
+// IsPadConnected сообщает, есть ли геймпад.
+func (s *State) IsPadConnected() bool { return s.padConnected }
+
+// SetPadButton задаёт состояние кнопки геймпада (вызывается бэкендом).
+func (s *State) SetPadButton(btn PadButton, pressed bool) {
+	if btn >= 0 && btn < PadButtonMax {
+		s.padButtons[btn] = pressed
+	}
+}
+
+// IsPadButtonDown — кнопка удерживается.
+func (s *State) IsPadButtonDown(btn PadButton) bool {
+	if btn >= 0 && btn < PadButtonMax {
+		return s.padButtons[btn]
+	}
+	return false
+}
+
+// IsPadButtonJustPressed — кнопка нажата в этом кадре.
+func (s *State) IsPadButtonJustPressed(btn PadButton) bool {
+	if btn >= 0 && btn < PadButtonMax {
+		return s.padButtons[btn] && !s.padButtonsPrev[btn]
+	}
+	return false
+}
+
+// IsPadButtonJustReleased — кнопка отпущена в этом кадре.
+func (s *State) IsPadButtonJustReleased(btn PadButton) bool {
+	if btn >= 0 && btn < PadButtonMax {
+		return !s.padButtons[btn] && s.padButtonsPrev[btn]
+	}
+	return false
+}
+
+// SetPadAxis задаёт значение оси (вызывается бэкендом).
+func (s *State) SetPadAxis(axis PadAxis, v float32) {
+	if axis >= 0 && axis < PadAxisMax {
+		s.padAxes[axis] = v
+	}
+}
+
+// PadAxisValue возвращает значение оси, -1..1 (триггеры 0..1).
+func (s *State) PadAxisValue(axis PadAxis) float32 {
+	if axis >= 0 && axis < PadAxisMax {
+		return s.padAxes[axis]
+	}
+	return 0
 }
 
 // SetKeyPressed sets a key's pressed state

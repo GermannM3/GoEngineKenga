@@ -132,6 +132,7 @@ func (b *Backend) RunLoop(initial *render.Frame) error {
 		b.InputState.SetMouseButton(input.MouseButtonLeft, window.GetMouseButton(glfw.MouseButtonLeft) == glfw.Press)
 		b.InputState.SetMouseButton(input.MouseButtonMiddle, window.GetMouseButton(glfw.MouseButtonMiddle) == glfw.Press)
 		b.InputState.SetMouseButton(input.MouseButtonRight, window.GetMouseButton(glfw.MouseButtonRight) == glfw.Press)
+		b.InputState.PollNativeGamepad() // геймпад через XInput (Windows)
 		b.InputState.Update()
 
 		if initial != nil && initial.World != nil && b.orbitEnabled {

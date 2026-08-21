@@ -6,6 +6,7 @@
 
 ### Добавлено
 
+- **Геймпад**: стандартная раскладка в `input.State` (PadA..PadRight, оси стиков/триггеров, deadzone); Ebiten-бэкенд — кроссплатформенный API ebiten, WebGPU — XInput через syscall (без cgo); в CyberNinja: движение левым стиком/крестовиной (аналоговая скорость), прыжок — A, атака — X
 - **Скриптовые компоненты на сущностях (`engine/scripts`)**: аналог MonoBehaviour — поведение регистрируется по имени в `init()` пакета игры (`scripts.Register`), сцена ссылается через `ecs.Script{Name, Params}`; жизненный цикл OnStart/OnUpdate ведёт `scripts.System`. Игровая логика теперь живёт в проекте игры, а не в движке (демо: `samples/cyber_ninja/scripts` — spinner/patrol_x/bob; кристаллы в сцене вращаются скриптом)
 - **Вертикальный срез CyberNinja (WebGPU desktop)**: бой, ИИ врагов, следящая камера, звук и обратная связь
   - **Графический HUD в WebGPU**: quad-pipeline с альфа-блендингом + атлас `basicfont.Face7x13`; полоса здоровья, строки HUD, экраны победы/поражения (`Frame.HUD` → `render.BuildHUD`, лейаут покрыт тестами)

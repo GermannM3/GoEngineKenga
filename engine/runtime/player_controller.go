@@ -55,22 +55,33 @@ func ApplyPlayerInput(w *ecs.World, inputState interface{}, dt float32) {
 		canJump = cc.Grounded
 	}
 
-	// Горизонтальное движение (X)
+	// Горизонтальное движение: клавиатура или левый стик/крестовина геймпада
 	vx := rb.Velocity.X
-	if st.IsKeyPressed(input.KeyA) || st.IsKeyPressed(input.KeyArrowLeft) {
+	const padDeadzone = 0.2
+	padX := input.Deadzone(st.PadAxisValue(input.PadAxisLX), padDeadzone)
+	switch {
+	case st.IsKeyPressed(input.KeyA) || st.IsKeyPressed(input.KeyArrowLeft) || st.IsPadButtonDown(input.PadLeft):
 		vx = -moveSpeed
-	} else if st.IsKeyPressed(input.KeyD) || st.IsKeyPressed(input.KeyArrowRight) {
+	case st.IsKeyPressed(input.KeyD) || st.IsKeyPressed(input.KeyArrowRight) || st.IsPadButtonDown(input.PadRight):
 		vx = moveSpeed
-	} else {
-		vx = vx * (1.0 - rb.Drag*dt) // затухание
-		if vx > -0.1 && vx < 0.1 {
-			vx = 0
+	default:
+		if padX != 0 {
+			vx = moveSpeed * padX // аналоговая скорость по наклону стика
+		} else {
+			vx = vx * (1.0 - rb.Drag*dt) // затухание
+			if vx > -0.1 && vx < 0.1 {
+				vx = 0
+			}
 		}
 	}
 	rb.Velocity.X = vx
 
-	// Прыжок: только с земли
-	if canJump && (st.IsKeyJustPressed(input.KeySpace) || st.IsKeyJustPressed(input.KeyW) || st.IsKeyJustPressed(input.KeyArrowUp)) {
+	// Прыжок: только с земли; Space/W/↑ или кнопка A геймпада
+	jumpPressed := st.IsKeyJustPressed(input.KeySpace) ||
+		st.IsKeyJustPressed(input.KeyW) ||
+		st.IsKeyJustPressed(input.KeyArrowUp) ||
+		st.IsPadButtonJustPressed(input.PadA)
+	if canJump && jumpPressed {
 		rb.Velocity.Y = jumpForce
 		if hasCC {
 			cc.Grounded = false // отрываемся до следующего физического шага

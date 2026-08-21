@@ -4,8 +4,8 @@ import (
 	"math"
 
 	"goenginekenga/engine/ecs"
-	emath "goenginekenga/engine/math"
 	"goenginekenga/engine/input"
+	emath "goenginekenga/engine/math"
 )
 
 // Ближний бой: Attacker (кулдаун, сектор удара) + Health (урон, i-frames)
@@ -107,12 +107,14 @@ func applyHit(w *ecs.World, targetID ecs.EntityID, dmg, knockback float32, from 
 	return true, h.Current <= 0
 }
 
-// playerWantsAttack — нажата ли клавиша/кнопка атаки (F или ЛКМ).
+// playerWantsAttack — нажата ли атака (F, ЛКМ или кнопка X геймпада).
 func playerWantsAttack(is *input.State) bool {
 	if is == nil {
 		return false
 	}
-	return is.IsKeyJustPressed(input.KeyF) || is.IsMouseButtonJustPressed(input.MouseButtonLeft)
+	return is.IsKeyJustPressed(input.KeyF) ||
+		is.IsMouseButtonJustPressed(input.MouseButtonLeft) ||
+		is.IsPadButtonJustPressed(input.PadX)
 }
 
 // posOf — позиция сущности (нулевая, если transform нет).
