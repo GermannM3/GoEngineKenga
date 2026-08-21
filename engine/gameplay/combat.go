@@ -74,11 +74,12 @@ func attackTargetsOf(w *ecs.World, attackerID ecs.EntityID, tr ecs.Transform, a 
 	return targets
 }
 
-// applyHit наносит урон цели: здоровье, i-frames, отброс. Возвращает true, если цель умерла.
-func applyHit(w *ecs.World, targetID ecs.EntityID, dmg, knockback float32, from emath.Vec3) bool {
+// applyHit наносит урон цели: здоровье, i-frames, отброс.
+// Возвращает (удар прошёл, цель умерла).
+func applyHit(w *ecs.World, targetID ecs.EntityID, dmg, knockback float32, from emath.Vec3) (bool, bool) {
 	h, ok := w.GetHealth(targetID)
 	if !ok || h.InvulnTimer > 0 || h.Current <= 0 {
-		return false
+		return false, false
 	}
 	h.Current -= dmg
 	if h.Current < 0 {
@@ -103,7 +104,7 @@ func applyHit(w *ecs.World, targetID ecs.EntityID, dmg, knockback float32, from 
 		}
 		w.SetRigidbody(targetID, rb)
 	}
-	return h.Current <= 0
+	return true, h.Current <= 0
 }
 
 // playerWantsAttack — нажата ли клавиша/кнопка атаки (F или ЛКМ).

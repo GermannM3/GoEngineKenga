@@ -155,6 +155,8 @@ func newRunCommand() *cobra.Command {
 					Hurt:  resolver.ResolveAudioClipBySource("assets/audio/hurt.wav"),
 					Death: resolver.ResolveAudioClipBySource("assets/audio/death.wav"),
 				}
+				// Осколки эффектов (удар/смерть/подбор) — кристаллический меш
+				gameLogicSystem.ShardMeshID = resolver.AssetIDBySource("assets/meshes/crystal.mesh.json")
 			}
 
 			// Локализация: project.Locale + locales/*.json (en.json, ru.json, ...).

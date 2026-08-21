@@ -42,6 +42,9 @@ type GameLogicSystem struct {
 	// SFX — звуки боя по asset ID (приоритетнее клипов сущностей).
 	SFX SFXClips
 
+	// ShardMeshID — asset ID меша осколков эффектов (кристалл); "" — без эффектов.
+	ShardMeshID string
+
 	// Игровой статус и прогресс уровня
 	status     GameStatus
 	health     float32
@@ -53,7 +56,8 @@ type GameLogicSystem struct {
 	prevVelY   float32 // предыдущая вертикальная скорость игрока (детект прыжка)
 	collected  map[ecs.EntityID]bool
 	enemyFSMs  map[ecs.EntityID]*enemyFSM
-	lastWorld  *ecs.World // смена мира (перезапуск/уровень) сбрасывает состояние
+	shards     map[ecs.EntityID]float32 // осколки эффектов: id -> оставшаяся жизнь
+	lastWorld  *ecs.World               // смена мира (перезапуск/уровень) сбрасывает состояние
 
 	// Колбэки, устанавливаемые run.go: перезагрузка текущего уровня (R)
 	// и переход на следующий (победа, ENTER).
@@ -70,6 +74,7 @@ func NewGameLogicSystem() *GameLogicSystem {
 	return &GameLogicSystem{
 		collected: map[ecs.EntityID]bool{},
 		enemyFSMs: map[ecs.EntityID]*enemyFSM{},
+		shards:    map[ecs.EntityID]float32{},
 	}
 }
 
@@ -91,6 +96,7 @@ func (gls *GameLogicSystem) Update(world *ecs.World, inputState *input.State, dt
 		gls.lastWorld = world
 		gls.collected = map[ecs.EntityID]bool{}
 		gls.enemyFSMs = map[ecs.EntityID]*enemyFSM{}
+		gls.shards = map[ecs.EntityID]float32{}
 		gls.prevVelY = 0
 		gls.invuln = 0
 		gls.status = StatusPlaying
@@ -121,6 +127,7 @@ func (gls *GameLogicSystem) Update(world *ecs.World, inputState *input.State, dt
 	}
 
 	tickAttackers(world, dt) // кулдауны атак и i-frames всех бойцов
+	gls.updateShards(world, dt)
 	gls.updatePlayerAttack(world, inputState)
 	gls.updatePlayer(world)
 	gls.updateEnemies(world, dt)
@@ -153,10 +160,13 @@ func (gls *GameLogicSystem) updatePlayerAttack(world *ecs.World, inputState *inp
 	}
 }
 
-// hitEnemy наносит урон врагу: звук, счёт убийств, удаление трупа.
+// hitEnemy наносит урон врагу: звук, осколки, счёт убийств, удаление трупа.
 func (gls *GameLogicSystem) hitEnemy(world *ecs.World, target ecs.EntityID, from emath.Vec3, dmg, knockback float32) {
 	pos := posOf(world, target)
-	died := applyHit(world, target, dmg, knockback, from)
+	hit, died := applyHit(world, target, dmg, knockback, from)
+	if !hit {
+		return // i-frames или цель уже мертва
+	}
 	if gls.Sound != nil && !died {
 		clip := gls.SFX.Hit
 		if clip == "" {
@@ -169,8 +179,10 @@ func (gls *GameLogicSystem) hitEnemy(world *ecs.World, target ecs.EntityID, from
 	if gls.OnHit != nil {
 		gls.OnHit(pos)
 	}
+	gls.burst(world, pos, 5)
 	if died {
 		gls.kills++
+		gls.burst(world, pos.Add(emath.Vec3{X: 0, Y: 0.4}), 14)
 		if gls.Sound != nil {
 			clip := gls.SFX.Death
 			if clip == "" {
@@ -326,6 +338,8 @@ func (gls *GameLogicSystem) damagePlayer(world *ecs.World, from emath.Vec3, dmg 
 		world.SetRigidbody(gls.playerID, rb)
 	}
 
+	gls.burst(world, posOf(world, gls.playerID).Add(emath.Vec3{X: 0, Y: 0.5}), 8)
+
 	// Звук урона — из SFX или AudioSource игрока
 	if gls.Sound != nil {
 		clip := gls.SFX.Hurt
@@ -390,13 +404,15 @@ func (gls *GameLogicSystem) checkItemPickups(world *ecs.World) {
 		if dx*dx+dy*dy+dz*dz < 1.3*1.3 {
 			gls.collected[itemID] = true
 			gls.score++
+			itemPos := itemTr.Position
 			// Убираем предмет с карты (вниз под пол)
 			itemTr.Position.Y = -100
 			world.SetTransform(itemID, itemTr)
+			gls.burst(world, itemPos, 6)
 			// Звук подбора — из AudioSource предмета
 			if gls.Sound != nil {
 				if clip := gls.clipOf(world, itemID); clip != "" {
-					gls.Sound.PlayOneShot(clip, itemTr.Position, 0.6)
+					gls.Sound.PlayOneShot(clip, itemPos, 0.6)
 				}
 			}
 		}

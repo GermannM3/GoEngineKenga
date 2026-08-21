@@ -113,9 +113,15 @@ func (r *Resolver) ResolveSkeletonByPath(relPath string) (*Skeleton, error) {
 // ResolveAudioClipBySource возвращает asset ID клипа по пути исходника
 // (например "assets/audio/hit.wav"). "" если не найден.
 func (r *Resolver) ResolveAudioClipBySource(relPath string) string {
+	return r.AssetIDBySource(relPath)
+}
+
+// AssetIDBySource возвращает asset ID любого ассета по относительному пути
+// исходника ("assets/meshes/crystal.mesh.json"). "" если не найден.
+func (r *Resolver) AssetIDBySource(relPath string) string {
 	rel := filepath.ToSlash(relPath)
 	for _, rec := range r.index.Assets {
-		if rec.Type == TypeAudio && strings.HasSuffix(rec.SourcePath, rel) {
+		if strings.HasSuffix(rec.SourcePath, rel) {
 			return rec.ID
 		}
 	}
