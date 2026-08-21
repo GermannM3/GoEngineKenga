@@ -33,6 +33,10 @@ type Frame struct {
 
 	// InvalidateMeshCache — при true WebGPU backend очищает кэш мешей (hot-reload ассетов).
 	InvalidateMeshCache bool
+
+	// HUDText — однострочный текст HUD (заполняет игровой слой). Бэкенды
+	// без 2D-оверлея показывают его в заголовке окна.
+	HUDText string
 }
 
 type Backend interface {

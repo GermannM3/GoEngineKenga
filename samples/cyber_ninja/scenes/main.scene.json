@@ -1,807 +1,1364 @@
 {
- "name": "CyberNinja",
- "entities": [
-  {
-   "name": "MainCamera",
-   "transform": {
-    "position": {
-     "x": 0,
-     "y": 2,
-     "z": 12
+  "name": "CyberNinja",
+  "entities": [
+    {
+      "name": "MainCamera",
+      "transform": {
+        "position": {
+          "x": 0,
+          "y": 2,
+          "z": 12
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "camera": {
+        "fovYDegrees": 50,
+        "near": 0.1,
+        "far": 1000,
+        "followId": 5,
+        "followOffset": {
+          "x": 0,
+          "y": 4.5,
+          "z": 9
+        },
+        "followLerp": 5
+      }
     },
-    "rotation": {
-     "x": 0,
-     "y": 0,
-     "z": 0
+    {
+      "name": "DirectionalLight",
+      "transform": {
+        "position": {
+          "x": 5,
+          "y": 10,
+          "z": 5
+        },
+        "rotation": {
+          "x": -45,
+          "y": 45,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "light": {
+        "kind": "directional",
+        "colorRGB": {
+          "x": 1,
+          "y": 0.95,
+          "z": 0.9
+        },
+        "intensity": 1
+      }
     },
-    "scale": {
-     "x": 1,
-     "y": 1,
-     "z": 1
+    {
+      "name": "Spotlight",
+      "transform": {
+        "position": {
+          "x": 0,
+          "y": 6,
+          "z": 2
+        },
+        "rotation": {
+          "x": 55,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "light": {
+        "kind": "spot",
+        "colorRGB": {
+          "x": 1,
+          "y": 0.93,
+          "z": 0.82
+        },
+        "intensity": 1.6,
+        "range": 18,
+        "spotInnerAngle": 14,
+        "spotOuterAngle": 30
+      }
+    },
+    {
+      "name": "PointLight",
+      "transform": {
+        "position": {
+          "x": 3,
+          "y": 4,
+          "z": 3
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "light": {
+        "kind": "point",
+        "colorRGB": {
+          "x": 1,
+          "y": 0.85,
+          "z": 0.7
+        },
+        "intensity": 2,
+        "range": 12
+      }
+    },
+    {
+      "name": "Player",
+      "transform": {
+        "position": {
+          "x": 0,
+          "y": 2,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1.2,
+          "y": 1.2,
+          "z": 1.2
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "bb8841a7-3d8b-49d9-8bf9-441bb8ca0872"
+      },
+      "rigidbody": {
+        "mass": 1,
+        "velocity": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "angularVelocity": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "drag": 0.1,
+        "angularDrag": 0.05,
+        "useGravity": true,
+        "isKinematic": false
+      },
+      "collider": {
+        "type": "capsule",
+        "center": {
+          "x": 0,
+          "y": 0.8,
+          "z": 0
+        },
+        "radius": 0.4,
+        "height": 0.8,
+        "isTrigger": false
+      },
+      "health": {
+        "current": 100,
+        "max": 100
+      },
+      "audioSource": {
+        "clip": "989e31ff-0f00-4bfe-a62b-6c30287573e7",
+        "volume": 0.5,
+        "playOnStart": false
+      },
+      "characterController": {
+        "moveSpeed": 6,
+        "jumpForce": 9
+      },
+      "attacker": {
+        "radius": 2.2,
+        "arcDeg": 120,
+        "damage": 34,
+        "cooldown": 0.45,
+        "knockback": 7
+      }
+    },
+    {
+      "name": "Ground",
+      "transform": {
+        "position": {
+          "x": 0,
+          "y": -0.5,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 20,
+          "y": 1,
+          "z": 20
+        }
+      },
+      "meshRenderer": {
+        "colorR": 82,
+        "colorG": 160,
+        "colorB": 92,
+        "colorA": 255
+      },
+      "collider": {
+        "type": "box",
+        "center": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "size": {
+          "x": 20,
+          "y": 1,
+          "z": 20
+        },
+        "isTrigger": false
+      }
+    },
+    {
+      "name": "Platform1",
+      "transform": {
+        "position": {
+          "x": 4,
+          "y": 0.5,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 3,
+          "y": 0.5,
+          "z": 2
+        }
+      },
+      "meshRenderer": {
+        "colorR": 200,
+        "colorG": 150,
+        "colorB": 96,
+        "colorA": 255
+      },
+      "collider": {
+        "type": "box",
+        "center": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "size": {
+          "x": 3,
+          "y": 0.5,
+          "z": 2
+        },
+        "isTrigger": false
+      }
+    },
+    {
+      "name": "Platform2",
+      "transform": {
+        "position": {
+          "x": -3,
+          "y": 1.2,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 2,
+          "y": 0.4,
+          "z": 2
+        }
+      },
+      "meshRenderer": {
+        "colorR": 156,
+        "colorG": 130,
+        "colorB": 86,
+        "colorA": 255
+      },
+      "collider": {
+        "type": "box",
+        "center": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "size": {
+          "x": 2,
+          "y": 0.4,
+          "z": 2
+        },
+        "isTrigger": false
+      }
+    },
+    {
+      "name": "Enemy",
+      "transform": {
+        "position": {
+          "x": 5,
+          "y": 1.5,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "bb8841a7-3d8b-49d9-8bf9-441bb8ca0872"
+      },
+      "rigidbody": {
+        "mass": 1,
+        "velocity": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "drag": 0,
+        "useGravity": false,
+        "isKinematic": false
+      },
+      "collider": {
+        "type": "box",
+        "center": {
+          "x": 0,
+          "y": 0.5,
+          "z": 0
+        },
+        "size": {
+          "x": 0.8,
+          "y": 1,
+          "z": 0.8
+        },
+        "isTrigger": false
+      },
+      "health": {
+        "current": 60,
+        "max": 60
+      },
+      "attacker": {
+        "radius": 1.9,
+        "arcDeg": 360,
+        "damage": 15,
+        "cooldown": 1.2,
+        "knockback": 6
+      },
+      "enemyBrain": {
+        "patrolSpan": 5,
+        "speed": 2.2,
+        "chaseSpeed": 3.4,
+        "aggroRadius": 7,
+        "attackRadius": 1.9
+      }
+    },
+    {
+      "name": "Enemy2",
+      "transform": {
+        "position": {
+          "x": -4,
+          "y": 1.5,
+          "z": 1.5
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "bb8841a7-3d8b-49d9-8bf9-441bb8ca0872"
+      },
+      "rigidbody": {
+        "mass": 1,
+        "velocity": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "drag": 0,
+        "useGravity": false,
+        "isKinematic": false
+      },
+      "collider": {
+        "type": "box",
+        "center": {
+          "x": 0,
+          "y": 0.5,
+          "z": 0
+        },
+        "size": {
+          "x": 0.8,
+          "y": 1,
+          "z": 0.8
+        },
+        "isTrigger": false
+      },
+      "health": {
+        "current": 60,
+        "max": 60
+      },
+      "attacker": {
+        "radius": 1.9,
+        "arcDeg": 360,
+        "damage": 15,
+        "cooldown": 1.2,
+        "knockback": 6
+      },
+      "enemyBrain": {
+        "patrolSpan": 5,
+        "speed": 2.2,
+        "chaseSpeed": 3.4,
+        "aggroRadius": 7,
+        "attackRadius": 1.9
+      }
+    },
+    {
+      "name": "Item1",
+      "transform": {
+        "position": {
+          "x": 4,
+          "y": 1.1,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1.2,
+          "y": 1.2,
+          "z": 1.2
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "16ddc08f-4226-47a7-9f66-c5cea902ee55"
+      },
+      "collider": {
+        "type": "sphere",
+        "center": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "radius": 0.5,
+        "isTrigger": true
+      },
+      "audioSource": {
+        "clip": "d78b6bbf-0269-46e7-8010-4263e4c78ee0",
+        "volume": 0.6,
+        "playOnStart": false
+      }
+    },
+    {
+      "name": "Item2",
+      "transform": {
+        "position": {
+          "x": -3,
+          "y": 1.8,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1.2,
+          "y": 1.2,
+          "z": 1.2
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "16ddc08f-4226-47a7-9f66-c5cea902ee55"
+      },
+      "collider": {
+        "type": "sphere",
+        "center": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "radius": 0.5,
+        "isTrigger": true
+      },
+      "audioSource": {
+        "clip": "d78b6bbf-0269-46e7-8010-4263e4c78ee0",
+        "volume": 0.6,
+        "playOnStart": false
+      }
+    },
+    {
+      "name": "Item3",
+      "transform": {
+        "position": {
+          "x": 7,
+          "y": 0.6,
+          "z": 1
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1.2,
+          "y": 1.2,
+          "z": 1.2
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "16ddc08f-4226-47a7-9f66-c5cea902ee55"
+      },
+      "collider": {
+        "type": "sphere",
+        "center": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "radius": 0.5,
+        "isTrigger": true
+      },
+      "audioSource": {
+        "clip": "d78b6bbf-0269-46e7-8010-4263e4c78ee0",
+        "volume": 0.6,
+        "playOnStart": false
+      }
+    },
+    {
+      "name": "Tree0",
+      "transform": {
+        "position": {
+          "x": -8,
+          "y": 0,
+          "z": -7
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "a48c70a0-64dc-4479-af0a-cdb29fabf01d"
+      }
+    },
+    {
+      "name": "Tree1",
+      "transform": {
+        "position": {
+          "x": -9,
+          "y": 0,
+          "z": 4
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "a48c70a0-64dc-4479-af0a-cdb29fabf01d"
+      }
+    },
+    {
+      "name": "Tree2",
+      "transform": {
+        "position": {
+          "x": 7,
+          "y": 0,
+          "z": -6
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "a48c70a0-64dc-4479-af0a-cdb29fabf01d"
+      }
+    },
+    {
+      "name": "Tree3",
+      "transform": {
+        "position": {
+          "x": 8,
+          "y": 0,
+          "z": 5
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "a48c70a0-64dc-4479-af0a-cdb29fabf01d"
+      }
+    },
+    {
+      "name": "Tree4",
+      "transform": {
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": -9
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "a48c70a0-64dc-4479-af0a-cdb29fabf01d"
+      }
+    },
+    {
+      "name": "Tree5",
+      "transform": {
+        "position": {
+          "x": 6,
+          "y": 0,
+          "z": 8
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "a48c70a0-64dc-4479-af0a-cdb29fabf01d"
+      }
+    },
+    {
+      "name": "Rock0",
+      "transform": {
+        "position": {
+          "x": -5,
+          "y": -0.3,
+          "z": 3
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 0.8,
+          "y": 0.8,
+          "z": 0.8
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "1a88c6d6-04e5-404e-80bc-11cbc4cdc4e6"
+      }
+    },
+    {
+      "name": "Rock1",
+      "transform": {
+        "position": {
+          "x": 4,
+          "y": -0.3,
+          "z": -4
+        },
+        "rotation": {
+          "x": 0,
+          "y": 40,
+          "z": 0
+        },
+        "scale": {
+          "x": 0.6,
+          "y": 0.6,
+          "z": 0.6
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "1a88c6d6-04e5-404e-80bc-11cbc4cdc4e6"
+      }
+    },
+    {
+      "name": "Rock2",
+      "transform": {
+        "position": {
+          "x": 2,
+          "y": -0.3,
+          "z": 7
+        },
+        "rotation": {
+          "x": 0,
+          "y": 80,
+          "z": 0
+        },
+        "scale": {
+          "x": 0.7,
+          "y": 0.7,
+          "z": 0.7
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "1a88c6d6-04e5-404e-80bc-11cbc4cdc4e6"
+      }
+    },
+    {
+      "name": "Rock3",
+      "transform": {
+        "position": {
+          "x": -3,
+          "y": -0.3,
+          "z": -5
+        },
+        "rotation": {
+          "x": 0,
+          "y": 120,
+          "z": 0
+        },
+        "scale": {
+          "x": 0.5,
+          "y": 0.5,
+          "z": 0.5
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "1a88c6d6-04e5-404e-80bc-11cbc4cdc4e6"
+      }
+    },
+    {
+      "name": "Music",
+      "transform": {
+        "position": {
+          "x": 0,
+          "y": 5,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "audioSource": {
+        "clip": "b16df146-04a2-49bb-a1ec-6dde48573572",
+        "volume": 0.35,
+        "loop": true,
+        "playOnStart": false
+      }
+    },
+    {
+      "name": "ScriptBot",
+      "transform": {
+        "position": {
+          "x": -5,
+          "y": 1.5,
+          "z": 2
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 0.9,
+          "y": 0.9,
+          "z": 0.9
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "62a4eaed-1c28-4ddd-83b7-815785ecd96b"
+      },
+      "collider": {
+        "type": "box",
+        "center": {
+          "x": 0,
+          "y": 0.5,
+          "z": 0
+        },
+        "size": {
+          "x": 0.8,
+          "y": 1,
+          "z": 0.8
+        },
+        "isTrigger": false
+      },
+      "health": {
+        "current": 60,
+        "max": 60
+      },
+      "attacker": {
+        "radius": 1.9,
+        "arcDeg": 360,
+        "damage": 15,
+        "cooldown": 1.2,
+        "knockback": 6
+      },
+      "enemyBrain": {
+        "patrolSpan": 5,
+        "speed": 2.2,
+        "chaseSpeed": 3.4,
+        "aggroRadius": 7,
+        "attackRadius": 1.9
+      }
+    },
+    {
+      "name": "Enemy3",
+      "transform": {
+        "position": {
+          "x": -6,
+          "y": 1.5,
+          "z": -3
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "bb8841a7-3d8b-49d9-8bf9-441bb8ca0872"
+      },
+      "rigidbody": {
+        "mass": 1,
+        "velocity": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "angularVelocity": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "drag": 0,
+        "angularDrag": 0.05,
+        "useGravity": false,
+        "isKinematic": false
+      },
+      "collider": {
+        "type": "box",
+        "center": {
+          "x": 0,
+          "y": 0.5,
+          "z": 0
+        },
+        "size": {
+          "x": 0.8,
+          "y": 1,
+          "z": 0.8
+        },
+        "isTrigger": false
+      },
+      "health": {
+        "current": 60,
+        "max": 60
+      },
+      "attacker": {
+        "radius": 1.9,
+        "arcDeg": 360,
+        "damage": 15,
+        "cooldown": 1.2,
+        "knockback": 6
+      },
+      "enemyBrain": {
+        "patrolSpan": 5,
+        "speed": 2.2,
+        "chaseSpeed": 3.4,
+        "aggroRadius": 7,
+        "attackRadius": 1.9
+      }
+    },
+    {
+      "name": "Enemy4",
+      "transform": {
+        "position": {
+          "x": 7,
+          "y": 1.5,
+          "z": 3
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "bb8841a7-3d8b-49d9-8bf9-441bb8ca0872"
+      },
+      "rigidbody": {
+        "mass": 1,
+        "velocity": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "angularVelocity": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "drag": 0,
+        "angularDrag": 0.05,
+        "useGravity": false,
+        "isKinematic": false
+      },
+      "collider": {
+        "type": "box",
+        "center": {
+          "x": 0,
+          "y": 0.5,
+          "z": 0
+        },
+        "size": {
+          "x": 0.8,
+          "y": 1,
+          "z": 0.8
+        },
+        "isTrigger": false
+      },
+      "health": {
+        "current": 60,
+        "max": 60
+      },
+      "attacker": {
+        "radius": 1.9,
+        "arcDeg": 360,
+        "damage": 15,
+        "cooldown": 1.2,
+        "knockback": 6
+      },
+      "enemyBrain": {
+        "patrolSpan": 5,
+        "speed": 2.2,
+        "chaseSpeed": 3.4,
+        "aggroRadius": 7,
+        "attackRadius": 1.9
+      }
+    },
+    {
+      "name": "Enemy5",
+      "transform": {
+        "position": {
+          "x": 0,
+          "y": 1.5,
+          "z": -6
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "bb8841a7-3d8b-49d9-8bf9-441bb8ca0872"
+      },
+      "rigidbody": {
+        "mass": 1,
+        "velocity": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "angularVelocity": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "drag": 0,
+        "angularDrag": 0.05,
+        "useGravity": false,
+        "isKinematic": false
+      },
+      "collider": {
+        "type": "box",
+        "center": {
+          "x": 0,
+          "y": 0.5,
+          "z": 0
+        },
+        "size": {
+          "x": 0.8,
+          "y": 1,
+          "z": 0.8
+        },
+        "isTrigger": false
+      },
+      "health": {
+        "current": 60,
+        "max": 60
+      },
+      "attacker": {
+        "radius": 1.9,
+        "arcDeg": 360,
+        "damage": 15,
+        "cooldown": 1.2,
+        "knockback": 6
+      },
+      "enemyBrain": {
+        "patrolSpan": 5,
+        "speed": 2.2,
+        "chaseSpeed": 3.4,
+        "aggroRadius": 7,
+        "attackRadius": 1.9
+      }
+    },
+    {
+      "name": "Item4",
+      "transform": {
+        "position": {
+          "x": 6.5,
+          "y": 0.6,
+          "z": 2
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1.2,
+          "y": 1.2,
+          "z": 1.2
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "16ddc08f-4226-47a7-9f66-c5cea902ee55"
+      },
+      "collider": {
+        "type": "sphere",
+        "center": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "radius": 0.5,
+        "isTrigger": true
+      },
+      "audioSource": {
+        "clip": "d78b6bbf-0269-46e7-8010-4263e4c78ee0",
+        "volume": 0.6,
+        "playOnStart": false
+      }
+    },
+    {
+      "name": "Item5",
+      "transform": {
+        "position": {
+          "x": -3,
+          "y": 1.95,
+          "z": 0
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1.2,
+          "y": 1.2,
+          "z": 1.2
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "16ddc08f-4226-47a7-9f66-c5cea902ee55"
+      },
+      "collider": {
+        "type": "sphere",
+        "center": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "radius": 0.5,
+        "isTrigger": true
+      },
+      "audioSource": {
+        "clip": "d78b6bbf-0269-46e7-8010-4263e4c78ee0",
+        "volume": 0.6,
+        "playOnStart": false
+      }
+    },
+    {
+      "name": "Item6",
+      "transform": {
+        "position": {
+          "x": -7,
+          "y": 0.6,
+          "z": -5
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1.2,
+          "y": 1.2,
+          "z": 1.2
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "16ddc08f-4226-47a7-9f66-c5cea902ee55"
+      },
+      "collider": {
+        "type": "sphere",
+        "center": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "radius": 0.5,
+        "isTrigger": true
+      },
+      "audioSource": {
+        "clip": "d78b6bbf-0269-46e7-8010-4263e4c78ee0",
+        "volume": 0.6,
+        "playOnStart": false
+      }
+    },
+    {
+      "name": "Item7",
+      "transform": {
+        "position": {
+          "x": 8,
+          "y": 0.6,
+          "z": -3
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1.2,
+          "y": 1.2,
+          "z": 1.2
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "16ddc08f-4226-47a7-9f66-c5cea902ee55"
+      },
+      "collider": {
+        "type": "sphere",
+        "center": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "radius": 0.5,
+        "isTrigger": true
+      },
+      "audioSource": {
+        "clip": "d78b6bbf-0269-46e7-8010-4263e4c78ee0",
+        "volume": 0.6,
+        "playOnStart": false
+      }
+    },
+    {
+      "name": "Item8",
+      "transform": {
+        "position": {
+          "x": 0,
+          "y": 0.6,
+          "z": -7
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 1.2,
+          "y": 1.2,
+          "z": 1.2
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "16ddc08f-4226-47a7-9f66-c5cea902ee55"
+      },
+      "collider": {
+        "type": "sphere",
+        "center": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "radius": 0.5,
+        "isTrigger": true
+      },
+      "audioSource": {
+        "clip": "d78b6bbf-0269-46e7-8010-4263e4c78ee0",
+        "volume": 0.6,
+        "playOnStart": false
+      }
+    },
+    {
+      "name": "Hazard1",
+      "transform": {
+        "position": {
+          "x": 0,
+          "y": 0.06,
+          "z": 5.5
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 4,
+          "y": 0.12,
+          "z": 2.5
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "",
+        "colorR": 220,
+        "colorG": 60,
+        "colorB": 40,
+        "colorA": 255
+      },
+      "collider": {
+        "type": "box",
+        "center": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "size": {
+          "x": 4,
+          "y": 0.12,
+          "z": 2.5
+        },
+        "isTrigger": true
+      }
+    },
+    {
+      "name": "Hazard2",
+      "transform": {
+        "position": {
+          "x": 6.5,
+          "y": 0.06,
+          "z": -5.5
+        },
+        "rotation": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "scale": {
+          "x": 3,
+          "y": 0.12,
+          "z": 3
+        }
+      },
+      "meshRenderer": {
+        "meshAssetId": "",
+        "colorR": 220,
+        "colorG": 60,
+        "colorB": 40,
+        "colorA": 255
+      },
+      "collider": {
+        "type": "box",
+        "center": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "size": {
+          "x": 3,
+          "y": 0.12,
+          "z": 3
+        },
+        "isTrigger": true
+      }
     }
-   },
-   "camera": {
-    "fovYDegrees": 50,
-    "near": 0.1,
-    "far": 1000
-   }
-  },
-  {
-   "name": "DirectionalLight",
-   "transform": {
-    "position": {
-     "x": 5,
-     "y": 10,
-     "z": 5
-    },
-    "rotation": {
-     "x": -45,
-     "y": 45,
-     "z": 0
-    },
-    "scale": {
-     "x": 1,
-     "y": 1,
-     "z": 1
-    }
-   },
-   "light": {
-    "kind": "directional",
-    "colorRGB": {
-     "x": 1,
-     "y": 0.95,
-     "z": 0.9
-    },
-    "intensity": 1
-   }
-  },
-  {
-   "name": "Spotlight",
-   "transform": {
-    "position": {
-     "x": 0,
-     "y": 6,
-     "z": 2
-    },
-    "rotation": {
-     "x": 55,
-     "y": 0,
-     "z": 0
-    },
-    "scale": {
-     "x": 1,
-     "y": 1,
-     "z": 1
-    }
-   },
-   "light": {
-    "kind": "spot",
-    "colorRGB": {
-     "x": 1.0,
-     "y": 0.93,
-     "z": 0.82
-    },
-    "intensity": 1.6,
-    "range": 18,
-    "spotInnerAngle": 14,
-    "spotOuterAngle": 30
-   }
-  },
-  {
-   "name": "PointLight",
-   "transform": {
-    "position": {
-     "x": 3,
-     "y": 4,
-     "z": 3
-    },
-    "rotation": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "scale": {
-     "x": 1,
-     "y": 1,
-     "z": 1
-    }
-   },
-   "light": {
-    "kind": "point",
-    "colorRGB": {
-     "x": 1.0,
-     "y": 0.85,
-     "z": 0.7
-    },
-    "intensity": 2.0,
-    "range": 12
-   }
-  },
-  {
-   "name": "Player",
-   "transform": {
-    "position": {
-     "x": 0,
-     "y": 2,
-     "z": 0
-    },
-    "rotation": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "scale": {
-     "x": 1.2,
-     "y": 1.2,
-     "z": 1.2
-    }
-   },
-   "meshRenderer": {
-    "meshAssetId": "bb8841a7-3d8b-49d9-8bf9-441bb8ca0872"
-   },
-   "rigidbody": {
-    "mass": 1,
-    "velocity": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "angularVelocity": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "drag": 0.1,
-    "angularDrag": 0.05,
-    "useGravity": true,
-    "isKinematic": false
-   },
-   "collider": {
-    "type": "box",
-    "center": {
-     "x": 0,
-     "y": 0.5,
-     "z": 0
-    },
-    "size": {
-     "x": 0.8,
-     "y": 1,
-     "z": 0.8
-    },
-    "isTrigger": false
-   },
-   "health": {
-    "current": 100,
-    "max": 100
-   },
-   "audioSource": {
-    "clip": "989e31ff-0f00-4bfe-a62b-6c30287573e7",
-    "volume": 0.5,
-    "playOnStart": false
-   }
-  },
-  {
-   "name": "Ground",
-   "transform": {
-    "position": {
-     "x": 0,
-     "y": -0.5,
-     "z": 0
-    },
-    "rotation": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "scale": {
-     "x": 20,
-     "y": 1,
-     "z": 20
-    }
-   },
-   "meshRenderer": {
-    "colorR": 82,
-    "colorG": 160,
-    "colorB": 92,
-    "colorA": 255
-   },
-   "collider": {
-    "type": "box",
-    "center": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "size": {
-     "x": 20,
-     "y": 1,
-     "z": 20
-    },
-    "isTrigger": false
-   }
-  },
-  {
-   "name": "Platform1",
-   "transform": {
-    "position": {
-     "x": 4,
-     "y": 0.5,
-     "z": 0
-    },
-    "rotation": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "scale": {
-     "x": 3,
-     "y": 0.5,
-     "z": 2
-    }
-   },
-   "meshRenderer": {
-    "colorR": 200,
-    "colorG": 150,
-    "colorB": 96,
-    "colorA": 255
-   },
-   "collider": {
-    "type": "box",
-    "center": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "size": {
-     "x": 3,
-     "y": 0.5,
-     "z": 2
-    },
-    "isTrigger": false
-   }
-  },
-  {
-   "name": "Platform2",
-   "transform": {
-    "position": {
-     "x": -3,
-     "y": 1.2,
-     "z": 0
-    },
-    "rotation": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "scale": {
-     "x": 2,
-     "y": 0.4,
-     "z": 2
-    }
-   },
-   "meshRenderer": {
-    "colorR": 156,
-    "colorG": 130,
-    "colorB": 86,
-    "colorA": 255
-   },
-   "collider": {
-    "type": "box",
-    "center": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "size": {
-     "x": 2,
-     "y": 0.4,
-     "z": 2
-    },
-    "isTrigger": false
-   }
-  },
-  {
-   "name": "Enemy",
-   "transform": {
-    "position": {
-     "x": 5,
-     "y": 1.5,
-     "z": 0
-    },
-    "rotation": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "scale": {
-     "x": 1,
-     "y": 1,
-     "z": 1
-    }
-   },
-   "meshRenderer": {
-    "meshAssetId": "bb8841a7-3d8b-49d9-8bf9-441bb8ca0872"
-   },
-   "rigidbody": {
-    "mass": 1,
-    "velocity": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "drag": 0,
-    "useGravity": false,
-    "isKinematic": false
-   },
-   "collider": {
-    "type": "box",
-    "center": {
-     "x": 0,
-     "y": 0.5,
-     "z": 0
-    },
-    "size": {
-     "x": 0.8,
-     "y": 1,
-     "z": 0.8
-    },
-    "isTrigger": false
-   }
-  },
-  {
-   "name": "Enemy2",
-   "transform": {
-    "position": {
-     "x": -4,
-     "y": 1.5,
-     "z": 1.5
-    },
-    "rotation": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "scale": {
-     "x": 1,
-     "y": 1,
-     "z": 1
-    }
-   },
-   "meshRenderer": {
-    "meshAssetId": "bb8841a7-3d8b-49d9-8bf9-441bb8ca0872"
-   },
-   "rigidbody": {
-    "mass": 1,
-    "velocity": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "drag": 0,
-    "useGravity": false,
-    "isKinematic": false
-   },
-   "collider": {
-    "type": "box",
-    "center": {
-     "x": 0,
-     "y": 0.5,
-     "z": 0
-    },
-    "size": {
-     "x": 0.8,
-     "y": 1,
-     "z": 0.8
-    },
-    "isTrigger": false
-   }
-  },
-  {
-   "name": "Item1",
-   "transform": {
-    "position": {
-     "x": 4,
-     "y": 1.1,
-     "z": 0
-    },
-    "rotation": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "scale": {
-     "x": 1.2,
-     "y": 1.2,
-     "z": 1.2
-    }
-   },
-   "meshRenderer": {
-    "meshAssetId": "16ddc08f-4226-47a7-9f66-c5cea902ee55"
-   },
-   "collider": {
-    "type": "sphere",
-    "center": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "radius": 0.5,
-    "isTrigger": true
-   },
-   "audioSource": {
-    "clip": "d78b6bbf-0269-46e7-8010-4263e4c78ee0",
-    "volume": 0.6,
-    "playOnStart": false
-   }
-  },
-  {
-   "name": "Item2",
-   "transform": {
-    "position": {
-     "x": -3,
-     "y": 1.8,
-     "z": 0
-    },
-    "rotation": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "scale": {
-     "x": 1.2,
-     "y": 1.2,
-     "z": 1.2
-    }
-   },
-   "meshRenderer": {
-    "meshAssetId": "16ddc08f-4226-47a7-9f66-c5cea902ee55"
-   },
-   "collider": {
-    "type": "sphere",
-    "center": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "radius": 0.5,
-    "isTrigger": true
-   },
-   "audioSource": {
-    "clip": "d78b6bbf-0269-46e7-8010-4263e4c78ee0",
-    "volume": 0.6,
-    "playOnStart": false
-   }
-  },
-  {
-   "name": "Item3",
-   "transform": {
-    "position": {
-     "x": 7,
-     "y": 0.6,
-     "z": 1
-    },
-    "rotation": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "scale": {
-     "x": 1.2,
-     "y": 1.2,
-     "z": 1.2
-    }
-   },
-   "meshRenderer": {
-    "meshAssetId": "16ddc08f-4226-47a7-9f66-c5cea902ee55"
-   },
-   "collider": {
-    "type": "sphere",
-    "center": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "radius": 0.5,
-    "isTrigger": true
-   },
-   "audioSource": {
-    "clip": "d78b6bbf-0269-46e7-8010-4263e4c78ee0",
-    "volume": 0.6,
-    "playOnStart": false
-   }
-  },
-  {
-   "name": "Tree0",
-   "transform": {
-    "position": {
-     "x": -8,
-     "y": 0.0,
-     "z": -7
-    },
-    "rotation": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "scale": {
-     "x": 1.0,
-     "y": 1.0,
-     "z": 1.0
-    }
-   },
-   "meshRenderer": {
-    "meshAssetId": "a48c70a0-64dc-4479-af0a-cdb29fabf01d"
-   }
-  },
-  {
-   "name": "Tree1",
-   "transform": {
-    "position": {
-     "x": -9,
-     "y": 0.0,
-     "z": 4
-    },
-    "rotation": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "scale": {
-     "x": 1.0,
-     "y": 1.0,
-     "z": 1.0
-    }
-   },
-   "meshRenderer": {
-    "meshAssetId": "a48c70a0-64dc-4479-af0a-cdb29fabf01d"
-   }
-  },
-  {
-   "name": "Tree2",
-   "transform": {
-    "position": {
-     "x": 7,
-     "y": 0.0,
-     "z": -6
-    },
-    "rotation": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "scale": {
-     "x": 1.0,
-     "y": 1.0,
-     "z": 1.0
-    }
-   },
-   "meshRenderer": {
-    "meshAssetId": "a48c70a0-64dc-4479-af0a-cdb29fabf01d"
-   }
-  },
-  {
-   "name": "Tree3",
-   "transform": {
-    "position": {
-     "x": 8,
-     "y": 0.0,
-     "z": 5
-    },
-    "rotation": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "scale": {
-     "x": 1.0,
-     "y": 1.0,
-     "z": 1.0
-    }
-   },
-   "meshRenderer": {
-    "meshAssetId": "a48c70a0-64dc-4479-af0a-cdb29fabf01d"
-   }
-  },
-  {
-   "name": "Tree4",
-   "transform": {
-    "position": {
-     "x": 0,
-     "y": 0.0,
-     "z": -9
-    },
-    "rotation": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "scale": {
-     "x": 1.0,
-     "y": 1.0,
-     "z": 1.0
-    }
-   },
-   "meshRenderer": {
-    "meshAssetId": "a48c70a0-64dc-4479-af0a-cdb29fabf01d"
-   }
-  },
-  {
-   "name": "Tree5",
-   "transform": {
-    "position": {
-     "x": 6,
-     "y": 0.0,
-     "z": 8
-    },
-    "rotation": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "scale": {
-     "x": 1.0,
-     "y": 1.0,
-     "z": 1.0
-    }
-   },
-   "meshRenderer": {
-    "meshAssetId": "a48c70a0-64dc-4479-af0a-cdb29fabf01d"
-   }
-  },
-  {
-   "name": "Rock0",
-   "transform": {
-    "position": {
-     "x": -5,
-     "y": -0.3,
-     "z": 3
-    },
-    "rotation": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "scale": {
-     "x": 0.8,
-     "y": 0.8,
-     "z": 0.8
-    }
-   },
-   "meshRenderer": {
-    "meshAssetId": "1a88c6d6-04e5-404e-80bc-11cbc4cdc4e6"
-   }
-  },
-  {
-   "name": "Rock1",
-   "transform": {
-    "position": {
-     "x": 4,
-     "y": -0.3,
-     "z": -4
-    },
-    "rotation": {
-     "x": 0,
-     "y": 40,
-     "z": 0
-    },
-    "scale": {
-     "x": 0.6,
-     "y": 0.6,
-     "z": 0.6
-    }
-   },
-   "meshRenderer": {
-    "meshAssetId": "1a88c6d6-04e5-404e-80bc-11cbc4cdc4e6"
-   }
-  },
-  {
-   "name": "Rock2",
-   "transform": {
-    "position": {
-     "x": 2,
-     "y": -0.3,
-     "z": 7
-    },
-    "rotation": {
-     "x": 0,
-     "y": 80,
-     "z": 0
-    },
-    "scale": {
-     "x": 0.7,
-     "y": 0.7,
-     "z": 0.7
-    }
-   },
-   "meshRenderer": {
-    "meshAssetId": "1a88c6d6-04e5-404e-80bc-11cbc4cdc4e6"
-   }
-  },
-  {
-   "name": "Rock3",
-   "transform": {
-    "position": {
-     "x": -3,
-     "y": -0.3,
-     "z": -5
-    },
-    "rotation": {
-     "x": 0,
-     "y": 120,
-     "z": 0
-    },
-    "scale": {
-     "x": 0.5,
-     "y": 0.5,
-     "z": 0.5
-    }
-   },
-   "meshRenderer": {
-    "meshAssetId": "1a88c6d6-04e5-404e-80bc-11cbc4cdc4e6"
-   }
-  },
-  {
-   "name": "Music",
-   "transform": {
-    "position": {
-     "x": 0,
-     "y": 5,
-     "z": 0
-    },
-    "rotation": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "scale": {
-     "x": 1,
-     "y": 1,
-     "z": 1
-    }
-   },
-   "audioSource": {
-    "clip": "b16df146-04a2-49bb-a1ec-6dde48573572",
-    "volume": 0.35,
-    "loop": true,
-    "playOnStart": false
-   }
-  },
-  {
-   "name": "ScriptBot",
-   "transform": {
-    "position": {
-     "x": -5,
-     "y": 1.5,
-     "z": 2
-    },
-    "rotation": {
-     "x": 0,
-     "y": 0,
-     "z": 0
-    },
-    "scale": {
-     "x": 0.9,
-     "y": 0.9,
-     "z": 0.9
-    }
-   },
-   "meshRenderer": {
-    "meshAssetId": "62a4eaed-1c28-4ddd-83b7-815785ecd96b"
-   },
-   "collider": {
-    "type": "box",
-    "center": {
-     "x": 0,
-     "y": 0.5,
-     "z": 0
-    },
-    "size": {
-     "x": 0.8,
-     "y": 1,
-     "z": 0.8
-    },
-    "isTrigger": false
-   }
-  }
- ]
+  ]
 }

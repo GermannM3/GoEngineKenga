@@ -36,6 +36,8 @@ type Backend struct {
 	mouseDX, mouseDY       float64
 	rightDown, middleDown  bool
 	scrollDelta            float64
+
+	lastHUD string // последний показанный HUDText (чтобы не дёргать заголовок)
 }
 
 func init() {
@@ -139,6 +141,16 @@ func (b *Backend) RunLoop(initial *render.Frame) error {
 
 		if initial != nil && initial.OnUpdate != nil {
 			initial.OnUpdate(dt)
+		}
+
+		// HUD без 2D-оверлея — в заголовке окна (обновляем только при изменении)
+		if initial != nil && initial.HUDText != b.lastHUD {
+			b.lastHUD = initial.HUDText
+			title := b.title
+			if b.lastHUD != "" {
+				title += "  —  " + strings.ReplaceAll(b.lastHUD, "\n", " | ")
+			}
+			window.SetTitle(title)
 		}
 
 		if err := s.RenderScene(initial, resolver); err != nil {

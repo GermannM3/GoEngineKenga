@@ -180,24 +180,36 @@ func TestCyberNinjaPickupsAndVictory(t *testing.T) {
 	gls := NewGameLogicSystem()
 	is := input.NewState()
 
-	player := entityByName(t, w, "Player")
-
-	// Собираем все 3 сферы
-	for i := 0; i < 3; i++ {
-		item := entityByName(t, w, "Item"+strconv.Itoa(i+1))
-		itemTr, _ := w.GetTransform(item)
-		teleport(w, player, itemTr.Position.Add(emath.V3(0.3, 0, 0)))
+	// Собираем все сферы (сколько их ни добавлено в сцену)
+	for i := 1; ; i++ {
+		name := "Item" + strconv.Itoa(i)
+		found := false
+		for _, id := range w.Entities() {
+			if w.Name(id) == name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			break
+		}
+		id := entityByName(t, w, name)
+		itemTr, _ := w.GetTransform(id)
+		teleport(w, entityByName(t, w, "Player"), itemTr.Position.Add(emath.V3(0.3, 0, 0)))
 		frame(w, gls, is)
 
 		// Предмет убран с карты после подбора
-		itemTr, _ = w.GetTransform(item)
+		itemTr, _ = w.GetTransform(id)
 		if itemTr.Position.Y > -50 {
-			t.Fatalf("item %v not removed after pickup, Y=%v", i+1, itemTr.Position.Y)
+			t.Fatalf("item %v not removed after pickup, Y=%v", name, itemTr.Position.Y)
 		}
 	}
 
-	if gls.score != 3 {
-		t.Fatalf("score=%v, want 3", gls.score)
+	if gls.score < 3 {
+		t.Fatalf("score=%v, want >=3 (все сферы сцены)", gls.score)
+	}
+	if total := len(gls.itemIDs); gls.score != total {
+		t.Fatalf("score=%v, want %v (все сферы)", gls.score, total)
 	}
 	if gls.Status() != StatusVictory {
 		t.Fatalf("status=%v, want Victory", gls.Status())

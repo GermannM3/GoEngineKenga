@@ -1,80 +1,146 @@
 {
- "assets": [
-  {
-   "id": "989e31ff-0f00-4bfe-a62b-6c30287573e7",
-   "type": "audio",
-   "sourcePath": "assets/audio/jump.wav",
-   "derived": null,
-   "importedAt": "2026-08-02T22:48:37.4862638+03:00"
-  },
-  {
-   "id": "b16df146-04a2-49bb-a1ec-6dde48573572",
-   "type": "audio",
-   "sourcePath": "assets/audio/music.wav",
-   "derived": null,
-   "importedAt": "2026-08-02T22:48:37.5176123+03:00"
-  },
-  {
-   "id": "d78b6bbf-0269-46e7-8010-4263e4c78ee0",
-   "type": "audio",
-   "sourcePath": "assets/audio/pickup.wav",
-   "derived": null,
-   "importedAt": "2026-08-02T22:48:37.5181007+03:00"
-  },
-  {
-   "id": "6352bde6-0454-4ff7-b968-fc5001977f0a",
-   "type": "gltf",
-   "sourcePath": "assets/triangle.gltf",
-   "derived": [
-    ".kenga/derived/6352bde6-0454-4ff7-b968-fc5001977f0a_0.mesh.json",
-    ".kenga/derived/6352bde6-0454-4ff7-b968-fc5001977f0a_0.material.json"
-   ],
-   "importedAt": "2026-08-02T22:48:37.5181007+03:00"
-  },
-  {
-   "id": "16ddc08f-4226-47a7-9f66-c5cea902ee55",
-   "type": "mesh",
-   "sourcePath": "assets/meshes/crystal.mesh.json",
-   "derived": [
-    "assets/meshes/crystal.mesh.json"
-   ],
-   "importedAt": "2026-08-04T00:00:00+03:00"
-  },
-  {
-   "id": "bb8841a7-3d8b-49d9-8bf9-441bb8ca0872",
-   "type": "mesh",
-   "sourcePath": "assets/meshes/ninja.mesh.json",
-   "derived": [
-    "assets/meshes/ninja.mesh.json"
-   ],
-   "importedAt": "2026-08-04T00:00:00+03:00"
-  },
-  {
-   "id": "a48c70a0-64dc-4479-af0a-cdb29fabf01d",
-   "type": "mesh",
-   "sourcePath": "assets/meshes/tree.mesh.json",
-   "derived": [
-    "assets/meshes/tree.mesh.json"
-   ],
-   "importedAt": "2026-08-04T00:00:00+03:00"
-  },
-  {
-   "id": "1a88c6d6-04e5-404e-80bc-11cbc4cdc4e6",
-   "type": "mesh",
-   "sourcePath": "assets/meshes/rock.mesh.json",
-   "derived": [
-    "assets/meshes/rock.mesh.json"
-   ],
-   "importedAt": "2026-08-04T00:00:00+03:00"
-  },
-  {
-   "id": "62a4eaed-1c28-4ddd-83b7-815785ecd96b",
-   "type": "mesh",
-   "sourcePath": "assets/meshes/barrel.mesh.json",
-   "derived": [
-    "assets/meshes/barrel.mesh.json"
-   ],
-   "importedAt": "2026-08-04T00:00:00+03:00"
-  }
- ]
+  "assets": [
+    {
+      "id": "29a6de44-3602-43ca-985d-cffb2fbb6156",
+      "type": "audio",
+      "sourcePath": "assets/audio/death.wav",
+      "derived": null,
+      "importedAt": "2026-08-21T22:34:02.3026496+03:00"
+    },
+    {
+      "id": "1de1c489-8fd4-40ca-9c1f-c540e1d63d38",
+      "type": "audio",
+      "sourcePath": "assets/audio/hit.wav",
+      "derived": null,
+      "importedAt": "2026-08-21T22:34:02.303911+03:00"
+    },
+    {
+      "id": "c2f2439a-1ea8-4153-9800-beac430db3ba",
+      "type": "audio",
+      "sourcePath": "assets/audio/hurt.wav",
+      "derived": null,
+      "importedAt": "2026-08-21T22:34:02.303911+03:00"
+    },
+    {
+      "id": "989e31ff-0f00-4bfe-a62b-6c30287573e7",
+      "type": "audio",
+      "sourcePath": "assets/audio/jump.wav",
+      "derived": null,
+      "importedAt": "2026-08-21T22:34:02.303911+03:00"
+    },
+    {
+      "id": "b16df146-04a2-49bb-a1ec-6dde48573572",
+      "type": "audio",
+      "sourcePath": "assets/audio/music.wav",
+      "derived": null,
+      "importedAt": "2026-08-21T22:34:02.3063644+03:00"
+    },
+    {
+      "id": "d78b6bbf-0269-46e7-8010-4263e4c78ee0",
+      "type": "audio",
+      "sourcePath": "assets/audio/pickup.wav",
+      "derived": null,
+      "importedAt": "2026-08-21T22:34:02.3063644+03:00"
+    },
+    {
+      "id": "62a4eaed-1c28-4ddd-83b7-815785ecd96b",
+      "type": "mesh",
+      "sourcePath": "assets/meshes/barrel.mesh.json",
+      "derived": [
+        "assets/meshes/barrel.mesh.json"
+      ],
+      "importedAt": "2026-08-21T22:34:02.3063644+03:00"
+    },
+    {
+      "id": "1be7efa5-3f73-47d5-aec9-d5dd1ebfd13b",
+      "type": "material",
+      "sourcePath": "assets/meshes/barrelmat.material.json",
+      "derived": [
+        "assets/meshes/barrelmat.material.json"
+      ],
+      "importedAt": "2026-08-21T22:34:02.3063644+03:00"
+    },
+    {
+      "id": "16ddc08f-4226-47a7-9f66-c5cea902ee55",
+      "type": "mesh",
+      "sourcePath": "assets/meshes/crystal.mesh.json",
+      "derived": [
+        "assets/meshes/crystal.mesh.json"
+      ],
+      "importedAt": "2026-08-21T22:34:02.3063644+03:00"
+    },
+    {
+      "id": "6b097f72-ac2d-4bea-ae8d-146f79be6353",
+      "type": "material",
+      "sourcePath": "assets/meshes/crystalmat.material.json",
+      "derived": [
+        "assets/meshes/crystalmat.material.json"
+      ],
+      "importedAt": "2026-08-21T22:34:02.3063644+03:00"
+    },
+    {
+      "id": "bb8841a7-3d8b-49d9-8bf9-441bb8ca0872",
+      "type": "mesh",
+      "sourcePath": "assets/meshes/ninja.mesh.json",
+      "derived": [
+        "assets/meshes/ninja.mesh.json"
+      ],
+      "importedAt": "2026-08-21T22:34:02.3063644+03:00"
+    },
+    {
+      "id": "d12bac9a-0ea4-45a6-965d-ccab6d7da186",
+      "type": "material",
+      "sourcePath": "assets/meshes/ninjamat.material.json",
+      "derived": [
+        "assets/meshes/ninjamat.material.json"
+      ],
+      "importedAt": "2026-08-21T22:34:02.3063644+03:00"
+    },
+    {
+      "id": "1a88c6d6-04e5-404e-80bc-11cbc4cdc4e6",
+      "type": "mesh",
+      "sourcePath": "assets/meshes/rock.mesh.json",
+      "derived": [
+        "assets/meshes/rock.mesh.json"
+      ],
+      "importedAt": "2026-08-21T22:34:02.309436+03:00"
+    },
+    {
+      "id": "29cc0930-dffc-46ad-89a8-61a2169df7d4",
+      "type": "material",
+      "sourcePath": "assets/meshes/rockmat.material.json",
+      "derived": [
+        "assets/meshes/rockmat.material.json"
+      ],
+      "importedAt": "2026-08-21T22:34:02.309436+03:00"
+    },
+    {
+      "id": "a48c70a0-64dc-4479-af0a-cdb29fabf01d",
+      "type": "mesh",
+      "sourcePath": "assets/meshes/tree.mesh.json",
+      "derived": [
+        "assets/meshes/tree.mesh.json"
+      ],
+      "importedAt": "2026-08-21T22:34:02.309436+03:00"
+    },
+    {
+      "id": "a221488f-1af1-48d4-ade9-a73bfeb328b9",
+      "type": "material",
+      "sourcePath": "assets/meshes/treemat.material.json",
+      "derived": [
+        "assets/meshes/treemat.material.json"
+      ],
+      "importedAt": "2026-08-21T22:34:02.309436+03:00"
+    },
+    {
+      "id": "6352bde6-0454-4ff7-b968-fc5001977f0a",
+      "type": "gltf",
+      "sourcePath": "assets/triangle.gltf",
+      "derived": [
+        ".kenga/derived/6352bde6-0454-4ff7-b968-fc5001977f0a_0.mesh.json",
+        ".kenga/derived/6352bde6-0454-4ff7-b968-fc5001977f0a_0.material.json"
+      ],
+      "importedAt": "2026-08-21T22:34:02.3155893+03:00"
+    }
+  ]
 }

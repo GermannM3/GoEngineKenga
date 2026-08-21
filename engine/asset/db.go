@@ -106,7 +106,19 @@ func (db *Database) ImportAll() (*Index, error) {
 				records = append(records, *rec)
 			}
 		default:
-			// v0: игнорируем остальные типы
+			// Авторские ассеты движка (.mesh.json / .material.json): файл и есть
+			// ассет (ID стабилен в .meta). Регистрируем с Derived=[сам файл],
+			// чтобы резолвер по asset ID находил их так же, как производные glTF.
+			if strings.HasSuffix(path, ".mesh.json") || strings.HasSuffix(path, ".material.json") {
+				rec, err := db.importSelfAsset(path)
+				if err != nil {
+					return err
+				}
+				if rec != nil {
+					records = append(records, *rec)
+				}
+			}
+			// v0: остальные типы игнорируем
 		}
 		return nil
 	})
@@ -147,6 +159,25 @@ func (db *Database) importInventor(sourceAbs string) (*Record, error) {
 		rec.SourcePath = filepath.ToSlash(rel)
 	}
 	return rec, nil
+}
+
+// importSelfAsset регистрирует авторский ассет (.mesh.json / .material.json),
+// который не требует обработки: SourcePath = Derived = путь к самому файлу.
+func (db *Database) importSelfAsset(sourceAbs string) (*Record, error) {
+	typ := TypeMesh
+	if strings.HasSuffix(sourceAbs, ".material.json") {
+		typ = TypeMaterial
+	}
+	meta, err := LoadOrCreateMeta(sourceAbs, typ)
+	if err != nil {
+		return nil, err
+	}
+	rel, err := filepath.Rel(db.ProjectDir, sourceAbs)
+	if err != nil {
+		return nil, err
+	}
+	rel = filepath.ToSlash(rel)
+	return &Record{ID: meta.ID, Type: typ, SourcePath: rel, Derived: []string{rel}, ImportedAt: time.Now()}, nil
 }
 
 // importAudio регистрирует аудиофайл (wav/mp3/ogg) как ассет. Исходный файл

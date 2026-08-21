@@ -5,6 +5,7 @@ import (
 	"goenginekenga/engine/ecs"
 	"goenginekenga/engine/input"
 	emath "goenginekenga/engine/math"
+	"goenginekenga/engine/physics"
 )
 
 // GameStatus — состояние игрового процесса (победа/поражение/игра).
@@ -15,6 +16,14 @@ const (
 	StatusVictory
 	StatusDefeat
 )
+
+// SFXClips — asset ID звуков боя (резолвятся в run.go по путям исходников).
+// Пустая строка = звук не используется.
+type SFXClips struct {
+	Hit   string // удар по врагу
+	Hurt  string // игрок получил урон
+	Death string // враг умер
+}
 
 // GameLogicSystem handles the core gameplay mechanics: enemy AI,
 // pickups, health/damage, win/lose and level flow. Движение игрока
@@ -29,6 +38,9 @@ type GameLogicSystem struct {
 	// Sound — аудиосистема для звуков действий. Клипы берутся из AudioSource
 	// компонентов сущностей: player (прыжок/урон), предметы (подбор) — как в Unity.
 	Sound *audio.AudioSystem
+
+	// SFX — звуки боя по asset ID (приоритетнее клипов сущностей).
+	SFX SFXClips
 
 	// Игровой статус и прогресс уровня
 	status     GameStatus
@@ -113,6 +125,7 @@ func (gls *GameLogicSystem) Update(world *ecs.World, inputState *input.State, dt
 	gls.updatePlayer(world)
 	gls.updateEnemies(world, dt)
 	gls.checkItemPickups(world)
+	gls.checkHazards(world)
 	gls.updateGameStatus(world)
 }
 
@@ -145,7 +158,11 @@ func (gls *GameLogicSystem) hitEnemy(world *ecs.World, target ecs.EntityID, from
 	pos := posOf(world, target)
 	died := applyHit(world, target, dmg, knockback, from)
 	if gls.Sound != nil && !died {
-		if clip := gls.clipOf(world, target); clip != "" {
+		clip := gls.SFX.Hit
+		if clip == "" {
+			clip = gls.clipOf(world, target)
+		}
+		if clip != "" {
 			gls.Sound.PlayOneShot(clip, pos, 0.7)
 		}
 	}
@@ -155,10 +172,12 @@ func (gls *GameLogicSystem) hitEnemy(world *ecs.World, target ecs.EntityID, from
 	if died {
 		gls.kills++
 		if gls.Sound != nil {
-			if clip := gls.clipOf(world, target); clip != "" {
+			clip := gls.SFX.Death
+			if clip == "" {
+				clip = gls.SFX.Hit
+			}
+			if clip != "" {
 				gls.Sound.PlayOneShot(clip, pos, 0.9)
-			} else if clip := gls.clipOf(world, gls.playerID); clip != "" {
-				gls.Sound.PlayOneShot(clip, pos, 0.5)
 			}
 		}
 		world.RemoveEntity(target)
@@ -307,14 +326,43 @@ func (gls *GameLogicSystem) damagePlayer(world *ecs.World, from emath.Vec3, dmg 
 		world.SetRigidbody(gls.playerID, rb)
 	}
 
-	// Звук урона — из AudioSource игрока
+	// Звук урона — из SFX или AudioSource игрока
 	if gls.Sound != nil {
-		if clip := gls.clipOf(world, gls.playerID); clip != "" {
+		clip := gls.SFX.Hurt
+		if clip == "" {
+			clip = gls.clipOf(world, gls.playerID)
+		}
+		if clip != "" {
 			gls.Sound.PlayOneShot(clip, from, 0.8)
 		}
 	}
 	if gls.OnPlayerHurt != nil {
 		gls.OnPlayerHurt(from)
+	}
+}
+
+// checkHazards наносит урон, если игрок внутри зоны Hazard* (лава/шипы).
+func (gls *GameLogicSystem) checkHazards(world *ecs.World) {
+	if gls.playerID == 0 || gls.invuln > 0 || gls.status != StatusPlaying {
+		return
+	}
+	p := posOf(world, gls.playerID)
+	for _, id := range world.Entities() {
+		if !containsSubstring(world.Name(id), "Hazard") {
+			continue
+		}
+		col, ok := world.GetCollider(id)
+		if !ok {
+			continue
+		}
+		box := physics.AABBFromCollider(&col, posOf(world, id))
+		if p.X >= box.Min.X-0.4 && p.X <= box.Max.X+0.4 &&
+			p.Y >= box.Min.Y-0.6 && p.Y <= box.Max.Y+0.3 &&
+			p.Z >= box.Min.Z-0.4 && p.Z <= box.Max.Z+0.4 {
+			// Источник урона «из-под пола»: отброс вверх
+			gls.damagePlayer(world, p.Add(emath.Vec3{X: 0, Y: -1, Z: 0}), 30)
+			return
+		}
 	}
 }
 

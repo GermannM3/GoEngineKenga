@@ -22,6 +22,7 @@ import (
 	"goenginekenga/engine/ecs"
 	"goenginekenga/engine/gameplay"
 	"goenginekenga/engine/input"
+	emath "goenginekenga/engine/math"
 	"goenginekenga/engine/project"
 	"goenginekenga/engine/render"
 	"goenginekenga/engine/render/ebiten"
@@ -141,6 +142,20 @@ func newRunCommand() *cobra.Command {
 			gameLogicSystem := gameplay.NewGameLogicSystem()
 			gameplay.SetGameLogicSystem(gameLogicSystem)
 
+			// Тряска камеры: лёгкая на удар игрока, сильнее — при уроне
+			var camShake runtime.CameraShake
+			gameLogicSystem.OnHit = func(pos emath.Vec3) { camShake.Add(0.08, 0.05) }
+			gameLogicSystem.OnPlayerHurt = func(pos emath.Vec3) { camShake.Add(0.3, 0.2) }
+
+			// Звуки боя: asset ID по путям исходников (пусто = звук не используется)
+			if resolver != nil {
+				gameLogicSystem.SFX = gameplay.SFXClips{
+					Hit:   resolver.ResolveAudioClipBySource("assets/audio/hit.wav"),
+					Hurt:  resolver.ResolveAudioClipBySource("assets/audio/hurt.wav"),
+					Death: resolver.ResolveAudioClipBySource("assets/audio/death.wav"),
+				}
+			}
+
 			// Локализация: project.Locale + locales/*.json (en.json, ru.json, ...).
 			// Тексты HUD и игровых систем форматируются через gameplay.Tr().
 			loc := gameplay.NewLocalization("en", "en")
@@ -178,6 +193,7 @@ func newRunCommand() *cobra.Command {
 					runtime.ApplyPlayerInput(aw, is, float32(dt))
 				}
 				runtime.UpdateFollowCameras(aw, float32(dt)) // следящая камера (до рендера)
+				camShake.Step(aw, float32(dt))               // тряска поверх follow-cam
 				animationSystem.Update(aw)
 				skeletalSystem.Update(aw, float32(dt))
 				if !gameplay.HasKart(aw) {
@@ -256,6 +272,9 @@ func newRunCommand() *cobra.Command {
 					if aw, err := rt.ActiveWorld(); err == nil {
 						runtime.SpinSystem(aw, delta)
 						frame.World = aw
+						if !gameplay.HasKart(aw) {
+							frame.HUDText = gameplay.GameHUD() // webgpu показывает в заголовке
+						}
 					}
 					_ = sh.HotReloadIfChanged(ctx)
 					_ = sh.Update(ctx, dtDur)
