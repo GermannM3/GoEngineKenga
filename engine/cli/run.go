@@ -10,6 +10,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	ebitenimg "github.com/hajimehoshi/ebiten/v2"
@@ -273,7 +274,8 @@ func newRunCommand() *cobra.Command {
 						runtime.SpinSystem(aw, delta)
 						frame.World = aw
 						if !gameplay.HasKart(aw) {
-							frame.HUDText = gameplay.GameHUD() // webgpu показывает в заголовке
+							frame.HUDText = gameplay.GameHUD() // webgpu показывает и в заголовке
+							frame.HUD = buildHUDOverlay()
 						}
 					}
 					_ = sh.HotReloadIfChanged(ctx)
@@ -365,6 +367,28 @@ func newRunCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&headlessMode, "headless", false, "Run without window (WebSocket only, for KengaCAD)")
 
 	return cmd
+}
+
+// buildHUDOverlay собирает графический HUD из состояния игровой логики
+// (полоса здоровья + строки текста + экраны победы/поражения).
+func buildHUDOverlay() *render.HUDOverlay {
+	h, mh, _, _, _, status := gameplay.GameHealthState()
+	o := &render.HUDOverlay{}
+	if mh > 0 {
+		o.HealthFill = h / mh
+	}
+	if hud := gameplay.GameHUD(); hud != "" {
+		o.Lines = strings.Split(strings.TrimRight(hud, "\n"), "\n")
+	}
+	switch status {
+	case gameplay.StatusVictory:
+		o.CenterText = gameplay.Tr("hud.victory")
+		o.SubText = gameplay.Tr("hud.next")
+	case gameplay.StatusDefeat:
+		o.CenterText = gameplay.Tr("hud.defeat")
+		o.SubText = gameplay.Tr("hud.restart")
+	}
+	return o
 }
 
 // normalizeProjectPath исправляет путь на Windows, когда из Git Bash приходит D:CyberNinja

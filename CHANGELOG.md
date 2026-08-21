@@ -7,6 +7,7 @@
 ### Добавлено
 
 - **Вертикальный срез CyberNinja (WebGPU desktop)**: бой, ИИ врагов, следящая камера, звук и обратная связь
+  - **Графический HUD в WebGPU**: quad-pipeline с альфа-блендингом + атлас `basicfont.Face7x13`; полоса здоровья, строки HUD, экраны победы/поражения (`Frame.HUD` → `render.BuildHUD`, лейаут покрыт тестами)
   - **Ввод в WebGPU-бэкенде**: клавиатура/мышь через glfw → `input.State` (раньше игра в WebGPU не получала ввод вообще)
   - **CharacterController** (ECS + runtime): кинематическое движение, `Grounded` по raycast'у вниз, прыжок только с земли; параметры из сцены
   - **Следящая камера**: `Camera.FollowID/FollowOffset/FollowLerp` — плавное слежение за игроком (play-режим); orbit остаётся для редактирования

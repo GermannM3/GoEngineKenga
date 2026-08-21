@@ -631,6 +631,9 @@ type sceneState struct {
 	compositeBG       *wgpu.BindGroup
 	postW, postH      int
 
+	// HUD-оверлей (полосы/текст поверх кадра), ленивая инициализация.
+	hud *hudState
+
 	defaultMaterialGroup *wgpu.BindGroup // материал без текстур (fallback cube и т.п.)
 
 	// MSAA: multisample color + depth, резолв в surface view в конце main pass.

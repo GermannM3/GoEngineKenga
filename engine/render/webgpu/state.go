@@ -5,7 +5,9 @@ package webgpu
 import (
 	_ "embed"
 	"encoding/binary"
+	"fmt"
 	"math"
+	"os"
 
 	"github.com/cogentcore/webgpu/wgpu"
 
@@ -656,6 +658,14 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 		compositePass.Release()
 	}
 
+	// --- HUD-оверлей поверх кадра (полосы здоровья, текст, экраны победы/поражения) ---
+	if frame.HUD != nil {
+		if err := sc.renderHUD(encoder, view, frame.HUD, width, height, s.config.Format); err != nil {
+			// Ошибка HUD не должна убивать кадр — сцена уже отрисована
+			fmt.Fprintf(os.Stderr, "kenga: hud: %v\n", err)
+		}
+	}
+
 	cmdBuffer, err := encoder.Finish(nil)
 	if err != nil {
 		return err
@@ -669,6 +679,7 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 
 func (s *state) Destroy() {
 	if s.scene != nil {
+		s.scene.destroyHUD()
 		for _, c := range s.scene.meshCache {
 			if c != nil && c.vertexBuf != nil {
 				c.vertexBuf.Release()
