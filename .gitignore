@@ -33,3 +33,5 @@ vendor/
 # локальный тулчейн / собранные бинари
 .toolchain/
 kenga-webgpu.exe
+.tmp-*
+.final-*
