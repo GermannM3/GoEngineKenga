@@ -597,7 +597,7 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 		if bh < 1 {
 			bh = 1
 		}
-		postUbBytes := make([]byte, 16)
+		postUbBytes := make([]byte, 32)
 
 		brightPass := encoder.BeginRenderPass(&wgpu.RenderPassDescriptor{
 			ColorAttachments: []wgpu.RenderPassColorAttachment{
@@ -829,8 +829,10 @@ func (s *state) Destroy() {
 				bg.Release()
 			}
 		}
-		if s.scene.postBGL != nil {
-			s.scene.postBGL.Release()
+		for _, bgl := range []*wgpu.BindGroupLayout{s.scene.postBGLBright, s.scene.postBGLBlur, s.scene.postBGLComposite} {
+			if bgl != nil {
+				bgl.Release()
+			}
 		}
 		if s.scene.postUniform != nil {
 			s.scene.postUniform.Release()

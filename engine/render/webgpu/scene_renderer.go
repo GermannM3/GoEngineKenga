@@ -635,8 +635,10 @@ type sceneState struct {
 	brightPipeline    *wgpu.RenderPipeline
 	blurPipeline      *wgpu.RenderPipeline
 	compositePipeline *wgpu.RenderPipeline
-	postUniform       *wgpu.Buffer // 32 bytes: direction vec2, intensity, vignette, dof*
-	postBGL           *wgpu.BindGroupLayout
+	postUniform       *wgpu.Buffer          // 32 bytes: direction vec2, intensity, vignette, dof*
+	postBGLBright     *wgpu.BindGroupLayout // биндинги 0,1
+	postBGLBlur       *wgpu.BindGroupLayout // 0,1 + юниформ (3)
+	postBGLComposite  *wgpu.BindGroupLayout // 0..3 (сцена + bloom + юниформ)
 	brightBG          *wgpu.BindGroup
 	blurAB, blurBA    *wgpu.BindGroup
 	compositeBG       *wgpu.BindGroup
@@ -792,12 +794,13 @@ func (sc *sceneState) ensurePostTargets(device *wgpu.Device, width, height int) 
 	sc.bloomTexB, sc.bloomViewB = tb, vb
 	sc.postW, sc.postH = width, height
 
-	// Bind groups пост-процесса (текстуры готовы; layout общий для всех пайплайнов).
-	mk := func(entries []wgpu.BindGroupEntry) *wgpu.BindGroup {
-		if sc.postBGL == nil {
+	// Bind groups пост-процесса: у каждого пайплайна свой layout — bright
+	// семплирует только сцену, blur добавляет юниформы, composite — всё + bloom.
+	mk := func(bgl *wgpu.BindGroupLayout, entries []wgpu.BindGroupEntry) *wgpu.BindGroup {
+		if bgl == nil {
 			return nil
 		}
-		bg, err := device.CreateBindGroup(&wgpu.BindGroupDescriptor{Layout: sc.postBGL, Entries: entries})
+		bg, err := device.CreateBindGroup(&wgpu.BindGroupDescriptor{Layout: bgl, Entries: entries})
 		if err != nil {
 			return nil
 		}
@@ -809,25 +812,21 @@ func (sc *sceneState) ensurePostTargets(device *wgpu.Device, width, height int) 
 			*bg = nil
 		}
 	}
-	sc.brightBG = mk([]wgpu.BindGroupEntry{
+	sc.brightBG = mk(sc.postBGLBright, []wgpu.BindGroupEntry{
 		{Binding: 0, TextureView: sc.sceneView},
 		{Binding: 1, Sampler: sc.envSampler},
-		{Binding: 2, TextureView: sc.bloomViewA},
-		{Binding: 3, Buffer: sc.postUniform, Size: 32},
 	})
-	sc.blurAB = mk([]wgpu.BindGroupEntry{
+	sc.blurAB = mk(sc.postBGLBlur, []wgpu.BindGroupEntry{
 		{Binding: 0, TextureView: sc.bloomViewA},
 		{Binding: 1, Sampler: sc.envSampler},
-		{Binding: 2, TextureView: sc.bloomViewA},
 		{Binding: 3, Buffer: sc.postUniform, Size: 32},
 	})
-	sc.blurBA = mk([]wgpu.BindGroupEntry{
+	sc.blurBA = mk(sc.postBGLBlur, []wgpu.BindGroupEntry{
 		{Binding: 0, TextureView: sc.bloomViewB},
 		{Binding: 1, Sampler: sc.envSampler},
-		{Binding: 2, TextureView: sc.bloomViewB},
 		{Binding: 3, Buffer: sc.postUniform, Size: 32},
 	})
-	sc.compositeBG = mk([]wgpu.BindGroupEntry{
+	sc.compositeBG = mk(sc.postBGLComposite, []wgpu.BindGroupEntry{
 		{Binding: 0, TextureView: sc.sceneView},
 		{Binding: 1, Sampler: sc.envSampler},
 		{Binding: 2, TextureView: sc.bloomViewA},
@@ -1882,7 +1881,7 @@ func (s *state) initSceneState() error {
 		bg.Release()
 		return err
 	}
-	envBgl := skinnedPl.GetBindGroupLayout(3)
+	envBgl := pipeline.GetBindGroupLayout(3) // группа 3 (env/IBL) мешевого пайплайна — та же группа ставится в обоих проходах
 	envBg, err := s.device.CreateBindGroup(&wgpu.BindGroupDescriptor{
 		Layout: envBgl,
 		Entries: []wgpu.BindGroupEntry{
@@ -1977,8 +1976,92 @@ func (s *state) initSceneState() error {
 		releaseUpToEnv()
 		return err
 	}
+
+	// Явный layout пост-процесса: auto-layout bright-пайплайна содержит только
+	// его 2 биндинга, а composite требует все 4 (2 текстуры + сэмплер + юниформ).
+	postBGLBright, err := s.device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
+		Label: "post bright BGL",
+		Entries: []wgpu.BindGroupLayoutEntry{
+			{Binding: 0, Visibility: wgpu.ShaderStageFragment, Texture: wgpu.TextureBindingLayout{SampleType: wgpu.TextureSampleTypeFloat, ViewDimension: wgpu.TextureViewDimension2D}},
+			{Binding: 1, Visibility: wgpu.ShaderStageFragment, Sampler: wgpu.SamplerBindingLayout{Type: wgpu.SamplerBindingTypeFiltering}},
+		},
+	})
+	if err != nil {
+		postUb.Release()
+		postShader.Release()
+		releaseUpToEnv()
+		return err
+	}
+	mkBGL := func(label string, extra ...wgpu.BindGroupLayoutEntry) (*wgpu.BindGroupLayout, error) {
+		entries := []wgpu.BindGroupLayoutEntry{
+			{Binding: 0, Visibility: wgpu.ShaderStageFragment, Texture: wgpu.TextureBindingLayout{SampleType: wgpu.TextureSampleTypeFloat, ViewDimension: wgpu.TextureViewDimension2D}},
+			{Binding: 1, Visibility: wgpu.ShaderStageFragment, Sampler: wgpu.SamplerBindingLayout{Type: wgpu.SamplerBindingTypeFiltering}},
+		}
+		entries = append(entries, extra...)
+		return s.device.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{Label: label, Entries: entries})
+	}
+	postBGLBlur, err := mkBGL("post blur BGL",
+		wgpu.BindGroupLayoutEntry{Binding: 3, Visibility: wgpu.ShaderStageFragment, Buffer: wgpu.BufferBindingLayout{Type: wgpu.BufferBindingTypeUniform, MinBindingSize: 32}})
+	if err != nil {
+		postBGLBright.Release()
+		postUb.Release()
+		postShader.Release()
+		releaseUpToEnv()
+		return err
+	}
+	postBGLComposite, err := mkBGL("post composite BGL",
+		wgpu.BindGroupLayoutEntry{Binding: 2, Visibility: wgpu.ShaderStageFragment, Texture: wgpu.TextureBindingLayout{SampleType: wgpu.TextureSampleTypeFloat, ViewDimension: wgpu.TextureViewDimension2D}},
+		wgpu.BindGroupLayoutEntry{Binding: 3, Visibility: wgpu.ShaderStageFragment, Buffer: wgpu.BufferBindingLayout{Type: wgpu.BufferBindingTypeUniform, MinBindingSize: 32}})
+	if err != nil {
+		postBGLBlur.Release()
+		postBGLBright.Release()
+		postUb.Release()
+		postShader.Release()
+		releaseUpToEnv()
+		return err
+	}
+	mkPlayout := func(bgl *wgpu.BindGroupLayout) (*wgpu.PipelineLayout, error) {
+		return s.device.CreatePipelineLayout(&wgpu.PipelineLayoutDescriptor{
+			Label:            "post pipeline layout",
+			BindGroupLayouts: []*wgpu.BindGroupLayout{bgl},
+		})
+	}
+	brightPlayout, err := mkPlayout(postBGLBright)
+	if err != nil {
+		postBGLComposite.Release()
+		postBGLBlur.Release()
+		postBGLBright.Release()
+		postUb.Release()
+		postShader.Release()
+		releaseUpToEnv()
+		return err
+	}
+	blurPlayout, err := mkPlayout(postBGLBlur)
+	if err != nil {
+		brightPlayout.Release()
+		postBGLComposite.Release()
+		postBGLBlur.Release()
+		postBGLBright.Release()
+		postUb.Release()
+		postShader.Release()
+		releaseUpToEnv()
+		return err
+	}
+	compositePlayout, err := mkPlayout(postBGLComposite)
+	if err != nil {
+		blurPlayout.Release()
+		brightPlayout.Release()
+		postBGLComposite.Release()
+		postBGLBlur.Release()
+		postBGLBright.Release()
+		postUb.Release()
+		postShader.Release()
+		releaseUpToEnv()
+		return err
+	}
 	brightPl, err := s.device.CreateRenderPipeline(&wgpu.RenderPipelineDescriptor{
 		Label:       "Bright Pipeline",
+		Layout:      brightPlayout,
 		Vertex:      wgpu.VertexState{Module: postShader, EntryPoint: "vs_fullscreen"},
 		Primitive:   wgpu.PrimitiveState{Topology: wgpu.PrimitiveTopologyTriangleList},
 		Multisample: wgpu.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
@@ -1998,6 +2081,7 @@ func (s *state) initSceneState() error {
 	}
 	blurPl, err := s.device.CreateRenderPipeline(&wgpu.RenderPipelineDescriptor{
 		Label:       "Blur Pipeline",
+		Layout:      blurPlayout,
 		Vertex:      wgpu.VertexState{Module: postShader, EntryPoint: "vs_fullscreen"},
 		Primitive:   wgpu.PrimitiveState{Topology: wgpu.PrimitiveTopologyTriangleList},
 		Multisample: wgpu.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
@@ -2018,6 +2102,7 @@ func (s *state) initSceneState() error {
 	}
 	compositePl, err := s.device.CreateRenderPipeline(&wgpu.RenderPipelineDescriptor{
 		Label:       "Composite Pipeline",
+		Layout:      compositePlayout,
 		Vertex:      wgpu.VertexState{Module: postShader, EntryPoint: "vs_fullscreen"},
 		Primitive:   wgpu.PrimitiveState{Topology: wgpu.PrimitiveTopologyTriangleList},
 		Multisample: wgpu.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
@@ -2038,7 +2123,9 @@ func (s *state) initSceneState() error {
 		return err
 	}
 	postShader.Release()
-	postBgl := brightPl.GetBindGroupLayout(0)
+	brightPlayout.Release()
+	blurPlayout.Release()
+	compositePlayout.Release()
 
 	s.scene = &sceneState{
 		device:                      s.device,
@@ -2086,7 +2173,9 @@ func (s *state) initSceneState() error {
 		blurPipeline:                blurPl,
 		compositePipeline:           compositePl,
 		postUniform:                 postUb,
-		postBGL:                     postBgl,
+		postBGLBright:               postBGLBright,
+		postBGLBlur:                 postBGLBlur,
+		postBGLComposite:            postBGLComposite,
 	}
 	return nil
 }

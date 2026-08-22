@@ -62,3 +62,5 @@ require (
 )
 
 replace github.com/go-gl/glfw/v3.3/glfw => ./third_party/glfw
+
+replace github.com/cogentcore/webgpu => ./third_party/webgpu
