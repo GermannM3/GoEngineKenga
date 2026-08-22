@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"math"
 	"math/rand"
 
 	"goenginekenga/engine/ecs"
@@ -89,6 +90,28 @@ func UpdateFollowCameras(w *ecs.World, dt float32) {
 			tr.Position = emath.Lerp(tr.Position, desired, t)
 		} else {
 			tr.Position = desired
+		}
+
+		// Взгляд на цель (third-person, как в Unity): forward камеры =
+		// (sinY*cosX, -sinX, -cosY*cosX), решаем относительно target-pos.
+		toTarget := target.Position.Sub(tr.Position)
+		l := toTarget.Len()
+		if l > 0.001 {
+			tr.Rotation.Y = float32(math.Atan2(float64(toTarget.X), float64(-toTarget.Z)) * 180 / math.Pi)
+			tr.Rotation.X = float32(-math.Asin(float64(toTarget.Y/l)) * 180 / math.Pi)
+		}
+		// Камера не покидает арену: иначе за краем платформы видны её
+		// тёмные боковые грани вместо игры.
+		const camBound = 13.0
+		if tr.Position.X > camBound {
+			tr.Position.X = camBound
+		} else if tr.Position.X < -camBound {
+			tr.Position.X = -camBound
+		}
+		if tr.Position.Z > camBound {
+			tr.Position.Z = camBound
+		} else if tr.Position.Z < -camBound {
+			tr.Position.Z = -camBound
 		}
 		w.SetTransform(id, tr)
 	}

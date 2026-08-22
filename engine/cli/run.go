@@ -341,7 +341,12 @@ func newRunCommand() *cobra.Command {
 					return err
 				}
 				rt.ReplaceFromScene(reloaded)
-				gameLogicSystem.SetLevel(idx + 1)
+				// Номер уровня: титульная сцена (index 0 при меню) не считается.
+				if menu {
+					gameLogicSystem.SetLevel(idx)
+				} else {
+					gameLogicSystem.SetLevel(idx + 1)
+				}
 				frame.OrbitResetRequested = true
 				return nil
 			}

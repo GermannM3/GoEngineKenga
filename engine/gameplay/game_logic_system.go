@@ -133,7 +133,44 @@ func (gls *GameLogicSystem) Update(world *ecs.World, inputState *input.State, dt
 	gls.updateEnemies(world, dt)
 	gls.checkItemPickups(world)
 	gls.checkHazards(world)
+	gls.clampPlayerToArena(world)
 	gls.updateGameStatus(world)
+}
+
+// clampPlayerToArena — невидимые стены: игрок не покидает арену
+// (отброс от врага не должен выбрасывать его в пустоту).
+func (gls *GameLogicSystem) clampPlayerToArena(world *ecs.World) {
+	if gls.playerID == 0 {
+		return
+	}
+	tr, ok := world.GetTransform(gls.playerID)
+	if !ok {
+		return
+	}
+	const bound = 11.0
+	clamped := false
+	if tr.Position.X > bound {
+		tr.Position.X = bound
+		clamped = true
+	} else if tr.Position.X < -bound {
+		tr.Position.X = -bound
+		clamped = true
+	}
+	if tr.Position.Z > bound {
+		tr.Position.Z = bound
+		clamped = true
+	} else if tr.Position.Z < -bound {
+		tr.Position.Z = -bound
+		clamped = true
+	}
+	if clamped {
+		world.SetTransform(gls.playerID, tr)
+		if rb, hasRb := world.GetRigidbody(gls.playerID); hasRb {
+			rb.Velocity.X *= -0.3 // мягкий отскок от стены
+			rb.Velocity.Z *= -0.3
+			world.SetRigidbody(gls.playerID, rb)
+		}
+	}
 }
 
 // updatePlayerAttack: удар игрока по вводу (F / ЛКМ) через Attacker.

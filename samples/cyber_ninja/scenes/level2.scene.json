@@ -355,13 +355,13 @@
         "arcDeg": 360,
         "damage": 15,
         "cooldown": 1.2,
-        "knockback": 6
+        "knockback": 3.5
       },
       "enemyBrain": {
         "patrolSpan": 5,
         "speed": 2.2,
         "chaseSpeed": 3.4,
-        "aggroRadius": 7,
+        "aggroRadius": 4.5,
         "attackRadius": 1.9
       }
     },
@@ -424,13 +424,13 @@
         "arcDeg": 360,
         "damage": 15,
         "cooldown": 1.2,
-        "knockback": 6
+        "knockback": 3.5
       },
       "enemyBrain": {
         "patrolSpan": 5,
         "speed": 2.2,
         "chaseSpeed": 3.4,
-        "aggroRadius": 7,
+        "aggroRadius": 4.5,
         "attackRadius": 1.9
       }
     },
@@ -493,13 +493,13 @@
         "arcDeg": 360,
         "damage": 15,
         "cooldown": 1.2,
-        "knockback": 6
+        "knockback": 3.5
       },
       "enemyBrain": {
         "patrolSpan": 5,
         "speed": 2.2,
         "chaseSpeed": 3.4,
-        "aggroRadius": 7,
+        "aggroRadius": 4.5,
         "attackRadius": 1.9
       }
     },
@@ -971,13 +971,13 @@
         "arcDeg": 360,
         "damage": 15,
         "cooldown": 1.2,
-        "knockback": 6
+        "knockback": 3.5
       },
       "enemyBrain": {
         "patrolSpan": 5,
         "speed": 2.2,
         "chaseSpeed": 3.4,
-        "aggroRadius": 7,
+        "aggroRadius": 4.5,
         "attackRadius": 1.9
       }
     }

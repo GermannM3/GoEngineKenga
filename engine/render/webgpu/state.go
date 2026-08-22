@@ -33,14 +33,15 @@ var pointShadowSkinnedWGSL string
 var postprocessWGSL string
 
 type state struct {
-	instance *wgpu.Instance
-	adapter  *wgpu.Adapter
-	surface  *wgpu.Surface
-	device   *wgpu.Device
-	queue    *wgpu.Queue
-	config   *wgpu.SurfaceConfiguration
-	pipeline *wgpu.RenderPipeline
-	scene    *sceneState
+	debugFrame int // счётчик кадров для KENG_DEBUG_DRAWS
+	instance   *wgpu.Instance
+	adapter    *wgpu.Adapter
+	surface    *wgpu.Surface
+	device     *wgpu.Device
+	queue      *wgpu.Queue
+	config     *wgpu.SurfaceConfiguration
+	pipeline   *wgpu.RenderPipeline
+	scene      *sceneState
 }
 
 func initState[T interface{ GetSize() (int, int) }](window T, sd *wgpu.SurfaceDescriptor) (s *state, err error) {
@@ -468,6 +469,29 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 		camPos = emath.Vec3{X: pbrData.camPos[0], Y: pbrData.camPos[1], Z: pbrData.camPos[2]}
 	}
 	batches := buildInstanceBatches(frame.World, &frustum, camPos, resolver)
+	// Временная диагностика пропадающих мешей (KENG_DEBUG_DRAWS=1).
+	if os.Getenv("KENG_DEBUG_DRAWS") != "" && s.debugFrame%90 == 0 {
+		inst := 0
+		for _, b := range batches {
+			inst += len(b.transforms)
+		}
+		sk := buildSkinnedDraws(frame.World, &frustum, camPos, resolver)
+		fmt.Fprintf(os.Stderr, "[dbg] batches=%d instances=%d skinned=%d cam=(%.1f %.1f %.1f) vp0=%.2f\n",
+			len(batches), inst, len(sk), camPos.X, camPos.Y, camPos.Z, pbrData.viewProj[0])
+		for bi, b := range batches {
+			if bi > 4 {
+				break
+			}
+			vb, vc := sc.getOrCreateMeshBuffer(resolver, b.meshAssetID)
+			vbMark := 0
+			if vb != nil {
+				vbMark = 1
+			}
+			fmt.Fprintf(os.Stderr, "[dbg]   batch[%d] mesh=%s vc=%d inst=%d vb=%d\n",
+				bi, shortID(b.meshAssetID), vc, len(b.transforms), vbMark)
+		}
+	}
+	s.debugFrame++
 	for _, batch := range batches {
 		mat := batch.material
 		if mat == nil {
@@ -488,9 +512,21 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 		}
 		renderPass.SetBindGroup(2, mg, nil)
 
-		vb, vc := sc.getOrCreateMeshBuffer(resolver, batch.meshAssetID)
-		if vb == nil {
-			continue
+		// Пустой MeshAssetID — процедурный куб (как в Ebiten-пути):
+		// земля/платформы/заглушки рисуются без ассета.
+		useCube := batch.meshAssetID == ""
+		var vb *wgpu.Buffer
+		var vc uint32
+		if useCube {
+			if sc.cubeVertexBuf == nil || sc.cubeVertexCount == 0 {
+				continue
+			}
+			vb, vc = sc.cubeVertexBuf, sc.cubeVertexCount
+		} else {
+			vb, vc = sc.getOrCreateMeshBuffer(resolver, batch.meshAssetID)
+			if vb == nil {
+				continue
+			}
 		}
 		instanceBuf := buildInstanceBuffer(s.device, batch.transforms)
 		if instanceBuf == nil {
@@ -882,4 +918,12 @@ func (s *state) Destroy() {
 		s.instance.Release()
 		s.instance = nil
 	}
+}
+
+// shortID — укороченный asset ID для отладочной печати.
+func shortID(s string) string {
+	if len(s) > 8 {
+		return s[:8]
+	}
+	return s
 }

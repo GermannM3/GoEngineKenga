@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"os"
 
 	"github.com/cogentcore/webgpu/wgpu"
 
@@ -918,7 +919,7 @@ func (s *state) initSceneState() error {
 			Topology:         wgpu.PrimitiveTopologyTriangleList,
 			StripIndexFormat: wgpu.IndexFormatUndefined,
 			FrontFace:        wgpu.FrontFaceCCW,
-			CullMode:         wgpu.CullModeBack,
+			CullMode:         wgpu.CullModeNone, // меши репо CW, процедурный куб CCW — рисуем оба направления
 		},
 		DepthStencil: &wgpu.DepthStencilState{
 			Format:            wgpu.TextureFormatDepth32Float,
@@ -1055,7 +1056,7 @@ func (s *state) initSceneState() error {
 		Primitive: wgpu.PrimitiveState{
 			Topology:  wgpu.PrimitiveTopologyTriangleList,
 			FrontFace: wgpu.FrontFaceCCW,
-			CullMode:  wgpu.CullModeBack,
+			CullMode:  wgpu.CullModeNone, // см. комментарий выше: смешанные намотки
 		},
 		DepthStencil: &wgpu.DepthStencilState{
 			Format:            wgpu.TextureFormatDepth32Float,
@@ -1155,7 +1156,7 @@ func (s *state) initSceneState() error {
 		Primitive: wgpu.PrimitiveState{
 			Topology:  wgpu.PrimitiveTopologyTriangleList,
 			FrontFace: wgpu.FrontFaceCCW,
-			CullMode:  wgpu.CullModeBack,
+			CullMode:  wgpu.CullModeNone, // см. комментарий выше: смешанные намотки
 		},
 		DepthStencil: &wgpu.DepthStencilState{
 			Format:            wgpu.TextureFormatDepth32Float,
@@ -1363,7 +1364,7 @@ func (s *state) initSceneState() error {
 		Primitive: wgpu.PrimitiveState{
 			Topology:  wgpu.PrimitiveTopologyTriangleList,
 			FrontFace: wgpu.FrontFaceCCW,
-			CullMode:  wgpu.CullModeBack,
+			CullMode:  wgpu.CullModeNone, // см. комментарий выше: смешанные намотки
 		},
 		DepthStencil: &wgpu.DepthStencilState{
 			Format:            wgpu.TextureFormatDepth32Float,
@@ -1499,7 +1500,7 @@ func (s *state) initSceneState() error {
 		Primitive: wgpu.PrimitiveState{
 			Topology:  wgpu.PrimitiveTopologyTriangleList,
 			FrontFace: wgpu.FrontFaceCCW,
-			CullMode:  wgpu.CullModeBack,
+			CullMode:  wgpu.CullModeNone, // см. комментарий выше: смешанные намотки
 		},
 		DepthStencil: &wgpu.DepthStencilState{
 			Format:            wgpu.TextureFormatDepth32Float,
@@ -2325,13 +2326,21 @@ func getPBRSceneData(world *ecs.World, width, height int) (data pbrSceneData, ok
 			tr = ecs.Transform{Position: emath.Vec3{X: 0, Y: 0, Z: 5}, Scale: emath.Vec3{X: 1, Y: 1, Z: 1}}
 		}
 		camPos = tr.Position
+		// Конвенция движка (как в orbit_camera.go): forward =
+		// (sinY*cosP, -sinP, -cosY*cosP); rotY=0 → взгляд в -Z.
+		radX := tr.Rotation.X * math.Pi / 180
 		radY := tr.Rotation.Y * math.Pi / 180
+		cosP := float32(math.Cos(float64(radX)))
 		forward := emath.Vec3{
-			X: float32(math.Sin(float64(radY))),
-			Y: 0,
-			Z: float32(math.Cos(float64(radY))),
+			X: float32(math.Sin(float64(radY))) * cosP,
+			Y: float32(-math.Sin(float64(radX))),
+			Z: float32(-math.Cos(float64(radY))) * cosP,
 		}
-		target := emath.Vec3{X: tr.Position.X + forward.X*10, Y: tr.Position.Y, Z: tr.Position.Z + forward.Z*10}
+		target := emath.Vec3{
+			X: tr.Position.X + forward.X*10,
+			Y: tr.Position.Y + forward.Y*10,
+			Z: tr.Position.Z + forward.Z*10,
+		}
 		c := render.NewCamera3D()
 		c.SetPosition(tr.Position)
 		c.SetTarget(target)
@@ -2555,7 +2564,8 @@ func buildInstanceBatches(world *ecs.World, frustum *render.Frustum, camPos emat
 			sz = 1
 		}
 		radius := float32(math.Sqrt(float64(sx*sx + sy*sy + sz*sz)))
-		if frustum != nil && !frustum.SphereInFrustum(tr.Position, radius) {
+		// KENG_NO_CULL=1 — отключить frustum culling (диагностика видимости).
+		if os.Getenv("KENG_NO_CULL") == "" && frustum != nil && !frustum.SphereInFrustum(tr.Position, radius) {
 			continue
 		}
 		// Дистанционный culling + LOD по расстоянию до камеры.
