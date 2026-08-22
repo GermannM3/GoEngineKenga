@@ -228,7 +228,8 @@ func (sc *sceneState) createTextureRGBA(label string, w, h int, data []byte, srg
 	if err := sc.queue.WriteTexture(
 		&wgpu.ImageCopyTexture{Texture: tex},
 		upload,
-		&wgpu.TextureDataLayout{Offset: 0, BytesPerRow: uint32(aligned)},
+		// RowsPerImage обязателен ненулевой: в wgpu-native это NonZeroU32 (conv.rs паникует на 0).
+		&wgpu.TextureDataLayout{Offset: 0, BytesPerRow: uint32(aligned), RowsPerImage: uint32(h)},
 		&wgpu.Extent3D{Width: uint32(w), Height: uint32(h), DepthOrArrayLayers: 1},
 	); err != nil {
 		tex.Release()
@@ -258,13 +259,14 @@ func (sc *sceneState) ensureMaterialResources() {
 		return
 	}
 	smp, err := sc.device.CreateSampler(&wgpu.SamplerDescriptor{
-		Label:        "material sampler",
-		AddressModeU: wgpu.AddressModeRepeat,
-		AddressModeV: wgpu.AddressModeRepeat,
-		AddressModeW: wgpu.AddressModeRepeat,
-		MagFilter:    wgpu.FilterModeLinear,
-		MinFilter:    wgpu.FilterModeLinear,
-		MipmapFilter: wgpu.MipmapFilterModeLinear,
+		Label:         "material sampler",
+		AddressModeU:  wgpu.AddressModeRepeat,
+		AddressModeV:  wgpu.AddressModeRepeat,
+		AddressModeW:  wgpu.AddressModeRepeat,
+		MagFilter:     wgpu.FilterModeLinear,
+		MinFilter:     wgpu.FilterModeLinear,
+		MipmapFilter:  wgpu.MipmapFilterModeLinear,
+		MaxAnisotropy: 1,
 	})
 	if err != nil {
 		white.Release()
@@ -551,6 +553,15 @@ type cachedMesh struct {
 }
 
 // sceneState holds GPU resources for rendering a 3D scene.
+// stencilDisabled — валидное «стенсил выключен» состояние: wgpu v0.23 паникует
+// на нулевом CompareFunction (Undefined) в DepthStencilState (conv.rs).
+var stencilDisabled = wgpu.StencilFaceState{
+	Compare:     wgpu.CompareFunctionAlways,
+	FailOp:      wgpu.StencilOperationKeep,
+	DepthFailOp: wgpu.StencilOperationKeep,
+	PassOp:      wgpu.StencilOperationKeep,
+}
+
 type sceneState struct {
 	device          *wgpu.Device
 	queue           *wgpu.Queue
@@ -914,6 +925,10 @@ func (s *state) initSceneState() error {
 			Format:            wgpu.TextureFormatDepth32Float,
 			DepthWriteEnabled: true,
 			DepthCompare:      wgpu.CompareFunctionLessEqual,
+			StencilFront:      stencilDisabled,
+			StencilBack:       stencilDisabled,
+			StencilReadMask:   0xFFFFFFFF,
+			StencilWriteMask:  0xFFFFFFFF,
 		},
 		Multisample: wgpu.MultisampleState{Count: 4, Mask: 0xFFFFFFFF},
 		Fragment: &wgpu.FragmentState{
@@ -976,9 +991,10 @@ func (s *state) initSceneState() error {
 	}
 
 	shadowSampler, err := s.device.CreateSampler(&wgpu.SamplerDescriptor{
-		Compare:      wgpu.CompareFunctionLessEqual,
-		AddressModeU: wgpu.AddressModeClampToEdge,
-		AddressModeV: wgpu.AddressModeClampToEdge,
+		Compare:       wgpu.CompareFunctionLessEqual,
+		AddressModeU:  wgpu.AddressModeClampToEdge,
+		AddressModeV:  wgpu.AddressModeClampToEdge,
+		MaxAnisotropy: 1,
 	})
 	if err != nil {
 		shadowView.Release()
@@ -1046,8 +1062,13 @@ func (s *state) initSceneState() error {
 			Format:            wgpu.TextureFormatDepth32Float,
 			DepthWriteEnabled: true,
 			DepthCompare:      wgpu.CompareFunctionLessEqual,
+			StencilFront:      stencilDisabled,
+			StencilBack:       stencilDisabled,
+			StencilReadMask:   0xFFFFFFFF,
+			StencilWriteMask:  0xFFFFFFFF,
 		},
-		Fragment: nil,
+		Multisample: wgpu.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
+		Fragment:    nil,
 	})
 	if err != nil {
 		shadowUb.Release()
@@ -1141,8 +1162,13 @@ func (s *state) initSceneState() error {
 			Format:            wgpu.TextureFormatDepth32Float,
 			DepthWriteEnabled: true,
 			DepthCompare:      wgpu.CompareFunctionLessEqual,
+			StencilFront:      stencilDisabled,
+			StencilBack:       stencilDisabled,
+			StencilReadMask:   0xFFFFFFFF,
+			StencilWriteMask:  0xFFFFFFFF,
 		},
-		Fragment: nil,
+		Multisample: wgpu.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
+		Fragment:    nil,
 	})
 	if err != nil {
 		shadowSkinnedShader.Release()
@@ -1233,6 +1259,7 @@ func (s *state) initSceneState() error {
 		Label:           "point shadow array view",
 		Dimension:       wgpu.TextureViewDimension2DArray,
 		ArrayLayerCount: 6,
+		MipLevelCount:   1,
 	})
 	if err != nil {
 		pointShadowTex.Release()
@@ -1254,6 +1281,7 @@ func (s *state) initSceneState() error {
 			Dimension:       wgpu.TextureViewDimension2D,
 			BaseArrayLayer:  uint32(i),
 			ArrayLayerCount: 1,
+			MipLevelCount:   1,
 		})
 		if err != nil {
 			for j := 0; j < i; j++ {
@@ -1342,7 +1370,12 @@ func (s *state) initSceneState() error {
 			Format:            wgpu.TextureFormatDepth32Float,
 			DepthWriteEnabled: true,
 			DepthCompare:      wgpu.CompareFunctionLessEqual,
+			StencilFront:      stencilDisabled,
+			StencilBack:       stencilDisabled,
+			StencilReadMask:   0xFFFFFFFF,
+			StencilWriteMask:  0xFFFFFFFF,
 		},
+		Multisample: wgpu.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
 		Fragment: &wgpu.FragmentState{
 			Module:     pointShadowShader,
 			EntryPoint: "fs_main",
@@ -1473,7 +1506,12 @@ func (s *state) initSceneState() error {
 			Format:            wgpu.TextureFormatDepth32Float,
 			DepthWriteEnabled: true,
 			DepthCompare:      wgpu.CompareFunctionLessEqual,
+			StencilFront:      stencilDisabled,
+			StencilBack:       stencilDisabled,
+			StencilReadMask:   0xFFFFFFFF,
+			StencilWriteMask:  0xFFFFFFFF,
 		},
+		Multisample: wgpu.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
 		Fragment: &wgpu.FragmentState{
 			Module:     pointShadowSkinnedShader,
 			EntryPoint: "fs_main",
@@ -1685,6 +1723,10 @@ func (s *state) initSceneState() error {
 			Format:            wgpu.TextureFormatDepth32Float,
 			DepthWriteEnabled: true,
 			DepthCompare:      wgpu.CompareFunctionLessEqual,
+			StencilFront:      stencilDisabled,
+			StencilBack:       stencilDisabled,
+			StencilReadMask:   0xFFFFFFFF,
+			StencilWriteMask:  0xFFFFFFFF,
 		},
 		Multisample: wgpu.MultisampleState{Count: 4, Mask: 0xFFFFFFFF},
 		Fragment: &wgpu.FragmentState{
@@ -1801,13 +1843,14 @@ func (s *state) initSceneState() error {
 		return err
 	}
 	envSmp, err := s.device.CreateSampler(&wgpu.SamplerDescriptor{
-		Label:        "env sampler",
-		AddressModeU: wgpu.AddressModeClampToEdge,
-		AddressModeV: wgpu.AddressModeClampToEdge,
-		AddressModeW: wgpu.AddressModeClampToEdge,
-		MagFilter:    wgpu.FilterModeLinear,
-		MinFilter:    wgpu.FilterModeLinear,
-		MipmapFilter: wgpu.MipmapFilterModeLinear,
+		Label:         "env sampler",
+		AddressModeU:  wgpu.AddressModeClampToEdge,
+		AddressModeV:  wgpu.AddressModeClampToEdge,
+		AddressModeW:  wgpu.AddressModeClampToEdge,
+		MagFilter:     wgpu.FilterModeLinear,
+		MinFilter:     wgpu.FilterModeLinear,
+		MipmapFilter:  wgpu.MipmapFilterModeLinear,
+		MaxAnisotropy: 1,
 	})
 	if err != nil {
 		irrViewR.Release()
@@ -1935,9 +1978,10 @@ func (s *state) initSceneState() error {
 		return err
 	}
 	brightPl, err := s.device.CreateRenderPipeline(&wgpu.RenderPipelineDescriptor{
-		Label:     "Bright Pipeline",
-		Vertex:    wgpu.VertexState{Module: postShader, EntryPoint: "vs_fullscreen"},
-		Primitive: wgpu.PrimitiveState{Topology: wgpu.PrimitiveTopologyTriangleList},
+		Label:       "Bright Pipeline",
+		Vertex:      wgpu.VertexState{Module: postShader, EntryPoint: "vs_fullscreen"},
+		Primitive:   wgpu.PrimitiveState{Topology: wgpu.PrimitiveTopologyTriangleList},
+		Multisample: wgpu.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
 		Fragment: &wgpu.FragmentState{
 			Module:     postShader,
 			EntryPoint: "fs_bright",
@@ -1953,9 +1997,10 @@ func (s *state) initSceneState() error {
 		return err
 	}
 	blurPl, err := s.device.CreateRenderPipeline(&wgpu.RenderPipelineDescriptor{
-		Label:     "Blur Pipeline",
-		Vertex:    wgpu.VertexState{Module: postShader, EntryPoint: "vs_fullscreen"},
-		Primitive: wgpu.PrimitiveState{Topology: wgpu.PrimitiveTopologyTriangleList},
+		Label:       "Blur Pipeline",
+		Vertex:      wgpu.VertexState{Module: postShader, EntryPoint: "vs_fullscreen"},
+		Primitive:   wgpu.PrimitiveState{Topology: wgpu.PrimitiveTopologyTriangleList},
+		Multisample: wgpu.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
 		Fragment: &wgpu.FragmentState{
 			Module:     postShader,
 			EntryPoint: "fs_blur",
@@ -1972,9 +2017,10 @@ func (s *state) initSceneState() error {
 		return err
 	}
 	compositePl, err := s.device.CreateRenderPipeline(&wgpu.RenderPipelineDescriptor{
-		Label:     "Composite Pipeline",
-		Vertex:    wgpu.VertexState{Module: postShader, EntryPoint: "vs_fullscreen"},
-		Primitive: wgpu.PrimitiveState{Topology: wgpu.PrimitiveTopologyTriangleList},
+		Label:       "Composite Pipeline",
+		Vertex:      wgpu.VertexState{Module: postShader, EntryPoint: "vs_fullscreen"},
+		Primitive:   wgpu.PrimitiveState{Topology: wgpu.PrimitiveTopologyTriangleList},
+		Multisample: wgpu.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
 		Fragment: &wgpu.FragmentState{
 			Module:     postShader,
 			EntryPoint: "fs_composite",

@@ -17,7 +17,7 @@ var smp: sampler;
 @group(0) @binding(2)
 var bloom_tex: texture_2d<f32>;
 @group(0) @binding(3)
-var uniforms: PostUniforms;
+var<uniform> uniforms: PostUniforms;
 
 struct VSOut {
   @builtin(position) pos: vec4<f32>,
@@ -79,16 +79,17 @@ fn fs_composite(in: VSOut) -> @location(0) vec4<f32> {
   var weight = 1.0;
   if dof_amt > 0.0005 {
     // 6 направлений × 2 кольца (+ центр).
-    let dirs = array<vec2<f32>, 6>(
+    var dirs = array<vec2<f32>, 6>(
       vec2<f32>(1.0, 0.0), vec2<f32>(0.5, 0.866), vec2<f32>(-0.5, 0.866),
       vec2<f32>(-1.0, 0.0), vec2<f32>(-0.5, -0.866), vec2<f32>(0.5, -0.866));
+    // textureSampleLevel: допустим вне uniform control flow (внутри if).
     for (var i = 0; i < 6; i++) {
       let o1 = dirs[i] * dof_amt;
       let o2 = dirs[i] * dof_amt * 2.0;
-      acc += textureSample(scene_tex, smp, in.uv + o1).rgb;
-      acc += textureSample(scene_tex, smp, in.uv - o1).rgb;
-      acc += textureSample(scene_tex, smp, in.uv + o2).rgb;
-      acc += textureSample(scene_tex, smp, in.uv - o2).rgb;
+      acc += textureSampleLevel(scene_tex, smp, in.uv + o1, 0.0).rgb;
+      acc += textureSampleLevel(scene_tex, smp, in.uv - o1, 0.0).rgb;
+      acc += textureSampleLevel(scene_tex, smp, in.uv + o2, 0.0).rgb;
+      acc += textureSampleLevel(scene_tex, smp, in.uv - o2, 0.0).rgb;
       weight += 4.0;
     }
   }

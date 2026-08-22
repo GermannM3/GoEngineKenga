@@ -3,6 +3,7 @@
 package webgpu
 
 import (
+	_ "embed"
 	"encoding/binary"
 	"image"
 	"math"
@@ -14,6 +15,9 @@ import (
 
 	"goenginekenga/engine/render"
 )
+
+//go:embed hud.wgsl
+var hudWGSL string
 
 // HUD-оверлей WebGPU: квады из render.BuildHUD (полосы + текст) поверх кадра.
 // Текст — атлас basicfont.Face7x13 (ASCII), полосы — белая 1×1 текстура.
@@ -77,7 +81,8 @@ func (sc *sceneState) ensureHUD(format wgpu.TextureFormat) error {
 				},
 			}},
 		},
-		Primitive: wgpu.PrimitiveState{Topology: wgpu.PrimitiveTopologyTriangleList},
+		Primitive:   wgpu.PrimitiveState{Topology: wgpu.PrimitiveTopologyTriangleList},
+		Multisample: wgpu.MultisampleState{Count: 1, Mask: 0xFFFFFFFF},
 		Fragment: &wgpu.FragmentState{
 			Module: shader, EntryPoint: "fs_main",
 			Targets: []wgpu.ColorTargetState{
@@ -121,11 +126,12 @@ func (sc *sceneState) ensureHUD(format wgpu.TextureFormat) error {
 	}
 
 	smp, err := sc.device.CreateSampler(&wgpu.SamplerDescriptor{
-		Label:        "hud sampler",
-		AddressModeU: wgpu.AddressModeClampToEdge,
-		AddressModeV: wgpu.AddressModeClampToEdge,
-		MagFilter:    wgpu.FilterModeLinear,
-		MinFilter:    wgpu.FilterModeLinear,
+		Label:         "hud sampler",
+		AddressModeU:  wgpu.AddressModeClampToEdge,
+		AddressModeV:  wgpu.AddressModeClampToEdge,
+		MagFilter:     wgpu.FilterModeLinear,
+		MinFilter:     wgpu.FilterModeLinear,
+		MaxAnisotropy: 1,
 	})
 	if err != nil {
 		whiteTex.Release()
@@ -147,9 +153,7 @@ func (sc *sceneState) ensureHUD(format wgpu.TextureFormat) error {
 			},
 		})
 	}
-	atlasView := atlasTex.CreateView(nil)
-	atlasBG, err := mkBG(atlasView)
-	atlasView.Release()
+	atlasView, err := atlasTex.CreateView(nil)
 	if err != nil {
 		smp.Release()
 		whiteTex.Release()
@@ -159,9 +163,30 @@ func (sc *sceneState) ensureHUD(format wgpu.TextureFormat) error {
 		pl.Release()
 		return fail(err)
 	}
-	whiteView := whiteTex.CreateView(nil)
+	defer atlasView.Release()
+	atlasBG, err := mkBG(atlasView)
+	if err != nil {
+		smp.Release()
+		whiteTex.Release()
+		atlasTex.Release()
+		vbuf.Release()
+		uniform.Release()
+		pl.Release()
+		return fail(err)
+	}
+	whiteView, err := whiteTex.CreateView(nil)
+	if err != nil {
+		atlasBG.Release()
+		smp.Release()
+		whiteTex.Release()
+		atlasTex.Release()
+		vbuf.Release()
+		uniform.Release()
+		pl.Release()
+		return fail(err)
+	}
+	defer whiteView.Release()
 	whiteBG, err := mkBG(whiteView)
-	whiteView.Release()
 	if err != nil {
 		atlasBG.Release()
 		smp.Release()

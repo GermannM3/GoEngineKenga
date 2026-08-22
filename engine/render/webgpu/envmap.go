@@ -238,6 +238,7 @@ func createEnvTextures(device *wgpu.Device, queue *wgpu.Queue) (env *wgpu.Textur
 		Label:           "env cube view",
 		Dimension:       wgpu.TextureViewDimensionCube,
 		ArrayLayerCount: 6,
+		MipLevelCount:   1,
 	})
 	if err != nil {
 		irr.Release()
@@ -248,6 +249,7 @@ func createEnvTextures(device *wgpu.Device, queue *wgpu.Queue) (env *wgpu.Textur
 		Label:           "irradiance cube view",
 		Dimension:       wgpu.TextureViewDimensionCube,
 		ArrayLayerCount: 6,
+		MipLevelCount:   1,
 	})
 	if err != nil {
 		envView.Release()

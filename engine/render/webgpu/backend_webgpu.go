@@ -126,8 +126,7 @@ func (b *Backend) RunLoop(initial *render.Frame) error {
 			dt = 1.0 / 60.0
 		}
 
-		// Мышь: позиция и кнопки в input.State (орбита ниже использует свои raw-флаги)
-		mx, my := window.GetCursorPos()
+		// Мышь: позиция и кнопки в input.State (орбита выше использует свои raw-флаги)
 		b.InputState.SetMousePosition(int(mx), int(my))
 		b.InputState.SetMouseButton(input.MouseButtonLeft, window.GetMouseButton(glfw.MouseButtonLeft) == glfw.Press)
 		b.InputState.SetMouseButton(input.MouseButtonMiddle, window.GetMouseButton(glfw.MouseButtonMiddle) == glfw.Press)

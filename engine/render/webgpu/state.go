@@ -176,6 +176,9 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 	}
 	defer encoder.Release()
 
+	// Буферы инстансов живут до Submit (Release до Submit = use-after-destroy в wgpu).
+	var transientBuffers []*wgpu.Buffer
+
 	sc := s.scene
 	pbrData, ok := getPBRSceneData(frame.World, width, height)
 	if !ok {
@@ -496,7 +499,7 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 		renderPass.SetVertexBuffer(0, vb, 0, wgpu.WholeSize)
 		renderPass.SetVertexBuffer(1, instanceBuf, 0, wgpu.WholeSize)
 		renderPass.Draw(vc, uint32(len(batch.transforms)), 0, 0)
-		instanceBuf.Release()
+		transientBuffers = append(transientBuffers, instanceBuf)
 	}
 
 	// Skinned mesh pass (bone matrices в vertex shader)
@@ -577,7 +580,7 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 				renderPass.SetVertexBuffer(0, sc.cubeVertexBuf, 0, wgpu.WholeSize)
 				renderPass.SetVertexBuffer(1, instanceBuf, 0, wgpu.WholeSize)
 				renderPass.Draw(sc.cubeVertexCount, 1, 0, 0)
-				instanceBuf.Release()
+				transientBuffers = append(transientBuffers, instanceBuf)
 			}
 		}
 	}
@@ -673,6 +676,9 @@ func (s *state) RenderScene(frame *render.Frame, resolver *asset.Resolver) error
 	defer cmdBuffer.Release()
 
 	s.queue.Submit(cmdBuffer)
+	for _, b := range transientBuffers {
+		b.Release()
+	}
 	s.surface.Present()
 	return nil
 }

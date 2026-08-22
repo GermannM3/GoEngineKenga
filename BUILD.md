@@ -107,6 +107,17 @@ GoEngineKenga собирается для следующих платформ:
 
 ## WebGPU-бэкенд (требуется C-компилятор)
 
+> ⚠️ **Известный дефект рантайма (2026-08):** бэкенд компилируется, но падает при
+> запуске: `wgpuDeviceCreateCommandEncoder` паникует в wgpu-core (`storage.rs`,
+> «Device does not exist»). Причина — прекомпилированная `libwgpu_native.a` в
+> `github.com/cogentcore/webgpu v0.23.0` несовместима со своими же Go-биндингами
+> (CI проекта собирает библиотеку из HEAD trunk без пина коммита). Проверено:
+> CreateBuffer/CreateRenderPipeline/HasFeature работают, CreateCommandEncoder — нет;
+> воспроизводится минимальным репро без кода движка; не зависит от версии GCC
+> (14.1/16.2) и тега wgpu-native (trunk/27). До исправления апстрима играбельный
+> путь — Ebiten-бэкенд. Конфликт класса окна GLFW с ebiten решён локально:
+> `third_party/glfw` (replace в go.mod) с уникальным именем класса.
+
 Бэкенд `-tags webgpu` (PBR, MSAA 4×, тени, spotlight) требует cgo и C-компилятор
 GNU-ABI (MinGW-w64). Без него используется Ebiten (software rasterizer).
 
