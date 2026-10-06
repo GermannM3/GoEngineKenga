@@ -20,9 +20,11 @@ const (
 // SFXClips — asset ID звуков боя (резолвятся в run.go по путям исходников).
 // Пустая строка = звук не используется.
 type SFXClips struct {
-	Hit   string // удар по врагу
-	Hurt  string // игрок получил урон
-	Death string // враг умер
+	Hit     string // удар по врагу
+	Hurt    string // игрок получил урон
+	Death   string // враг умер
+	Attack  string // взмах игрока (промах/попадание)
+	Victory string // победа (портал)
 }
 
 // GameLogicSystem handles the core gameplay mechanics: enemy AI,
@@ -58,6 +60,12 @@ type GameLogicSystem struct {
 	enemyFSMs  map[ecs.EntityID]*enemyFSM
 	shards     map[ecs.EntityID]float32 // осколки эффектов: id -> оставшаяся жизнь
 	lastWorld  *ecs.World               // смена мира (перезапуск/уровень) сбрасывает состояние
+
+	// Игровой цикл уровня: собери все сферы → открой портал → добеги до него.
+	levelTime    float32      // секунд с начала уровня (подсказки управления)
+	portalSpawned bool        // все сферы собраны, портал открыт
+	PortalPos    emath.Vec3   `json:"-"` // позиция портала (для HUD/тестов)
+	portalID     ecs.EntityID
 
 	// Колбэки, устанавливаемые run.go: перезагрузка текущего уровня (R)
 	// и переход на следующий (победа, ENTER).
@@ -102,8 +110,12 @@ func (gls *GameLogicSystem) Update(world *ecs.World, inputState *input.State, dt
 		gls.status = StatusPlaying
 		gls.score = 0
 		gls.kills = 0
+		gls.levelTime = 0
+		gls.portalSpawned = false
+		gls.portalID = 0
 		gls.readHealth(world)
 	}
+	gls.levelTime += dt
 
 	// R — перезапуск уровня в любом состоянии
 	if inputState != nil && inputState.IsKeyJustPressed(input.KeyR) {
@@ -468,14 +480,51 @@ func (gls *GameLogicSystem) clipOf(world *ecs.World, id ecs.EntityID) string {
 	return src.Clip
 }
 
-// updateGameStatus checks win/lose conditions
+// updateGameStatus: победа через игровой цикл — собери все сферы →
+// откроется портал → добеги до него (как в Unity-платформерах).
 func (gls *GameLogicSystem) updateGameStatus(world *ecs.World) {
 	if gls.health <= 0 {
 		gls.status = StatusDefeat
 		return
 	}
-	if len(gls.itemIDs) > 0 && gls.score >= len(gls.itemIDs) {
+	if !gls.portalSpawned && len(gls.itemIDs) > 0 && gls.score >= len(gls.itemIDs) {
+		gls.spawnPortal(world)
+	}
+	if gls.portalSpawned {
+		p := posOf(world, gls.playerID)
+		d := p.Sub(gls.PortalPos).Len()
+		if d < 1.8 {
+			gls.status = StatusVictory
+			if gls.Sound != nil && gls.SFX.Victory != "" {
+				gls.Sound.PlayOneShot(gls.SFX.Victory, gls.PortalPos, 1.0)
+			}
+		}
+	}
+}
+
+// spawnPortal открывает портал: большой вращающийся кристалл в центре арены.
+func (gls *GameLogicSystem) spawnPortal(w *ecs.World) {
+	gls.portalSpawned = true
+	if gls.ShardMeshID == "" || gls.playerID == 0 {
+		// Без меша портала — старое поведение (победа сразу после сбора).
 		gls.status = StatusVictory
+		return
+	}
+	id := w.CreateEntity("GoalPortal")
+	w.SetTransform(id, ecs.Transform{
+		Position: emath.V3(0, 1.6, -4),
+		Rotation: emath.V3(0, 45, 0),
+		Scale:    emath.Vec3{X: 2.8, Y: 2.8, Z: 2.8},
+	})
+	w.SetMeshRenderer(id, ecs.MeshRenderer{
+		MeshAssetID: gls.ShardMeshID,
+		ColorR:      160, ColorG: 255, ColorB: 200, ColorA: 255,
+	})
+	w.SetScript(id, ecs.Script{Name: "spinner", Params: map[string]string{"speed": "260"}})
+	gls.portalID = id
+	gls.PortalPos = posOf(w, id)
+	if gls.Sound != nil && gls.SFX.Victory != "" {
+		gls.Sound.PlayOneShot(gls.SFX.Victory, gls.PortalPos, 0.9)
 	}
 }
 

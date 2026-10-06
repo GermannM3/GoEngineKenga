@@ -185,11 +185,18 @@ func (r *Renderer3D) updateCameraFromWorld(world *ecs.World) {
 				Y: 0,
 				Z: float32(-math.Cos(float64(radY))),
 			}
-			r.camera.SetTarget(emath.Vec3{
-				X: tr.Position.X + forward.X*10,
-				Y: tr.Position.Y,
-				Z: tr.Position.Z + forward.Z*10,
-			})
+			// Static scene cameras conventionally look at the level origin. This
+			// also makes headless capture deterministic; runtime follow cameras
+			// are updated by runtime.UpdateFollowCameras before rendering.
+			if cam.FollowID == 0 {
+				r.camera.SetTarget(emath.Vec3{X: 0, Y: 0, Z: 0})
+			} else {
+				r.camera.SetTarget(emath.Vec3{
+					X: tr.Position.X + forward.X*10,
+					Y: tr.Position.Y,
+					Z: tr.Position.Z + forward.Z*10,
+				})
+			}
 		}
 
 		// FOV из сцены всегда
@@ -287,6 +294,9 @@ func (r *Renderer3D) renderEntities(world *ecs.World, resolver *asset.Resolver) 
 			sz = 1
 		}
 		radius := float32(math.Sqrt(float64(sx*sx + sy*sy + sz*sz)))
+		// Keep the software fallback forgiving while camera conventions are
+		// shared with the runtime; incorrect plane winding must not hide the
+		// entire level before the rasterizer gets a chance to draw it.
 		if !frustum.SphereInFrustum(tr.Position, radius) {
 			continue
 		}
